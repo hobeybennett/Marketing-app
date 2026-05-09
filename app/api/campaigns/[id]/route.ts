@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (action === 'approve') {
     const campaign = await prisma.campaign.update({
       where: { id: params.id },
-      data: { status: 'APPROVED' },
+      data: { status: 'READY' },
     });
     return NextResponse.json(campaign);
   }

@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
 
 async function getCampaigns() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/campaigns`, { cache: 'no-store' });
-  if (!res.ok) return [];
-  return res.json();
+  return prisma.campaign.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { jobs: true },
+  });
 }
 
 const STATUS_COLORS: Record<string, string> = {

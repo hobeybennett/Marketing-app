@@ -3,6 +3,7 @@ builder = "NIXPACKS"
 
 [deploy]
 startCommand = "npm run start"
+preDeployCommand = "npx prisma db push --accept-data-loss"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

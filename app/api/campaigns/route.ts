@@ -19,9 +19,13 @@ export async function POST(req: NextRequest) {
 
   const audioFile = formData.get('audio') as File | null;
   const coverFile = formData.get('coverArt') as File | null;
+  const coverArtUrl = formData.get('coverArtUrl') as string | null;
 
-  if (!audioFile || !coverFile) {
-    return NextResponse.json({ error: 'audio and coverArt are required' }, { status: 400 });
+  if (!audioFile) {
+    return NextResponse.json({ error: 'audio is required' }, { status: 400 });
+  }
+  if (!coverFile && !coverArtUrl) {
+    return NextResponse.json({ error: 'coverArt file or coverArtUrl is required' }, { status: 400 });
   }
 
   const schema = z.object({
@@ -43,12 +47,21 @@ export async function POST(req: NextRequest) {
   await mkdir(campaignDir, { recursive: true });
 
   const audioExt = audioFile.name.split('.').pop() || 'mp3';
-  const coverExt = coverFile.name.split('.').pop() || 'jpg';
   const audioPath = path.join(campaignDir, `audio.${audioExt}`);
-  const coverPath = path.join(campaignDir, `cover.${coverExt}`);
-
   await writeFile(audioPath, Buffer.from(await audioFile.arrayBuffer()));
-  await writeFile(coverPath, Buffer.from(await coverFile.arrayBuffer()));
+
+  let coverPath: string;
+  if (coverFile) {
+    const coverExt = coverFile.name.split('.').pop() || 'jpg';
+    coverPath = path.join(campaignDir, `cover.${coverExt}`);
+    await writeFile(coverPath, Buffer.from(await coverFile.arrayBuffer()));
+  } else {
+    // Download cover art from Spotify CDN
+    const imgRes = await fetch(coverArtUrl!);
+    if (!imgRes.ok) throw new Error('Failed to download cover art from Spotify');
+    coverPath = path.join(campaignDir, 'cover.jpg');
+    await writeFile(coverPath, Buffer.from(await imgRes.arrayBuffer()));
+  }
 
   const { artistName, songTitle, genre, mood, autoLaunch } = parsed.data;
 

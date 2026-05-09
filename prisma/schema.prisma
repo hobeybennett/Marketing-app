@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Campaign {
+  id             String         @id @default(uuid())
+  artistName     String
+  songTitle      String
+  genre          String?
+  mood           String?
+  audioUrl       String
+  coverArtUrl    String
+  autoLaunch     Boolean        @default(false)
+  status         CampaignStatus @default(PENDING)
+  metaCampaignId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  jobs      CampaignJob[]
+  segments  AudioSegment[]
+  creatives VideoCreative[]
+  adCopies  AdCopy[]
+  audiences Audience[]
+}
+
+enum CampaignStatus {
+  PENDING
+  PROCESSING
+  AWAITING_APPROVAL
+  APPROVED
+  LAUNCHING
+  LIVE
+  FAILED
+  PAUSED
+}
+
+model CampaignJob {
+  id         String    @id @default(uuid())
+  campaignId String
+  stage      JobStage
+  status     JobStatus @default(PENDING)
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+enum JobStage {
+  SEGMENTATION
+  VIDEO_GEN
+  COPY_GEN
+  AUDIENCE_GEN
+  META_SETUP
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model AudioSegment {
+  id         String   @id @default(uuid())
+  campaignId String
+  fileUrl    String
+  startSec   Float
+  endSec     Float
+  index      Int
+  createdAt  DateTime @default(now())
+
+  campaign  Campaign        @relation(fields: [campaignId], references: [id])
+  creatives VideoCreative[]
+}
+
+model VideoCreative {
+  id         String   @id @default(uuid())
+  campaignId String
+  segmentId  String
+  fileUrl    String
+  ctaText    String
+  createdAt  DateTime @default(now())
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id])
+  segment  AudioSegment  @relation(fields: [segmentId], references: [id])
+  adCopies AdCopy[]
+}
+
+model AdCopy {
+  id          String   @id @default(uuid())
+  campaignId  String
+  creativeId  String
+  headline    String
+  primaryText String
+  description String?
+  createdAt   DateTime @default(now())
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id])
+  creative VideoCreative @relation(fields: [creativeId], references: [id])
+}
+
+model Audience {
+  id                String       @id @default(uuid())
+  campaignId        String
+  name              String
+  type              AudienceType
+  interests         String[]
+  lookalikeSeed     String?
+  retargetingSource String?
+  metaAdSetId       String?
+  createdAt         DateTime     @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+}
+
+enum AudienceType {
+  INTEREST
+  RETARGETING
+  LOOKALIKE
+}

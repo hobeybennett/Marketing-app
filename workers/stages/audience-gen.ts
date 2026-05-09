@@ -49,7 +49,7 @@ export async function runAudienceGen(campaignId: string) {
   } else {
     await prisma.campaign.update({
       where: { id: campaignId },
-      data: { status: 'AWAITING_APPROVAL' },
+      data: { status: 'READY' },
     });
   }
 }

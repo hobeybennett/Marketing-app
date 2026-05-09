@@ -4,12 +4,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const PROCESSING_STATUSES = new Set(['PENDING', 'PROCESSING', 'LAUNCHING']);
+const TERMINAL_STATUSES = new Set(['READY', 'LIVE', 'FAILED', 'PAUSED']);
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   PROCESSING: 'Processing',
-  AWAITING_APPROVAL: 'Awaiting Approval',
-  APPROVED: 'Approved',
+  READY: 'Ready for Launch',
   LAUNCHING: 'Launching',
   LIVE: 'Live',
   FAILED: 'Failed',
@@ -19,8 +19,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'text-gray-400',
   PROCESSING: 'text-blue-400',
-  AWAITING_APPROVAL: 'text-yellow-400',
-  APPROVED: 'text-green-400',
+  READY: 'text-yellow-400',
   LAUNCHING: 'text-purple-400',
   LIVE: 'text-green-400',
   FAILED: 'text-red-400',
@@ -59,7 +58,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   }, [fetchCampaign]);
 
   useEffect(() => {
-    if (!campaign || !PROCESSING_STATUSES.has(campaign.status)) return;
+    if (!campaign || TERMINAL_STATUSES.has(campaign.status)) return;
     const interval = setInterval(fetchCampaign, 3000);
     return () => clearInterval(interval);
   }, [campaign, fetchCampaign]);
@@ -122,21 +121,31 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
       </div>
 
       {/* Approval banner */}
-      {campaign.status === 'AWAITING_APPROVAL' && (
-        <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-6">
-          <h2 className="font-semibold mb-2">Ready for Review</h2>
-          <p className="text-gray-400 text-sm mb-4">
-            All creatives and copy have been generated. Review below, then launch.
-          </p>
-          <button
-            onClick={() => handleAction('launch')}
-            disabled={actionLoading}
-            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 px-6 py-2 rounded-lg font-medium transition"
-          >
-            {actionLoading ? 'Launching…' : 'Launch Campaign'}
-          </button>
-        </div>
-      )}
+      {campaign.status === 'READY' && (() => {
+        const hasApprovedCreative = campaign.creatives?.some(
+          (c: any) => c.adCopies?.length > 0
+        );
+        return (
+          <div className="bg-yellow-900/30 border border-yellow-700 rounded-xl p-6">
+            <h2 className="font-semibold mb-2">Ready for Launch</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              All creatives and copy have been generated. Review below, then launch.
+            </p>
+            {!hasApprovedCreative && (
+              <p className="text-yellow-500 text-sm mb-3">
+                Waiting for at least 1 creative with ad copy before launch is available.
+              </p>
+            )}
+            <button
+              onClick={() => handleAction('launch')}
+              disabled={actionLoading || !hasApprovedCreative}
+              className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed px-6 py-2 rounded-lg font-medium transition"
+            >
+              {actionLoading ? 'Launching…' : 'Launch Campaign'}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Audio segments */}
       {campaign.segments?.length > 0 && (

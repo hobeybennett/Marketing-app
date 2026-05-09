@@ -10,8 +10,7 @@ async function getCampaigns() {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-gray-600',
   PROCESSING: 'bg-blue-600',
-  AWAITING_APPROVAL: 'bg-yellow-600',
-  APPROVED: 'bg-green-600',
+  READY: 'bg-yellow-600',
   LAUNCHING: 'bg-purple-600',
   LIVE: 'bg-green-500',
   FAILED: 'bg-red-600',

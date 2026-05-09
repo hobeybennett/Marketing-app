@@ -33,8 +33,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });
     if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-    if (campaign.status !== 'APPROVED' && campaign.status !== 'AWAITING_APPROVAL') {
-      return NextResponse.json({ error: 'campaign must be in APPROVED or AWAITING_APPROVAL status' }, { status: 400 });
+    if (campaign.status !== 'READY') {
+      return NextResponse.json({ error: 'campaign must be in READY status to launch' }, { status: 400 });
     }
 
     await prisma.campaign.update({

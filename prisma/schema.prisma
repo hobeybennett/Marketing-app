@@ -31,8 +31,7 @@ model Campaign {
 enum CampaignStatus {
   PENDING
   PROCESSING
-  AWAITING_APPROVAL
-  APPROVED
+  READY
   LAUNCHING
   LIVE
   FAILED

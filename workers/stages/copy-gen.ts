@@ -15,8 +15,6 @@ export async function runCopyGen(campaignId: string) {
     const copy = await generateAdCopy({
       artistName: campaign.artistName,
       songTitle: campaign.songTitle,
-      genre: campaign.genre ?? 'music',
-      mood: campaign.mood ?? 'energetic',
       ctaText: creative.ctaText,
     });
 
@@ -37,8 +35,6 @@ export async function runCopyGen(campaignId: string) {
 async function generateAdCopy(params: {
   artistName: string;
   songTitle: string;
-  genre: string;
-  mood: string;
   ctaText: string;
 }): Promise<{ headline: string; primaryText: string; description?: string }> {
   const message = await anthropic.messages.create({
@@ -51,8 +47,6 @@ async function generateAdCopy(params: {
 
 Artist: ${params.artistName}
 Song: ${params.songTitle}
-Genre: ${params.genre}
-Mood: ${params.mood}
 CTA: ${params.ctaText}
 
 Return ONLY valid JSON:

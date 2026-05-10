@@ -46,9 +46,10 @@ export async function POST(req: NextRequest) {
 
   const track = await trackRes.json();
 
-  const artistName = track.artists.map((a: { name: string }) => a.name).join(', ');
-  const songTitle = track.name;
-  const coverArtUrl = track.album.images[0]?.url ?? null;
-
-  return NextResponse.json({ artistName, songTitle, coverArtUrl });
+  return NextResponse.json({
+    artistName: track.artists.map((a: { name: string }) => a.name).join(', '),
+    songTitle: track.name,
+    coverArtUrl: track.album.images[0]?.url ?? null,
+    previewUrl: track.preview_url ?? null,
+  });
 }

@@ -3,29 +3,18 @@ import { dispatchStage } from '../../lib/queue';
 
 const prisma = new PrismaClient();
 
-const GENRE_INTERESTS: Record<string, string[]> = {
-  pop: ['Pop music', 'Music streaming', 'Top 40'],
-  'hip-hop': ['Hip hop music', 'Rap music', 'Urban music'],
-  'r&b': ['R&B music', 'Soul music', 'Neo soul'],
-  rock: ['Rock music', 'Alternative rock', 'Indie music'],
-  electronic: ['Electronic music', 'EDM', 'House music'],
-  country: ['Country music', 'Folk music'],
-  default: ['Music streaming', 'Music fans', 'Spotify', 'Apple Music'],
-};
+const DEFAULT_INTERESTS = ['Music streaming', 'Music fans', 'Spotify', 'Apple Music'];
 
 export async function runAudienceGen(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
-
-  const genreKey = (campaign.genre ?? 'default').toLowerCase();
-  const interests = GENRE_INTERESTS[genreKey] ?? GENRE_INTERESTS.default;
 
   await prisma.audience.createMany({
     data: [
       {
         campaignId,
-        name: `${campaign.genre ?? 'Music'} Fans`,
+        name: 'Music Fans',
         type: 'INTEREST',
-        interests,
+        interests: DEFAULT_INTERESTS,
       },
       {
         campaignId,

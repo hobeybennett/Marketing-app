@@ -8,7 +8,6 @@ type SpotifyData = {
   artistName: string;
   songTitle: string;
   coverArtUrl: string | null;
-  previewUrl: string | null;
 };
 
 export default function NewCampaignPage() {
@@ -17,7 +16,6 @@ export default function NewCampaignPage() {
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
   const [spotify, setSpotify] = useState<SpotifyData | null>(null);
-
   const [artistName, setArtistName] = useState('');
   const [songTitle, setSongTitle] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,7 +48,6 @@ export default function NewCampaignPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!spotify) return;
-
     setLoading(true);
     setError('');
 
@@ -58,7 +55,6 @@ export default function NewCampaignPage() {
     formData.set('artistName', artistName);
     formData.set('songTitle', songTitle);
     if (spotify.coverArtUrl) formData.set('coverArtUrl', spotify.coverArtUrl);
-    if (spotify.previewUrl) formData.set('previewUrl', spotify.previewUrl);
 
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
@@ -78,10 +74,10 @@ export default function NewCampaignPage() {
     <div className="max-w-xl mx-auto">
       <h1 className="text-3xl font-bold mb-8">New Campaign</h1>
 
-      {/* Spotify lookup */}
+      {/* Step 1: Spotify lookup */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-        <h2 className="font-semibold mb-1">Paste your Spotify link</h2>
-        <p className="text-sm text-gray-400 mb-4">We'll pull the track info, cover art, and audio automatically.</p>
+        <h2 className="font-semibold mb-1">Step 1 — Paste your Spotify link</h2>
+        <p className="text-sm text-gray-400 mb-4">We'll pull your track info and cover art automatically.</p>
 
         <div className="flex gap-2">
           <input
@@ -118,19 +114,18 @@ export default function NewCampaignPage() {
             <div>
               <p className="font-semibold text-sm">{spotify.songTitle}</p>
               <p className="text-gray-400 text-sm">{spotify.artistName}</p>
-              {spotify.previewUrl
-                ? <p className="text-green-400 text-xs mt-1">✓ Audio preview found</p>
-                : <p className="text-yellow-400 text-xs mt-1">⚠ No preview — upload your MP3 below</p>
-              }
+              <p className="text-green-400 text-xs mt-1">✓ Track found</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Rest of form — only shown after lookup */}
+      {/* Step 2: upload + submit */}
       {spotify && (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold">Step 2 — Upload your track</h2>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Artist Name</label>
@@ -152,21 +147,18 @@ export default function NewCampaignPage() {
               </div>
             </div>
 
-            {/* Only show audio upload if no preview available */}
-            {!spotify.previewUrl && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Audio File (MP3 or WAV) *
-                </label>
-                <input
-                  name="audio"
-                  type="file"
-                  accept="audio/*"
-                  required
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:cursor-pointer"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Audio File (MP3 or WAV) *
+              </label>
+              <input
+                name="audio"
+                type="file"
+                accept="audio/*"
+                required
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:cursor-pointer"
+              />
+            </div>
 
             <div className="flex items-center gap-3">
               <input

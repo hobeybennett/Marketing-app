@@ -50,6 +50,5 @@ export async function POST(req: NextRequest) {
     artistName: track.artists.map((a: { name: string }) => a.name).join(', '),
     songTitle: track.name,
     coverArtUrl: track.album.images[0]?.url ?? null,
-    previewUrl: track.preview_url ?? null,
   });
 }

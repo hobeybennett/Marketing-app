@@ -19,10 +19,9 @@ export async function POST(req: NextRequest) {
 
   const audioFile = formData.get('audio') as File | null;
   const coverArtUrl = formData.get('coverArtUrl') as string | null;
-  const previewUrl = formData.get('previewUrl') as string | null;
 
-  if (!audioFile && !previewUrl) {
-    return NextResponse.json({ error: 'audio file or previewUrl is required' }, { status: 400 });
+  if (!audioFile) {
+    return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
   }
   if (!coverArtUrl) {
     return NextResponse.json({ error: 'coverArtUrl is required' }, { status: 400 });
@@ -44,22 +43,12 @@ export async function POST(req: NextRequest) {
   const campaignDir = path.join(uploadDir, campaignId);
   await mkdir(campaignDir, { recursive: true });
 
-  // Audio: prefer uploaded file, fall back to Spotify preview
-  let audioPath: string;
-  if (audioFile) {
-    const audioExt = audioFile.name.split('.').pop() || 'mp3';
-    audioPath = path.join(campaignDir, `audio.${audioExt}`);
-    await writeFile(audioPath, Buffer.from(await audioFile.arrayBuffer()));
-  } else {
-    const audioRes = await fetch(previewUrl!);
-    if (!audioRes.ok) throw new Error('Failed to download Spotify preview');
-    audioPath = path.join(campaignDir, 'audio.mp3');
-    await writeFile(audioPath, Buffer.from(await audioRes.arrayBuffer()));
-  }
+  const audioExt = audioFile.name.split('.').pop() || 'mp3';
+  const audioPath = path.join(campaignDir, `audio.${audioExt}`);
+  await writeFile(audioPath, Buffer.from(await audioFile.arrayBuffer()));
 
-  // Cover art: download from Spotify CDN
   const imgRes = await fetch(coverArtUrl);
-  if (!imgRes.ok) throw new Error('Failed to download cover art');
+  if (!imgRes.ok) throw new Error('Failed to download cover art from Spotify');
   const coverPath = path.join(campaignDir, 'cover.jpg');
   await writeFile(coverPath, Buffer.from(await imgRes.arrayBuffer()));
 

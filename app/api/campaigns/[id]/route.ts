@@ -32,6 +32,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (process.env.MOCK_MODE === 'true') {
     const campaign = mockStore.get(params.id);
     if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (action === 'continue') {
+      mockStore.startCampaignPhase(params.id);
+      return NextResponse.json({ status: 'building' });
+    }
     if (action === 'launch') {
       mockStore.launch(params.id);
       return NextResponse.json({ status: 'launching' });

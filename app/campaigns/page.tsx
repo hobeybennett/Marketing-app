@@ -13,11 +13,25 @@ async function getCampaigns() {
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-gray-600',
   PROCESSING: 'bg-blue-600',
-  READY: 'bg-yellow-600',
+  CONTENT_READY: 'bg-yellow-500',
+  BUILDING: 'bg-blue-500',
+  READY: 'bg-green-600',
   LAUNCHING: 'bg-purple-600',
   LIVE: 'bg-green-500',
   FAILED: 'bg-red-600',
   PAUSED: 'bg-gray-500',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  PROCESSING: 'Creating content',
+  CONTENT_READY: 'Content ready',
+  BUILDING: 'Building campaign',
+  READY: 'Ready to launch',
+  LAUNCHING: 'Launching',
+  LIVE: 'Live',
+  FAILED: 'Failed',
+  PAUSED: 'Paused',
 };
 
 export default async function CampaignsPage() {
@@ -59,7 +73,7 @@ export default async function CampaignsPage() {
                 <span
                   className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[c.status] ?? 'bg-gray-600'}`}
                 >
-                  {c.status.replace('_', ' ')}
+                  {STATUS_LABELS[c.status] ?? c.status.replace('_', ' ')}
                 </span>
               </div>
               <p className="text-sm text-gray-500 mt-3">

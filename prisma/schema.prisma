@@ -31,6 +31,8 @@ model Campaign {
 enum CampaignStatus {
   PENDING
   PROCESSING
+  CONTENT_READY
+  BUILDING
   READY
   LAUNCHING
   LIVE

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 function extractTrackId(url: string): string | null {
   const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
   return match ? match[1] : null;

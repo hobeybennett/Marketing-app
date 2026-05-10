@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
 
+export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {

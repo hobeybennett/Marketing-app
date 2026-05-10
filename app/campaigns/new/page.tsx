@@ -154,7 +154,7 @@ export default function NewCampaignPage() {
               <input
                 name="audio"
                 type="file"
-                accept="audio/*"
+                accept=".mp3,.wav,.aiff,.m4a,.flac,audio/mpeg,audio/wav,audio/x-wav,audio/aiff,audio/flac"
                 required
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:cursor-pointer"
               />

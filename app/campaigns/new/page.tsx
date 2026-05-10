@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+
+const TEST_SPOTIFY_URL = 'https://open.spotify.com/track/6Jv7kjGkhY2fT4yuBF3aTz';
 
 type SpotifyData = {
   artistName: string;
@@ -10,19 +12,54 @@ type SpotifyData = {
   coverArtUrl: string | null;
 };
 
+function generateTestWav(durationSecs = 30): Blob {
+  const sampleRate = 44100;
+  const numSamples = sampleRate * durationSecs;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  const write = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  write(8, 'WAVE');
+  write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  for (let i = 0; i < numSamples; i++) {
+    const sample = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.3;
+    view.setInt16(44 + i * 2, sample * 32767, true);
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 export default function NewCampaignPage() {
   const router = useRouter();
+  const audioInputRef = useRef<HTMLInputElement>(null);
+
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
   const [spotify, setSpotify] = useState<SpotifyData | null>(null);
   const [artistName, setArtistName] = useState('');
   const [songTitle, setSongTitle] = useState('');
+  const [audioFileName, setAudioFileName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function lookupSpotify() {
-    if (!spotifyUrl.trim()) return;
+  async function lookupSpotify(url = spotifyUrl) {
+    if (!url.trim()) return;
     setSpotifyLoading(true);
     setSpotifyError('');
     setSpotify(null);
@@ -31,7 +68,7 @@ export default function NewCampaignPage() {
       const res = await fetch('/api/spotify/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: spotifyUrl }),
+        body: JSON.stringify({ url }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lookup failed');
@@ -42,6 +79,20 @@ export default function NewCampaignPage() {
       setSpotifyError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSpotifyLoading(false);
+    }
+  }
+
+  async function useTestData() {
+    setSpotifyUrl(TEST_SPOTIFY_URL);
+    await lookupSpotify(TEST_SPOTIFY_URL);
+
+    const wav = generateTestWav(30);
+    const file = new File([wav], 'test-audio.wav', { type: 'audio/wav' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    if (audioInputRef.current) {
+      audioInputRef.current.files = dt.files;
+      setAudioFileName('test-audio.wav');
     }
   }
 
@@ -72,7 +123,16 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">New Campaign</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">New Campaign</h1>
+        <button
+          type="button"
+          onClick={useTestData}
+          className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-lg text-gray-300 transition"
+        >
+          Use test data
+        </button>
+      </div>
 
       {/* Step 1: Spotify lookup */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
@@ -90,7 +150,7 @@ export default function NewCampaignPage() {
           />
           <button
             type="button"
-            onClick={lookupSpotify}
+            onClick={() => lookupSpotify()}
             disabled={spotifyLoading || !spotifyUrl.trim()}
             className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 rounded-lg font-medium text-sm transition whitespace-nowrap"
           >
@@ -103,13 +163,7 @@ export default function NewCampaignPage() {
         {spotify && (
           <div className="flex items-center gap-4 mt-4 bg-gray-800 rounded-lg p-3">
             {spotify.coverArtUrl && (
-              <Image
-                src={spotify.coverArtUrl}
-                alt="Cover art"
-                width={56}
-                height={56}
-                className="rounded"
-              />
+              <Image src={spotify.coverArtUrl} alt="Cover art" width={56} height={56} className="rounded" />
             )}
             <div>
               <p className="font-semibold text-sm">{spotify.songTitle}</p>
@@ -120,7 +174,7 @@ export default function NewCampaignPage() {
         )}
       </div>
 
-      {/* Step 2: upload + submit */}
+      {/* Step 2 */}
       {spotify && (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
@@ -148,26 +202,23 @@ export default function NewCampaignPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Audio File (MP3 or WAV) *
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Audio File *</label>
               <input
+                ref={audioInputRef}
                 name="audio"
                 type="file"
                 accept=".mp3,.wav,.aiff,.m4a,.flac,audio/mpeg,audio/wav,audio/x-wav,audio/aiff,audio/flac"
                 required
+                onChange={(e) => setAudioFileName(e.target.files?.[0]?.name || '')}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:cursor-pointer"
               />
+              {audioFileName && (
+                <p className="text-xs text-gray-400 mt-1">Selected: {audioFileName}</p>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                name="autoLaunch"
-                id="autoLaunch"
-                value="true"
-                className="w-4 h-4 accent-blue-600"
-              />
+              <input type="checkbox" name="autoLaunch" id="autoLaunch" value="true" className="w-4 h-4 accent-blue-600" />
               <label htmlFor="autoLaunch" className="text-sm text-gray-300">
                 Auto-launch to Meta (skip approval step)
               </label>

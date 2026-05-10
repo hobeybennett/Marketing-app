@@ -5,11 +5,20 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
+import { mockStore, buildMockDetail } from '@/lib/mock-store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {
+  if (process.env.MOCK_MODE === 'true') {
+    const campaigns = mockStore.list().map((c) => {
+      const detail = buildMockDetail(c);
+      return { ...detail, jobs: detail.jobs };
+    });
+    return NextResponse.json(campaigns);
+  }
+
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
@@ -28,12 +37,8 @@ export async function POST(req: NextRequest) {
 
     console.log('[POST /api/campaigns] audioFile:', audioFile?.name, audioFile?.size, 'coverArtUrl:', coverArtUrl);
 
-    if (!audioFile) {
-      return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
-    }
-    if (!coverArtUrl) {
-      return NextResponse.json({ error: 'coverArtUrl is required' }, { status: 400 });
-    }
+    if (!audioFile) return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
+    if (!coverArtUrl) return NextResponse.json({ error: 'coverArtUrl is required' }, { status: 400 });
 
     const schema = z.object({
       artistName: z.string().min(1),
@@ -42,8 +47,18 @@ export async function POST(req: NextRequest) {
     });
 
     const parsed = schema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+
+    const { artistName, songTitle, autoLaunch } = parsed.data;
+
+    if (process.env.MOCK_MODE === 'true') {
+      const campaign = mockStore.create({
+        artistName,
+        songTitle,
+        coverArtUrl,
+        autoLaunch: autoLaunch === 'true',
+      });
+      return NextResponse.json(buildMockDetail(campaign), { status: 201 });
     }
 
     const campaignId = uuidv4();
@@ -64,8 +79,6 @@ export async function POST(req: NextRequest) {
     const coverPath = path.join(campaignDir, 'cover.jpg');
     await writeFile(coverPath, Buffer.from(await imgRes.arrayBuffer()));
     console.log('[POST /api/campaigns] cover art written');
-
-    const { artistName, songTitle, autoLaunch } = parsed.data;
 
     console.log('[POST /api/campaigns] creating DB record...');
     const campaign = await prisma.campaign.create({

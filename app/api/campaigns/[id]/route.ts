@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
+import { mockStore, buildMockDetail } from '@/lib/mock-store';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  if (process.env.MOCK_MODE === 'true') {
+    const campaign = mockStore.get(params.id);
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    return NextResponse.json(buildMockDetail(campaign));
+  }
+
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
@@ -20,8 +27,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const { action } = body;
+  const { action } = await req.json();
+
+  if (process.env.MOCK_MODE === 'true') {
+    const campaign = mockStore.get(params.id);
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (action === 'launch') {
+      mockStore.launch(params.id);
+      return NextResponse.json({ status: 'launching' });
+    }
+    return NextResponse.json({ error: 'unknown action' }, { status: 400 });
+  }
 
   if (action === 'approve') {
     const campaign = await prisma.campaign.update({
@@ -39,11 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: 'campaign must be in READY status to launch' }, { status: 400 });
     }
 
-    await prisma.campaign.update({
-      where: { id: params.id },
-      data: { status: 'LAUNCHING' },
-    });
-
+    await prisma.campaign.update({ where: { id: params.id }, data: { status: 'LAUNCHING' } });
     await dispatchStage(params.id, 'META_SETUP');
     return NextResponse.json({ status: 'launching' });
   }

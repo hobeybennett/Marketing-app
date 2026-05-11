@@ -18,6 +18,8 @@ model Campaign {
   autoLaunch     Boolean        @default(false)
   status         CampaignStatus @default(PENDING)
   metaCampaignId String?
+  visualConfig   Json?
+  clipDefinitions Json?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 

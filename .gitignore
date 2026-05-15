@@ -5,3 +5,4 @@ node_modules/
 prisma/migrations/
 *.tsbuildinfo
 .claude/
+next-env.d.ts

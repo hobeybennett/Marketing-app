@@ -1,8 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
 
-const prisma = new PrismaClient();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function runCopyGen(campaignId: string) {
@@ -38,7 +37,7 @@ async function generateAdCopy(params: {
   ctaText: string;
 }): Promise<{ headline: string; primaryText: string; description?: string }> {
   const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-haiku-4-5',
     max_tokens: 256,
     messages: [
       {
@@ -62,6 +61,9 @@ Return ONLY valid JSON:
   const text = message.content[0].type === 'text' ? message.content[0].text : '';
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('No JSON returned from Claude');
-
-  return JSON.parse(match[0]);
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    throw new Error(`Claude returned invalid JSON: ${text.slice(0, 200)}`);
+  }
 }

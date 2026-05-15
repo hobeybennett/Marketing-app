@@ -1,10 +1,8 @@
 import ffmpeg from 'fluent-ffmpeg';
 import * as path from 'path';
 import * as fs from 'fs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
-
-const prisma = new PrismaClient();
 
 const SEGMENT_DURATION = 30;
 const NUM_SEGMENTS = 5;
@@ -18,26 +16,24 @@ export async function runSegmentation(campaignId: string) {
 
   const duration = await getAudioDuration(campaign.audioUrl);
 
-  const step = duration / NUM_SEGMENTS;
-  const segments: { start: number; end: number; index: number }[] = [];
-  for (let i = 0; i < NUM_SEGMENTS; i++) {
-    const start = i * step;
-    const end = Math.min(start + SEGMENT_DURATION, duration);
-    segments.push({ start, end, index: i });
+  if (duration < SEGMENT_DURATION) {
+    throw new Error(`Track is too short (${duration.toFixed(1)}s). Minimum length is ${SEGMENT_DURATION}s.`);
   }
+
+  // Use user-defined clip start times if available, otherwise evenly space
+  const clipDefs = campaign.clipDefinitions as Array<{ startSec: number }> | null;
+  const step = duration / NUM_SEGMENTS;
+  const segments = Array.from({ length: NUM_SEGMENTS }, (_, i) => {
+    const startSec = clipDefs?.[i]?.startSec ?? i * step;
+    const endSec = Math.min(startSec + SEGMENT_DURATION, duration);
+    return { start: startSec, end: endSec, index: i };
+  });
 
   for (const seg of segments) {
     const outputFile = path.join(segmentDir, `segment_${seg.index}.mp3`);
     await cutSegment(campaign.audioUrl, outputFile, seg.start, seg.end - seg.start);
-
     await prisma.audioSegment.create({
-      data: {
-        campaignId,
-        fileUrl: outputFile,
-        startSec: seg.start,
-        endSec: seg.end,
-        index: seg.index,
-      },
+      data: { campaignId, fileUrl: outputFile, startSec: seg.start, endSec: seg.end, index: seg.index },
     });
   }
 

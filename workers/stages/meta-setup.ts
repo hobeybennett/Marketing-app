@@ -1,9 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const prisma = new PrismaClient();
-const META_API = 'https://graph.facebook.com/v19.0';
+const META_API = 'https://graph.facebook.com/v22.0';
 
 export async function runMetaSetup(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({
@@ -27,13 +26,17 @@ export async function runMetaSetup(campaignId: string) {
   }
 
   const token = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID!;
+  if (!process.env.META_AD_ACCOUNT_ID) throw new Error('META_AD_ACCOUNT_ID env var is required');
+  if (!process.env.META_PAGE_ID) throw new Error('META_PAGE_ID env var is required');
+  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const pageId = process.env.META_PAGE_ID;
 
   const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
     name: `Hitback — ${campaign.artistName} — ${campaign.songTitle}`,
     objective: 'OUTCOME_TRAFFIC',
     status: 'PAUSED',
     special_ad_categories: [],
+    destination_type: 'WEBSITE',
   });
 
   await prisma.campaign.update({
@@ -51,6 +54,32 @@ export async function runMetaSetup(campaignId: string) {
       );
       videoIds.set(creative.id, videoId);
     }
+  }
+
+  // Create one AdCreative per video creative
+  const adCreativeIds = new Map<string, string>(); // creativeId -> metaAdCreativeId
+  for (const creative of campaign.creatives) {
+    const copy = creative.adCopies[0];
+    if (!copy) continue;
+    const videoId = videoIds.get(creative.id);
+    if (!videoId) continue;
+
+    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, token, {
+      name: `${campaign.songTitle} — creative ${campaign.creatives.indexOf(creative) + 1}`,
+      object_story_spec: {
+        page_id: pageId,
+        video_data: {
+          video_id: videoId,
+          title: copy.headline,
+          message: copy.primaryText,
+          call_to_action: {
+            type: 'LISTEN_MUSIC',
+            value: { link: `https://hitback.app/c/${campaignId}` },
+          },
+        },
+      },
+    });
+    adCreativeIds.set(creative.id, adCreative.id);
   }
 
   for (const audience of campaign.audiences) {
@@ -71,31 +100,14 @@ export async function runMetaSetup(campaignId: string) {
     });
 
     for (const creative of campaign.creatives) {
-      const copy = creative.adCopies[0];
-      if (!copy) continue;
-
-      const videoId = videoIds.get(creative.id);
-      const creativePayload = videoId ? {
-        video_data: {
-          video_id: videoId,
-          title: copy.headline,
-          call_to_action: {
-            type: 'LISTEN_NOW',
-            value: { link: `https://hitback.app/c/${campaignId}` },
-          },
-        },
-      } : {
-        // fallback if video upload failed
-        link_url: `https://hitback.app/c/${campaignId}`,
-        title: copy.headline,
-        body: copy.primaryText,
-      };
+      const adCreativeId = adCreativeIds.get(creative.id);
+      if (!adCreativeId) continue; // skip if no creative
 
       await metaPost(`/act_${adAccountId}/ads`, token, {
-        name: `${campaign.songTitle} — ${creative.ctaText}`,
+        name: `${campaign.songTitle} — ${creative.ctaText} — ${audience.name}`,
         adset_id: adSet.id,
         status: 'PAUSED',
-        creative: creativePayload,
+        creative: { creative_id: adCreativeId },
       });
     }
   }
@@ -112,13 +124,15 @@ async function uploadVideoToMeta(filePath: string, token: string, adAccountId: s
   form.append('title', title);
   form.append('source', new Blob([fileBuffer], { type: 'video/mp4' }), path.basename(filePath));
 
-  const res = await fetch(`https://graph.facebook.com/v19.0/act_${adAccountId}/advideos?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos?access_token=${token}`, {
     method: 'POST',
     body: form,
   });
   if (!res.ok) throw new Error(`Meta video upload failed: ${await res.text()}`);
   const data = await res.json();
-  return data.id as string;
+  const videoId = data.video_id ?? data.id;
+  if (!videoId) throw new Error('Meta video upload returned no video ID');
+  return String(videoId);
 }
 
 async function metaPost(endpoint: string, token: string, body: Record<string, unknown>) {
@@ -139,7 +153,10 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
 function buildTargeting(audience: { type: string; interests: string[] }) {
   const base = { geo_locations: { countries: ['US'] } };
   if (audience.type === 'INTEREST' && audience.interests.length > 0) {
-    return { ...base, interests: audience.interests.map((name) => ({ name })) };
+    return { ...base, flexible_spec: [{ interests: audience.interests.map(name => ({ name })) }] };
+  }
+  if (audience.type !== 'INTEREST') {
+    console.warn(`[meta-setup] Audience type ${audience.type} not fully configured — using broad targeting`);
   }
   return base;
 }

@@ -1,9 +1,8 @@
 import ffmpeg from 'fluent-ffmpeg';
 import * as path from 'path';
 import * as fs from 'fs';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../prisma';
+import { dispatchStage } from '../../lib/queue';
 
 const CTA_OPTIONS = ['Listen Now', 'Stream Today', 'Hear It First', 'Play Now', 'Out Now'];
 
@@ -45,7 +44,7 @@ function toFFmpegColor(hex: string | undefined): string {
 function xExpr(hAlign: string | undefined): string {
   switch (hAlign) {
     case 'left':  return 'w*0.05';
-    case 'right': return 'w*0.85';
+    case 'right': return 'w-text_w-w*0.05';
     default:      return '(w-text_w)/2';
   }
 }
@@ -99,6 +98,11 @@ export async function runVideoGen(campaignId: string) {
     where: { id: campaignId },
     data: { status: 'CONTENT_READY' },
   });
+
+  if (campaign.autoLaunch) {
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'BUILDING' } });
+    await dispatchStage(campaignId, 'COPY_GEN');
+  }
 }
 
 function generateVideo(opts: {
@@ -153,9 +157,9 @@ function generateVideo(opts: {
 
 function esc(text: string): string {
   return text
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
-    .replace(/\[/g, '\\[')
-    .replace(/\]/g, '\\]');
+    .replace(/'/g, '’')  // smart quote avoids escape issues
+    .replace(/\\/g, '/')       // replace backslash with forward slash
+    .replace(/:/g, ' -')       // replace colon with dash (safe in filenames/titles)
+    .replace(/\[/g, '(')
+    .replace(/\]/g, ')');
 }

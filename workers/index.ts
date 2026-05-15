@@ -1,15 +1,13 @@
 import 'dotenv/config';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { PrismaClient } from '@prisma/client';
 import type { StageJob } from '../lib/queue';
+import { prisma } from './prisma';
 import { runSegmentation } from './stages/segmentation';
 import { runVideoGen } from './stages/video-gen';
 import { runCopyGen } from './stages/copy-gen';
 import { runAudienceGen } from './stages/audience-gen';
 import { runMetaSetup } from './stages/meta-setup';
-
-const prisma = new PrismaClient();
 
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,

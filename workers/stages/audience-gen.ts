@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
-
-const prisma = new PrismaClient();
 
 const DEFAULT_INTERESTS = ['Music streaming', 'Music fans', 'Spotify', 'Apple Music'];
 
@@ -34,11 +32,9 @@ export async function runAudienceGen(campaignId: string) {
   });
 
   if (campaign.autoLaunch) {
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'LAUNCHING' } });
     await dispatchStage(campaignId, 'META_SETUP');
   } else {
-    await prisma.campaign.update({
-      where: { id: campaignId },
-      data: { status: 'READY' },
-    });
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'READY' } });
   }
 }

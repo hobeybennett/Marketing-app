@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const MOCK_TRACK = {
-  artistName: 'Jeff Buckley',
-  songTitle: 'Last Goodbye',
-  coverArtUrl: 'https://i.scdn.co/image/ab67616d0000b273c8b444df094279e70d0ed856',
-};
-
 function extractTrackId(url: string): string | null {
   const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
@@ -31,11 +25,6 @@ async function getSpotifyToken(): Promise<string> {
 export async function POST(req: NextRequest) {
   const { url } = await req.json();
   if (!url) return NextResponse.json({ error: 'url is required' }, { status: 400 });
-
-  if (process.env.MOCK_MODE === 'true') {
-    await new Promise((r) => setTimeout(r, 600));
-    return NextResponse.json(MOCK_TRACK);
-  }
 
   const trackId = extractTrackId(url);
   if (!trackId) return NextResponse.json({ error: 'Invalid Spotify track URL' }, { status: 400 });

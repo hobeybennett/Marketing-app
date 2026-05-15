@@ -6,20 +6,11 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
-import { mockStore, buildMockDetail } from '@/lib/mock-store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {
-  if (process.env.MOCK_MODE === 'true') {
-    const campaigns = mockStore.list().map((c) => {
-      const detail = buildMockDetail(c);
-      return { ...detail, jobs: detail.jobs };
-    });
-    return NextResponse.json(campaigns);
-  }
-
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
@@ -29,14 +20,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[POST /api/campaigns] start');
     const formData = await req.formData();
-    console.log('[POST /api/campaigns] formData parsed');
 
     const audioFile = formData.get('audio') as File | null;
     const coverArtUrl = formData.get('coverArtUrl') as string | null;
-
-    console.log('[POST /api/campaigns] audioFile:', audioFile?.name, audioFile?.size, 'coverArtUrl:', coverArtUrl);
 
     if (!audioFile) return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
     if (!coverArtUrl) return NextResponse.json({ error: 'coverArtUrl is required' }, { status: 400 });
@@ -52,55 +39,35 @@ export async function POST(req: NextRequest) {
 
     const { artistName, songTitle, autoLaunch } = parsed.data;
 
-    if (process.env.MOCK_MODE === 'true') {
-      const campaign = mockStore.create({
-        artistName,
-        songTitle,
-        coverArtUrl,
-        autoLaunch: autoLaunch === 'true',
-      });
-      return NextResponse.json(buildMockDetail(campaign), { status: 201 });
-    }
-
     const campaignId = uuidv4();
     const uploadDir = process.env.UPLOAD_DIR || '/uploads';
     const campaignDir = path.join(uploadDir, campaignId);
-    console.log('[POST /api/campaigns] creating dir:', campaignDir);
     await mkdir(campaignDir, { recursive: true });
 
-    console.log('[POST /api/campaigns] writing audio...');
     const audioExt = audioFile.name.split('.').pop() || 'mp3';
     const audioPath = path.join(campaignDir, `audio.${audioExt}`);
     await writeFile(audioPath, Buffer.from(await audioFile.arrayBuffer()));
-    console.log('[POST /api/campaigns] audio written');
 
-    console.log('[POST /api/campaigns] downloading cover art...');
     const imgRes = await fetch(coverArtUrl);
     if (!imgRes.ok) throw new Error('Failed to download cover art from Spotify');
     const coverPath = path.join(campaignDir, 'cover.jpg');
     await writeFile(coverPath, Buffer.from(await imgRes.arrayBuffer()));
-    console.log('[POST /api/campaigns] cover art written');
 
-    // Save background file if provided (bgMode === 'upload')
-    const bgFile = formData.get('background') as File | null;
     let visualConfigObj: Record<string, unknown> | null = null;
     const visualConfigStr = formData.get('visualConfig') as string | null;
-    if (visualConfigStr) {
-      visualConfigObj = JSON.parse(visualConfigStr);
-    }
+    if (visualConfigStr) visualConfigObj = JSON.parse(visualConfigStr);
 
+    const bgFile = formData.get('background') as File | null;
     if (bgFile && bgFile.size > 0 && visualConfigObj) {
       const bgExt = bgFile.name.split('.').pop() || 'jpg';
       const bgPath = path.join(campaignDir, `background.${bgExt}`);
       await writeFile(bgPath, Buffer.from(await bgFile.arrayBuffer()));
-      // Store the path so video-gen can use it
       visualConfigObj.backgroundPath = bgPath;
     }
 
     const clipDefinitionsStr = formData.get('clips') as string | null;
     const clipDefinitions = clipDefinitionsStr ? JSON.parse(clipDefinitionsStr) : null;
 
-    console.log('[POST /api/campaigns] creating DB record...');
     const campaign = await prisma.campaign.create({
       data: {
         id: campaignId,
@@ -123,16 +90,12 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    console.log('[POST /api/campaigns] DB record created:', campaign.id);
 
-    console.log('[POST /api/campaigns] dispatching to queue...');
     await dispatchStage(campaignId, 'SEGMENTATION');
-    console.log('[POST /api/campaigns] dispatched, returning response');
-
     return NextResponse.json(campaign, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal server error';
-    console.error('[POST /api/campaigns] ERROR:', message);
+    console.error('[POST /api/campaigns]', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

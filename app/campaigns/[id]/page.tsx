@@ -4,6 +4,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
+function videoApiUrl(fileUrl: string): string {
+  const filename = fileUrl.split('/').pop() ?? '';
+  // fileUrl is like /uploads/{campaignId}/videos/creative_0.mp4
+  // extract campaignId as the segment before 'videos'
+  const parts = fileUrl.split('/');
+  const videosIdx = parts.indexOf('videos');
+  const campaignId = videosIdx > 0 ? parts[videosIdx - 1] : '';
+  return `/api/videos/${campaignId}/${filename}`;
+}
+
 const POLLING_STATUSES = new Set(['PENDING', 'PROCESSING', 'BUILDING', 'LAUNCHING']);
 
 const STAGE_LABELS: Record<string, string> = {
@@ -93,27 +103,30 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
         <div className="space-y-3 mb-6">
           {campaign.creatives?.map((creative: any, i: number) => (
-            <div key={creative.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4">
-              {campaign.coverArtUrl?.startsWith('http') && (
-                <Image
-                  src={campaign.coverArtUrl}
-                  alt="cover"
-                  width={48}
-                  height={48}
-                  className="rounded-lg shrink-0"
-                  unoptimized
+            <div key={creative.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+              {creative.fileUrl ? (
+                <video
+                  src={videoApiUrl(creative.fileUrl)}
+                  controls
+                  playsInline
+                  className="w-full aspect-square object-cover"
                 />
+              ) : (
+                <div className="w-full aspect-square bg-gray-800 flex items-center justify-center text-gray-600 text-sm">
+                  Processing…
+                </div>
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">Clip {i + 1}</p>
-                <p className="text-xs text-gray-400">
-                  {campaign.segments?.[i]?.startSec.toFixed(0)}s –{' '}
-                  {campaign.segments?.[i]?.endSec.toFixed(0)}s
-                </p>
+              <div className="p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Clip {i + 1}</p>
+                  <p className="text-xs text-gray-400">
+                    {campaign.segments?.[i]?.startSec?.toFixed(0)}s – {campaign.segments?.[i]?.endSec?.toFixed(0)}s
+                  </p>
+                </div>
+                <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-full shrink-0">
+                  {creative.ctaText}
+                </span>
               </div>
-              <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-full shrink-0">
-                {creative.ctaText}
-              </span>
             </div>
           ))}
         </div>
@@ -172,17 +185,29 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           <h3 className="font-semibold mb-3">Video Creatives ({campaign.creatives?.length})</h3>
           <div className="space-y-3">
             {campaign.creatives?.map((creative: any, i: number) => (
-              <div key={creative.id} className="bg-gray-800 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">Clip {i + 1}</p>
-                  <span className="text-xs text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">{creative.ctaText}</span>
-                </div>
-                {creative.adCopies?.[0] && (
-                  <div className="text-xs text-gray-300 space-y-1">
-                    <p><span className="text-gray-500">Headline: </span>{creative.adCopies[0].headline}</p>
-                    <p><span className="text-gray-500">Copy: </span>{creative.adCopies[0].primaryText}</p>
+              <div key={creative.id} className="bg-gray-800 rounded-lg overflow-hidden">
+                <div className="flex gap-3 p-3">
+                  {creative.fileUrl && (
+                    <video
+                      src={videoApiUrl(creative.fileUrl)}
+                      muted
+                      playsInline
+                      className="w-16 h-16 object-cover rounded shrink-0 bg-gray-700"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium">Clip {i + 1}</p>
+                      <span className="text-xs text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">{creative.ctaText}</span>
+                    </div>
+                    {creative.adCopies?.[0] && (
+                      <div className="text-xs text-gray-300 space-y-0.5">
+                        <p><span className="text-gray-500">Headline: </span>{creative.adCopies[0].headline}</p>
+                        <p><span className="text-gray-500">Copy: </span>{creative.adCopies[0].primaryText}</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>

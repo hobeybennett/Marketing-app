@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+export {};
 /**
  * Production smoke tests for Hitback.
  * Run: BASE_URL=https://your-app.up.railway.app npx tsx scripts/test-production.ts

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { CampaignStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
 import { mockStore, buildMockDetail } from '@/lib/mock-store';
@@ -55,11 +56,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });
     if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-    if (campaign.status !== 'CONTENT_READY') {
+    if (campaign.status !== CampaignStatus.CONTENT_READY) {
       return NextResponse.json({ error: 'campaign must be in CONTENT_READY status to continue' }, { status: 400 });
     }
 
-    await prisma.campaign.update({ where: { id: params.id }, data: { status: 'BUILDING' } });
+    await prisma.campaign.update({ where: { id: params.id }, data: { status: CampaignStatus.BUILDING } });
     await dispatchStage(params.id, 'COPY_GEN');
     return NextResponse.json({ status: 'building' });
   }

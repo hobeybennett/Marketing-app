@@ -7,8 +7,7 @@ import { dispatchStage } from '../../lib/queue';
 const prisma = new PrismaClient();
 
 const SEGMENT_DURATION = 30;
-const MAX_SEGMENTS = 10;
-const MIN_SEGMENT_DURATION = 10;
+const NUM_SEGMENTS = 5;
 
 export async function runSegmentation(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
@@ -19,13 +18,12 @@ export async function runSegmentation(campaignId: string) {
 
   const duration = await getAudioDuration(campaign.audioUrl);
 
+  const step = duration / NUM_SEGMENTS;
   const segments: { start: number; end: number; index: number }[] = [];
-  for (let i = 0; i * SEGMENT_DURATION < duration; i++) {
-    const start = i * SEGMENT_DURATION;
+  for (let i = 0; i < NUM_SEGMENTS; i++) {
+    const start = i * step;
     const end = Math.min(start + SEGMENT_DURATION, duration);
-    if (end - start < MIN_SEGMENT_DURATION) break;
     segments.push({ start, end, index: i });
-    if (segments.length >= MAX_SEGMENTS) break;
   }
 
   for (const seg of segments) {

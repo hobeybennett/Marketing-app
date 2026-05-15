@@ -7,12 +7,80 @@ import Image from 'next/image';
 const TEST_SPOTIFY_URL = 'https://open.spotify.com/track/6Jv7kjGkhY2fT4yuBF3aTz';
 const CTA_OPTIONS = ['Listen Now', 'Stream Now', 'Out Now', 'Play Now', 'Hear It First'];
 
-type TextPosition = 'bottom' | 'center' | 'top';
+type VAlign = 'top' | 'center' | 'bottom';
+type HAlign = 'left' | 'center' | 'right';
+type FontSize = 'sm' | 'md' | 'lg';
+type FontFamily = 'sans' | 'serif' | 'display' | 'mono' | 'narrow';
 type BgMode = 'generate' | 'upload';
 type BgAnimation = 'none' | 'zoom-in' | 'zoom-out' | 'slow-pan' | 'pulse';
 type TextAnimation = 'none' | 'fade-in' | 'slide-up';
+type TextLayer = 'heading' | 'subheading' | 'cta';
+
+type TextLayerStyle = {
+  vAlign: VAlign;
+  hAlign: HAlign;
+  fontSize: FontSize;
+  fontColor: string;
+  fontFamily: FontFamily;
+  fontBold: boolean;
+};
+
 type SpotifyData = { artistName: string; songTitle: string; coverArtUrl: string | null };
 type Clip = { name: string; startSec: number };
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const FONT_SIZE_PX: Record<FontSize, number> = { sm: 13, md: 18, lg: 26 };
+
+const FONT_FAMILY_CSS: Record<FontFamily, string> = {
+  sans: 'system-ui, -apple-system, sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  display: 'Impact, "Arial Black", sans-serif',
+  mono: '"Courier New", Courier, monospace',
+  narrow: '"Arial Narrow", Arial, sans-serif',
+};
+
+const FONT_FAMILY_LABEL: Record<FontFamily, string> = {
+  sans: 'Clean', serif: 'Elegant', display: 'Impact', mono: 'Mono', narrow: 'Narrow',
+};
+
+const BG_ANIM_CSS: Record<BgAnimation, string> = {
+  'none': '',
+  'zoom-in': 'hitback-zoom-in 12s ease-in-out infinite',
+  'zoom-out': 'hitback-zoom-out 12s ease-in-out infinite',
+  'slow-pan': 'hitback-pan 14s ease-in-out infinite',
+  'pulse': 'hitback-pulse 4s ease-in-out infinite',
+};
+
+const TEXT_ANIM_CSS: Record<TextAnimation, string> = {
+  'none': '',
+  'fade-in': 'hitback-fade-in 1.2s ease forwards',
+  'slide-up': 'hitback-slide-up 0.9s ease forwards',
+};
+
+const VPOS_STYLE: Record<VAlign, React.CSSProperties> = {
+  top: { position: 'absolute', top: 20, left: 0, right: 0 },
+  center: { position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)' },
+  bottom: { position: 'absolute', bottom: 20, left: 0, right: 0 },
+};
+
+const HALIGN_STYLE: Record<HAlign, React.CSSProperties> = {
+  left: { textAlign: 'left', paddingLeft: 16, paddingRight: 8 },
+  center: { textAlign: 'center', paddingLeft: 16, paddingRight: 16 },
+  right: { textAlign: 'right', paddingLeft: 8, paddingRight: 16 },
+};
+
+const DEFAULT_HEADING: TextLayerStyle = {
+  vAlign: 'bottom', hAlign: 'center', fontSize: 'lg', fontColor: '#ffffff', fontFamily: 'sans', fontBold: true,
+};
+const DEFAULT_SUBHEADING: TextLayerStyle = {
+  vAlign: 'bottom', hAlign: 'center', fontSize: 'md', fontColor: '#ffffff', fontFamily: 'sans', fontBold: false,
+};
+const DEFAULT_CTA: TextLayerStyle = {
+  vAlign: 'bottom', hAlign: 'center', fontSize: 'sm', fontColor: '#ffffff', fontFamily: 'sans', fontBold: true,
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -42,167 +110,245 @@ function generateTestWav(durationSecs = 180): Blob {
   return new Blob([buf], { type: 'audio/wav' });
 }
 
-// ── Preview ────────────────────────────────────────────────────────────────
-
-const BG_ANIM_CSS: Record<BgAnimation, string> = {
-  'none': '',
-  'zoom-in': 'hitback-zoom-in 12s ease-in-out infinite',
-  'zoom-out': 'hitback-zoom-out 12s ease-in-out infinite',
-  'slow-pan': 'hitback-pan 14s ease-in-out infinite',
-  'pulse': 'hitback-pulse 4s ease-in-out infinite',
-};
-
-const TEXT_ANIM_CSS: Record<TextAnimation, string> = {
-  'none': '',
-  'fade-in': 'hitback-fade-in 1.2s ease forwards',
-  'slide-up': 'hitback-slide-up 0.9s ease forwards',
-};
-
-const FONT_SIZE: Record<string, string> = {
-  sm: '14px', md: '20px', lg: '28px',
-};
-
-const TEXT_POS_STYLE: Record<TextPosition, React.CSSProperties> = {
-  top: { top: 32, left: 0, right: 0, position: 'absolute' },
-  center: { top: '50%', left: 0, right: 0, position: 'absolute', transform: 'translateY(-50%)' },
-  bottom: { bottom: 32, left: 0, right: 0, position: 'absolute' },
-};
+// ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, artistName, songTitle, ctaText, textPosition,
-  blurAmount, bgAnimation, textAnimation, fontSize, fontColor, fontBold, animKey,
+  bgMode, bgPreview, coverArtUrl, artistName, songTitle, ctaText,
+  blurAmount, bgAnimation, textAnimation, heading, subheading, cta, animKey,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  artistName: string; songTitle: string; ctaText: string; textPosition: TextPosition;
+  artistName: string; songTitle: string; ctaText: string;
   blurAmount: number; bgAnimation: BgAnimation; textAnimation: TextAnimation;
-  fontSize: 'sm' | 'md' | 'lg'; fontColor: string; fontBold: boolean; animKey: number;
+  heading: TextLayerStyle; subheading: TextLayerStyle; cta: TextLayerStyle;
+  animKey: number;
 }) {
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
-  const isUploadedVideo = bgMode === 'upload' && bgPreview && bgPreview.startsWith('blob');
-  const titleSize = FONT_SIZE[fontSize];
-  const artistSize = `${parseInt(titleSize) * 0.7}px`;
-  const ctaSize = `${parseInt(titleSize) * 0.6}px`;
+  const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
+
+  // Group elements by vAlign so elements at the same position stack naturally
+  type Item = { key: string; hAlign: HAlign; node: React.ReactNode };
+  const groups: Record<VAlign, Item[]> = { top: [], center: [], bottom: [] };
+
+  groups[heading.vAlign].push({
+    key: 'heading', hAlign: heading.hAlign,
+    node: (
+      <p style={{
+        color: heading.fontColor, fontWeight: heading.fontBold ? 700 : 400,
+        fontSize: FONT_SIZE_PX[heading.fontSize], fontFamily: FONT_FAMILY_CSS[heading.fontFamily],
+        lineHeight: 1.2, margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+      }}>{songTitle || 'Song Title'}</p>
+    ),
+  });
+
+  groups[subheading.vAlign].push({
+    key: 'subheading', hAlign: subheading.hAlign,
+    node: (
+      <p style={{
+        color: subheading.fontColor, fontWeight: subheading.fontBold ? 700 : 400,
+        fontSize: FONT_SIZE_PX[subheading.fontSize], fontFamily: FONT_FAMILY_CSS[subheading.fontFamily],
+        lineHeight: 1.2, margin: '4px 0 0', opacity: 0.85,
+        textShadow: '0 1px 4px rgba(0,0,0,0.6)',
+      }}>{artistName || 'Artist Name'}</p>
+    ),
+  });
+
+  groups[cta.vAlign].push({
+    key: 'cta', hAlign: cta.hAlign,
+    node: (
+      <div style={{ display: 'inline-block', marginTop: 8 }}>
+        <div style={{
+          background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.3)', borderRadius: 999, padding: '4px 14px',
+        }}>
+          <p style={{
+            color: cta.fontColor, fontWeight: cta.fontBold ? 700 : 600,
+            fontSize: FONT_SIZE_PX[cta.fontSize], fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
+            margin: 0,
+          }}>{ctaText}</p>
+        </div>
+      </div>
+    ),
+  });
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
       <style>{`
         @keyframes hitback-zoom-in {
-          0% { transform: scale(1.05); }
-          100% { transform: scale(1.4); }
+          0% { transform: scale(1.05); } 100% { transform: scale(1.4); }
         }
         @keyframes hitback-zoom-out {
-          0% { transform: scale(1.4); }
-          100% { transform: scale(1.05); }
+          0% { transform: scale(1.4); } 100% { transform: scale(1.05); }
         }
         @keyframes hitback-pan {
           0%, 100% { transform: scale(1.15) translateX(-6%); }
-          50% { transform: scale(1.15) translateX(6%); }
+          50%       { transform: scale(1.15) translateX(6%); }
         }
         @keyframes hitback-pulse {
-          0%, 100% { transform: scale(1.05); }
-          50% { transform: scale(1.12); }
+          0%, 100% { transform: scale(1.05); } 50% { transform: scale(1.12); }
         }
         @keyframes hitback-fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; } to { opacity: 1; }
         }
         @keyframes hitback-slide-up {
           from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
-      {/* Background layer */}
+      {/* Background */}
       {bgSrc && !isUploadedVideo && (
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-          <img
-            key={animKey}
-            src={bgSrc}
-            alt=""
-            style={{
-              width: '100%', height: '100%', objectFit: 'cover',
-              filter: `blur(${blurAmount}px)`,
-              transform: bgAnimation === 'none' ? 'scale(1.1)' : undefined,
-              animation: BG_ANIM_CSS[bgAnimation] || undefined,
-              willChange: 'transform',
-            }}
-          />
+          <img key={animKey} src={bgSrc} alt="" style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            filter: `blur(${blurAmount}px)`,
+            transform: bgAnimation === 'none' ? 'scale(1.1)' : undefined,
+            animation: BG_ANIM_CSS[bgAnimation] || undefined,
+            willChange: 'transform',
+          }} />
         </div>
       )}
       {isUploadedVideo && bgPreview && (
-        <video
-          key={animKey}
-          src={bgPreview}
-          style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'cover',
-            filter: blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
-            animation: BG_ANIM_CSS[bgAnimation] || undefined,
-          }}
-          autoPlay muted loop playsInline
-        />
+        <video key={animKey} src={bgPreview} style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+          filter: blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
+          animation: BG_ANIM_CSS[bgAnimation] || undefined,
+        }} autoPlay muted loop playsInline />
       )}
       {!bgSrc && (
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
       )}
 
-      {/* Gradient overlay */}
+      {/* Gradient vignette */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: textPosition === 'bottom'
-          ? 'linear-gradient(to bottom, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.75) 100%)'
-          : textPosition === 'top'
-          ? 'linear-gradient(to top, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.75) 100%)'
-          : 'rgba(0,0,0,0.25)',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, transparent 28%, transparent 68%, rgba(0,0,0,0.55) 100%)',
       }} />
 
-      {/* Text overlay */}
-      <div key={`text-${animKey}`} style={{
-        ...TEXT_POS_STYLE[textPosition],
-        textAlign: 'center',
-        padding: '0 20px',
-        animation: TEXT_ANIM_CSS[textAnimation] || undefined,
-      }}>
-        <p style={{
-          color: fontColor, fontWeight: fontBold ? 700 : 400,
-          fontSize: titleSize, lineHeight: 1.2,
-          textShadow: '0 2px 8px rgba(0,0,0,0.6)',
-          margin: 0,
-        }}>
-          {songTitle || 'Song Title'}
-        </p>
-        <p style={{
-          color: fontColor, fontWeight: fontBold ? 500 : 400, opacity: 0.8,
-          fontSize: artistSize, marginTop: 4,
-          textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-        }}>
-          {artistName || 'Artist Name'}
-        </p>
-        <div style={{
-          display: 'inline-block', marginTop: 10,
-          background: 'rgba(255,255,255,0.2)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255,255,255,0.3)',
-          borderRadius: 999, padding: '5px 16px',
-        }}>
-          <p style={{ color: fontColor, fontWeight: 600, fontSize: ctaSize, margin: 0 }}>
-            {ctaText}
-          </p>
-        </div>
-      </div>
+      {/* Text groups — each vAlign zone is an independent absolutely-positioned div */}
+      {(['top', 'center', 'bottom'] as VAlign[]).map(vAlign => {
+        const items = groups[vAlign];
+        if (items.length === 0) return null;
+        return (
+          <div key={`${vAlign}-${animKey}`} style={{
+            ...VPOS_STYLE[vAlign],
+            animation: TEXT_ANIM_CSS[textAnimation] || undefined,
+          }}>
+            {items.map(item => (
+              <div key={item.key} style={HALIGN_STYLE[item.hAlign]}>
+                {item.node}
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ── Pill button ────────────────────────────────────────────────────────────
+// ── Reusable controls ──────────────────────────────────────────────────────
 
-function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Pill({ active, onClick, children, style }: {
+  active: boolean; onClick: () => void; children: React.ReactNode; style?: React.CSSProperties;
+}) {
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} style={style}
       className={`px-3 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap
         ${active ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
       {children}
     </button>
+  );
+}
+
+function SegmentBtn({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`py-2 rounded-lg text-xs font-medium border capitalize transition
+        ${active ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+      {children}
+    </button>
+  );
+}
+
+// ── TextLayerEditor ────────────────────────────────────────────────────────
+
+function TextLayerEditor({ style, onChange }: {
+  style: TextLayerStyle; onChange: (patch: Partial<TextLayerStyle>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {/* Vertical */}
+      <div>
+        <p className="text-xs text-gray-500 mb-1.5">Vertical</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(['top', 'center', 'bottom'] as VAlign[]).map(v => (
+            <SegmentBtn key={v} active={style.vAlign === v} onClick={() => onChange({ vAlign: v })}>
+              {v}
+            </SegmentBtn>
+          ))}
+        </div>
+      </div>
+
+      {/* Horizontal */}
+      <div>
+        <p className="text-xs text-gray-500 mb-1.5">Horizontal</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(['left', 'center', 'right'] as HAlign[]).map(h => (
+            <SegmentBtn key={h} active={style.hAlign === h} onClick={() => onChange({ hAlign: h })}>
+              {h}
+            </SegmentBtn>
+          ))}
+        </div>
+      </div>
+
+      {/* Size + Weight + Colour */}
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <p className="text-xs text-gray-500 mb-1.5">Size</p>
+          <div className="flex gap-1">
+            {(['sm', 'md', 'lg'] as FontSize[]).map(s => (
+              <button key={s} type="button" onClick={() => onChange({ fontSize: s })}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition
+                  ${style.fontSize === s ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                {s === 'sm' ? 'S' : s === 'md' ? 'M' : 'L'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1.5">Weight</p>
+          <button type="button" onClick={() => onChange({ fontBold: !style.fontBold })}
+            className={`w-full py-1.5 rounded-lg text-xs font-medium border transition
+              ${style.fontBold ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+            {style.fontBold ? 'Bold' : 'Normal'}
+          </button>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1.5">Colour</p>
+          <label className="relative block w-full h-[34px] rounded-lg overflow-hidden border border-gray-700 cursor-pointer">
+            <input type="color" value={style.fontColor} onChange={(e) => onChange({ fontColor: e.target.value })}
+              className="absolute inset-0 w-full h-full cursor-pointer opacity-0" />
+            <div className="absolute inset-0 rounded-lg" style={{ background: style.fontColor }} />
+          </label>
+        </div>
+      </div>
+
+      {/* Font family */}
+      <div>
+        <p className="text-xs text-gray-500 mb-1.5">Font</p>
+        <div className="flex flex-wrap gap-2">
+          {(['sans', 'serif', 'display', 'mono', 'narrow'] as FontFamily[]).map(f => (
+            <button key={f} type="button" onClick={() => onChange({ fontFamily: f })}
+              style={{ fontFamily: FONT_FAMILY_CSS[f] }}
+              className={`px-2.5 py-1 rounded-lg text-xs border transition
+                ${style.fontFamily === f ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+              {FONT_FAMILY_LABEL[f]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -221,21 +367,26 @@ export default function NewCampaignPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState(180);
 
-  // Visual config
+  // Background
   const [bgMode, setBgMode] = useState<BgMode>('generate');
   const [bgFile, setBgFile] = useState<File | null>(null);
   const [bgPreview, setBgPreview] = useState<string | null>(null);
   const [blurAmount, setBlurAmount] = useState(20);
   const [bgAnimation, setBgAnimation] = useState<BgAnimation>('zoom-in');
   const [textAnimation, setTextAnimation] = useState<TextAnimation>('fade-in');
+
+  // Text content
   const [artistName, setArtistName] = useState('');
   const [songTitle, setSongTitle] = useState('');
   const [ctaText, setCtaText] = useState('Listen Now');
   const [customCta, setCustomCta] = useState('');
-  const [textPosition, setTextPosition] = useState<TextPosition>('bottom');
-  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg'>('md');
-  const [fontColor, setFontColor] = useState('#ffffff');
-  const [fontBold, setFontBold] = useState(true);
+
+  // Per-element text styles
+  const [headingStyle, setHeadingStyle] = useState<TextLayerStyle>(DEFAULT_HEADING);
+  const [subheadingStyle, setSubheadingStyle] = useState<TextLayerStyle>(DEFAULT_SUBHEADING);
+  const [ctaStyle, setCtaStyle] = useState<TextLayerStyle>(DEFAULT_CTA);
+  const [selectedLayer, setSelectedLayer] = useState<TextLayer>('heading');
+
   const [animKey, setAnimKey] = useState(0);
 
   // Clips
@@ -250,6 +401,17 @@ export default function NewCampaignPage() {
   const maxStart = Math.max(0, audioDuration - 30);
 
   function replayAnim() { setAnimKey((k) => k + 1); }
+
+  function updateLayer(layer: TextLayer, patch: Partial<TextLayerStyle>) {
+    if (layer === 'heading') setHeadingStyle(p => ({ ...p, ...patch }));
+    else if (layer === 'subheading') setSubheadingStyle(p => ({ ...p, ...patch }));
+    else setCtaStyle(p => ({ ...p, ...patch }));
+  }
+
+  const currentLayerStyle =
+    selectedLayer === 'heading' ? headingStyle
+    : selectedLayer === 'subheading' ? subheadingStyle
+    : ctaStyle;
 
   async function lookupSpotify(url = spotifyUrl) {
     if (!url.trim()) return;
@@ -291,7 +453,7 @@ export default function NewCampaignPage() {
   }
 
   function updateClip(i: number, patch: Partial<Clip>) {
-    setClips((prev) => prev.map((c, j) => j === i ? { ...c, ...patch } : c));
+    setClips(prev => prev.map((c, j) => j === i ? { ...c, ...patch } : c));
   }
 
   async function useTestData() {
@@ -310,7 +472,10 @@ export default function NewCampaignPage() {
     if (!spotify || !audioFile) return;
     setLoading(true);
     setError('');
-    const visualConfig = { bgMode, blurAmount, bgAnimation, textAnimation, ctaText: activeCta, textPosition, fontSize, fontColor, fontBold };
+    const visualConfig = {
+      bgMode, blurAmount, bgAnimation, textAnimation, ctaText: activeCta,
+      heading: headingStyle, subheading: subheadingStyle, cta: ctaStyle,
+    };
     const formData = new FormData();
     formData.set('artistName', artistName);
     formData.set('songTitle', songTitle);
@@ -369,7 +534,7 @@ export default function NewCampaignPage() {
         )}
       </div>
 
-      {/* Audio */}
+      {/* Audio upload */}
       {spotify && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
           <p className="text-sm font-medium text-gray-300 mb-3">Upload your track</p>
@@ -383,14 +548,14 @@ export default function NewCampaignPage() {
 
       {showEditor && (
         <>
-          {/* ── Preview ── */}
+          {/* Preview */}
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
               artistName={artistName} songTitle={songTitle} ctaText={activeCta}
-              textPosition={textPosition} blurAmount={blurAmount}
-              bgAnimation={bgAnimation} textAnimation={textAnimation}
-              fontSize={fontSize} fontColor={fontColor} fontBold={fontBold} animKey={animKey}
+              blurAmount={blurAmount} bgAnimation={bgAnimation} textAnimation={textAnimation}
+              heading={headingStyle} subheading={subheadingStyle} cta={ctaStyle}
+              animKey={animKey}
             />
           </div>
           <button type="button" onClick={replayAnim}
@@ -398,16 +563,18 @@ export default function NewCampaignPage() {
             ↺ Replay animation
           </button>
 
-          {/* ── Background ── */}
+          {/* Background */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
             <p className="text-sm font-semibold">Background</p>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => { setBgMode('generate'); replayAnim(); }}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                className={`py-2.5 rounded-lg text-sm font-medium border transition
+                  ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
                 ✨ Generate
               </button>
               <button type="button" onClick={() => bgInputRef.current?.click()}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                className={`py-2.5 rounded-lg text-sm font-medium border transition
+                  ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
                 ⬆ Upload
               </button>
             </div>
@@ -415,11 +582,9 @@ export default function NewCampaignPage() {
             <input ref={bgInputRef} type="file" accept="image/*,video/*"
               onChange={(e) => handleBgUpload(e.target.files?.[0] ?? null)} className="hidden" />
 
-            {/* Blur */}
             <div>
               <div className="flex justify-between text-xs text-gray-400 mb-1.5">
-                <span>Blur</span>
-                <span>{blurAmount}px</span>
+                <span>Blur</span><span>{blurAmount}px</span>
               </div>
               <input type="range" min={0} max={40} step={1} value={blurAmount}
                 onChange={(e) => setBlurAmount(Number(e.target.value))}
@@ -430,13 +595,13 @@ export default function NewCampaignPage() {
             </div>
           </div>
 
-          {/* ── Animations ── */}
+          {/* Animations */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
             <p className="text-sm font-semibold">Animation</p>
             <div>
-              <p className="text-xs text-gray-400 mb-2">Background</p>
+              <p className="text-xs text-gray-500 mb-2">Background</p>
               <div className="flex flex-wrap gap-2">
-                {(['none', 'zoom-in', 'zoom-out', 'slow-pan', 'pulse'] as BgAnimation[]).map((a) => (
+                {(['none', 'zoom-in', 'zoom-out', 'slow-pan', 'pulse'] as BgAnimation[]).map(a => (
                   <Pill key={a} active={bgAnimation === a} onClick={() => { setBgAnimation(a); replayAnim(); }}>
                     {a === 'none' ? 'Static' : a === 'zoom-in' ? 'Zoom in' : a === 'zoom-out' ? 'Zoom out' : a === 'slow-pan' ? 'Slow pan' : 'Pulse'}
                   </Pill>
@@ -444,9 +609,9 @@ export default function NewCampaignPage() {
               </div>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-2">Text entrance</p>
+              <p className="text-xs text-gray-500 mb-2">Text entrance</p>
               <div className="flex flex-wrap gap-2">
-                {(['none', 'fade-in', 'slide-up'] as TextAnimation[]).map((a) => (
+                {(['none', 'fade-in', 'slide-up'] as TextAnimation[]).map(a => (
                   <Pill key={a} active={textAnimation === a} onClick={() => { setTextAnimation(a); replayAnim(); }}>
                     {a === 'none' ? 'Static' : a === 'fade-in' ? 'Fade in' : 'Slide up'}
                   </Pill>
@@ -455,17 +620,19 @@ export default function NewCampaignPage() {
             </div>
           </div>
 
-          {/* ── Text overlay ── */}
+          {/* Text overlay */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
-            <p className="text-sm font-semibold">Text overlay</p>
+            <p className="text-sm font-semibold">Text</p>
+
+            {/* Content inputs */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Artist</label>
+                <label className="text-xs text-gray-500 mb-1 block">Artist</label>
                 <input value={artistName} onChange={(e) => setArtistName(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Title</label>
+                <label className="text-xs text-gray-500 mb-1 block">Title</label>
                 <input value={songTitle} onChange={(e) => setSongTitle(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
               </div>
@@ -473,9 +640,9 @@ export default function NewCampaignPage() {
 
             {/* CTA */}
             <div>
-              <p className="text-xs text-gray-400 mb-2">Call to action</p>
+              <p className="text-xs text-gray-500 mb-2">Call to action</p>
               <div className="flex flex-wrap gap-2">
-                {CTA_OPTIONS.map((opt) => (
+                {CTA_OPTIONS.map(opt => (
                   <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
                 ))}
                 <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
@@ -487,54 +654,26 @@ export default function NewCampaignPage() {
               )}
             </div>
 
-            {/* Font controls */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <p className="text-xs text-gray-400 mb-2">Size</p>
-                <div className="flex gap-1.5">
-                  {(['sm', 'md', 'lg'] as const).map((s) => (
-                    <button key={s} type="button" onClick={() => setFontSize(s)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition
-                        ${fontSize === s ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                      {s === 'sm' ? 'S' : s === 'md' ? 'M' : 'L'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-2">Weight</p>
-                <button type="button" onClick={() => setFontBold((b) => !b)}
-                  className={`w-full py-1.5 rounded-lg text-xs font-medium border transition
-                    ${fontBold ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                  {fontBold ? 'Bold' : 'Normal'}
-                </button>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-2">Colour</p>
-                <label className="relative block w-full h-[34px] rounded-lg overflow-hidden border border-gray-700 cursor-pointer">
-                  <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)}
-                    className="absolute inset-0 w-full h-full cursor-pointer opacity-0" />
-                  <div className="absolute inset-0 rounded-lg" style={{ background: fontColor }} />
-                </label>
-              </div>
-            </div>
-
-            {/* Position */}
-            <div>
-              <p className="text-xs text-gray-400 mb-2">Position</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['top', 'center', 'bottom'] as TextPosition[]).map((pos) => (
-                  <button key={pos} type="button" onClick={() => setTextPosition(pos)}
-                    className={`py-2 rounded-lg text-xs font-medium border capitalize transition
-                      ${textPosition === pos ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                    {pos}
+            {/* Per-layer style editor */}
+            <div className="border-t border-gray-800 pt-4">
+              <p className="text-xs text-gray-500 mb-2">Style</p>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {(['heading', 'subheading', 'cta'] as TextLayer[]).map(layer => (
+                  <button key={layer} type="button" onClick={() => setSelectedLayer(layer)}
+                    className={`py-2 rounded-lg text-xs font-medium border transition
+                      ${selectedLayer === layer ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                    {layer === 'heading' ? 'Heading' : layer === 'subheading' ? 'Subheading' : 'CTA'}
                   </button>
                 ))}
               </div>
+              <TextLayerEditor
+                style={currentLayerStyle}
+                onChange={(patch) => updateLayer(selectedLayer, patch)}
+              />
             </div>
           </div>
 
-          {/* ── Clips ── */}
+          {/* Clips */}
           <div className="space-y-3 mb-6">
             <p className="text-sm font-semibold px-1">Clips</p>
             {clips.map((clip, i) => (

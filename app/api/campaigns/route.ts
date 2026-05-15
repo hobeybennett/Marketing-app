@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
 import { mockStore, buildMockDetail } from '@/lib/mock-store';
@@ -80,6 +81,25 @@ export async function POST(req: NextRequest) {
     await writeFile(coverPath, Buffer.from(await imgRes.arrayBuffer()));
     console.log('[POST /api/campaigns] cover art written');
 
+    // Save background file if provided (bgMode === 'upload')
+    const bgFile = formData.get('background') as File | null;
+    let visualConfigObj: Record<string, unknown> | null = null;
+    const visualConfigStr = formData.get('visualConfig') as string | null;
+    if (visualConfigStr) {
+      visualConfigObj = JSON.parse(visualConfigStr);
+    }
+
+    if (bgFile && bgFile.size > 0 && visualConfigObj) {
+      const bgExt = bgFile.name.split('.').pop() || 'jpg';
+      const bgPath = path.join(campaignDir, `background.${bgExt}`);
+      await writeFile(bgPath, Buffer.from(await bgFile.arrayBuffer()));
+      // Store the path so video-gen can use it
+      visualConfigObj.backgroundPath = bgPath;
+    }
+
+    const clipDefinitionsStr = formData.get('clips') as string | null;
+    const clipDefinitions = clipDefinitionsStr ? JSON.parse(clipDefinitionsStr) : null;
+
     console.log('[POST /api/campaigns] creating DB record...');
     const campaign = await prisma.campaign.create({
       data: {
@@ -90,6 +110,8 @@ export async function POST(req: NextRequest) {
         coverArtUrl: coverPath,
         autoLaunch: autoLaunch === 'true',
         status: 'PROCESSING',
+        visualConfig: visualConfigObj ? (visualConfigObj as Prisma.InputJsonValue) : undefined,
+        clipDefinitions: clipDefinitions ? (clipDefinitions as Prisma.InputJsonValue) : undefined,
         jobs: {
           create: [
             { stage: 'SEGMENTATION', status: 'PENDING' },

@@ -2,7 +2,6 @@ import ffmpeg from 'fluent-ffmpeg';
 import * as path from 'path';
 import * as fs from 'fs';
 import { PrismaClient } from '@prisma/client';
-import { dispatchStage } from '../../lib/queue';
 
 const prisma = new PrismaClient();
 
@@ -23,6 +22,7 @@ interface VisualConfig {
   bgAnimation?: string;
   textAnimation?: string;
   ctaText?: string;
+  backgroundPath?: string;
   heading?: ElementStyle;
   subheading?: ElementStyle;
   cta?: ElementStyle;
@@ -71,13 +71,17 @@ export async function runVideoGen(campaignId: string) {
   const visualConfig: VisualConfig | null =
     campaign.visualConfig ? (campaign.visualConfig as VisualConfig) : null;
 
+  const bgPath = visualConfig?.backgroundPath as string | undefined;
+
   for (const segment of campaign.segments) {
+    const vc = visualConfig ?? {};
     const ctaText =
       visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
     const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
+    const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : campaign.coverArtUrl;
 
     await generateVideo({
-      coverArt: campaign.coverArtUrl,
+      bgSrc,
       audio: segment.fileUrl,
       output: outputFile,
       ctaText,
@@ -91,11 +95,14 @@ export async function runVideoGen(campaignId: string) {
     });
   }
 
-  await dispatchStage(campaignId, 'COPY_GEN');
+  await prisma.campaign.update({
+    where: { id: campaignId },
+    data: { status: 'CONTENT_READY' },
+  });
 }
 
 function generateVideo(opts: {
-  coverArt: string;
+  bgSrc: string;
   audio: string;
   output: string;
   ctaText: string;
@@ -103,7 +110,7 @@ function generateVideo(opts: {
   songTitle: string;
   visualConfig: VisualConfig | null;
 }): Promise<void> {
-  const { coverArt, audio, output, ctaText, artistName, songTitle, visualConfig } = opts;
+  const { bgSrc, audio, output, ctaText, artistName, songTitle, visualConfig } = opts;
 
   const vc = visualConfig ?? {};
   const heading    = vc.heading    ?? {};
@@ -132,7 +139,7 @@ function generateVideo(opts: {
 
   return new Promise((resolve, reject) => {
     ffmpeg()
-      .input(coverArt)
+      .input(bgSrc)
       .loop()
       .input(audio)
       .videoFilters(videoFilters)

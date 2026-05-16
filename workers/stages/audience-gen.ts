@@ -6,6 +6,8 @@ const DEFAULT_INTERESTS = ['Music streaming', 'Music fans', 'Spotify', 'Apple Mu
 export async function runAudienceGen(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
+  await prisma.audience.deleteMany({ where: { campaignId } });
+
   await prisma.audience.createMany({
     data: [
       {

@@ -10,6 +10,8 @@ const NUM_SEGMENTS = 5;
 export async function runSegmentation(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
+  await prisma.audioSegment.deleteMany({ where: { campaignId } });
+
   const uploadDir = process.env.UPLOAD_DIR || '/uploads';
   const segmentDir = path.join(uploadDir, campaignId, 'segments');
   fs.mkdirSync(segmentDir, { recursive: true });

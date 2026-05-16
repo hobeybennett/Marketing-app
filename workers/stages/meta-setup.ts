@@ -89,6 +89,7 @@ export async function runMetaSetup(campaignId: string) {
       billing_event: 'IMPRESSIONS',
       optimization_goal: 'LINK_CLICKS',
       bid_amount: 200,
+      bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
       daily_budget: 1000,
       targeting: buildTargeting(audience),
       status: 'PAUSED',
@@ -151,12 +152,16 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
 }
 
 function buildTargeting(audience: { type: string; interests: string[] }) {
-  const base = { geo_locations: { countries: ['US'] } };
-  if (audience.type === 'INTEREST' && audience.interests.length > 0) {
-    return { ...base, flexible_spec: [{ interests: audience.interests.map(name => ({ name })) }] };
-  }
-  if (audience.type !== 'INTEREST') {
-    console.warn(`[meta-setup] Audience type ${audience.type} not fully configured — using broad targeting`);
+  const base: Record<string, unknown> = {
+    geo_locations: { countries: ['US'] },
+    age_min: 18,
+    age_max: 65,
+  };
+  if (audience.type === 'INTEREST') {
+    // Use Advantage+ audience — Meta's ML optimises delivery without explicit interest IDs
+    base.targeting_automation = { advantage_audience: 1 };
+  } else {
+    console.warn(`[meta-setup] Audience type ${audience.type} uses broad targeting`);
   }
   return base;
 }

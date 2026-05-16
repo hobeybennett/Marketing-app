@@ -63,6 +63,8 @@ export async function runVideoGen(campaignId: string) {
     include: { segments: { orderBy: { index: 'asc' } } },
   });
 
+  await prisma.videoCreative.deleteMany({ where: { campaignId } });
+
   const uploadDir = process.env.UPLOAD_DIR || '/uploads';
   const videoDir = path.join(uploadDir, campaignId, 'videos');
   fs.mkdirSync(videoDir, { recursive: true });
@@ -96,11 +98,9 @@ export async function runVideoGen(campaignId: string) {
 
   await prisma.campaign.update({
     where: { id: campaignId },
-    data: { status: 'CONTENT_READY' },
+    data: { status: campaign.autoLaunch ? 'BUILDING' : 'CONTENT_READY' },
   });
-
   if (campaign.autoLaunch) {
-    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'BUILDING' } });
     await dispatchStage(campaignId, 'COPY_GEN');
   }
 }

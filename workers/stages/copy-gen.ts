@@ -10,6 +10,8 @@ export async function runCopyGen(campaignId: string) {
     include: { creatives: true },
   });
 
+  await prisma.adCopy.deleteMany({ where: { campaignId } });
+
   for (const creative of campaign.creatives) {
     const copy = await generateAdCopy({
       artistName: campaign.artistName,

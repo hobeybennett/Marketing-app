@@ -17,30 +17,28 @@ const worker = new Worker<StageJob>(
   'campaign',
   async (job) => {
     const { campaignId, stage } = job.data;
-    console.log(`[worker] starting ${stage} for campaign ${campaignId}`);
+    console.log(`[worker] starting ${stage} for campaign ${campaignId} (attempt ${job.attemptsMade + 1})`);
 
+    // Reset job to RUNNING at the start of each attempt (handles retries after failure)
     await prisma.campaignJob.updateMany({
       where: { campaignId, stage },
       data: { status: 'RUNNING' },
     });
 
+    // Reset campaign to in-progress status if it was previously set to FAILED
+    const inProgressStatus = ['SEGMENTATION', 'VIDEO_GEN'].includes(stage) ? 'PROCESSING' : 'BUILDING';
+    await prisma.campaign.updateMany({
+      where: { id: campaignId, status: 'FAILED' },
+      data: { status: inProgressStatus },
+    });
+
     try {
       switch (stage) {
-        case 'SEGMENTATION':
-          await runSegmentation(campaignId);
-          break;
-        case 'VIDEO_GEN':
-          await runVideoGen(campaignId);
-          break;
-        case 'COPY_GEN':
-          await runCopyGen(campaignId);
-          break;
-        case 'AUDIENCE_GEN':
-          await runAudienceGen(campaignId);
-          break;
-        case 'META_SETUP':
-          await runMetaSetup(campaignId);
-          break;
+        case 'SEGMENTATION': await runSegmentation(campaignId); break;
+        case 'VIDEO_GEN':    await runVideoGen(campaignId);     break;
+        case 'COPY_GEN':     await runCopyGen(campaignId);      break;
+        case 'AUDIENCE_GEN': await runAudienceGen(campaignId);  break;
+        case 'META_SETUP':   await runMetaSetup(campaignId);    break;
       }
 
       await prisma.campaignJob.updateMany({
@@ -53,10 +51,15 @@ const worker = new Worker<StageJob>(
         where: { campaignId, stage },
         data: { status: 'FAILED', error },
       });
-      await prisma.campaign.update({
-        where: { id: campaignId },
-        data: { status: 'FAILED' },
-      });
+
+      // Only mark the campaign FAILED when there are no retries left
+      const maxAttempts = job.opts.attempts ?? 1;
+      if (job.attemptsMade + 1 >= maxAttempts) {
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: 'FAILED' },
+        });
+      }
       throw err;
     }
   },

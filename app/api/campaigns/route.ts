@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
+import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -20,6 +21,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession();
+    const userId = session?.user?.id ?? null;
+
     const formData = await req.formData();
 
     const audioFile = formData.get('audio') as File | null;
@@ -79,6 +83,7 @@ export async function POST(req: NextRequest) {
         status: 'PROCESSING',
         visualConfig: visualConfigObj ? (visualConfigObj as Prisma.InputJsonValue) : undefined,
         clipDefinitions: clipDefinitions ? (clipDefinitions as Prisma.InputJsonValue) : undefined,
+        userId: userId ?? undefined,
         jobs: {
           create: [
             { stage: 'SEGMENTATION', status: 'PENDING' },

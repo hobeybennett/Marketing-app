@@ -10,10 +10,18 @@ export async function runMetaSetup(campaignId: string) {
     include: {
       creatives: { include: { adCopies: true } },
       audiences: true,
+      user: { include: { metaConnection: true } },
     },
   });
 
-  if (!process.env.META_ACCESS_TOKEN) {
+  // Prefer user's stored Meta connection; fall back to env vars for legacy campaigns
+  const metaConn = campaign.user?.metaConnection;
+  const token = metaConn?.accessToken ?? process.env.META_ACCESS_TOKEN;
+  const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
+  const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
+
+  if (!token) {
+    // Mock mode: no real Meta credentials
     console.log(`[meta-setup] Mock mode for campaign ${campaignId}`);
     await prisma.campaign.update({
       where: { id: campaignId },
@@ -25,11 +33,8 @@ export async function runMetaSetup(campaignId: string) {
     return;
   }
 
-  const token = process.env.META_ACCESS_TOKEN;
-  if (!process.env.META_AD_ACCOUNT_ID) throw new Error('META_AD_ACCOUNT_ID env var is required');
-  if (!process.env.META_PAGE_ID) throw new Error('META_PAGE_ID env var is required');
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
-  const pageId = process.env.META_PAGE_ID;
+  if (!adAccountId) throw new Error('No Meta ad account configured — connect Meta in Settings');
+  if (!pageId) throw new Error('No Facebook Page configured — connect Meta in Settings');
 
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;

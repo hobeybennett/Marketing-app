@@ -69,4 +69,11 @@ const worker = new Worker<StageJob>(
 worker.on('completed', (job) => console.log(`[worker] job ${job.id} (${job.name}) done`));
 worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err.message));
 
+process.on('SIGTERM', async () => {
+  console.log('[worker] SIGTERM received, draining…');
+  await worker.close();
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
 console.log('[worker] started, listening for jobs…');

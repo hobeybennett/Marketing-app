@@ -31,18 +31,22 @@ export async function runMetaSetup(campaignId: string) {
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
   const pageId = process.env.META_PAGE_ID;
 
-  const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
-    name: `Hitback — ${campaign.artistName} — ${campaign.songTitle}`,
-    objective: 'OUTCOME_TRAFFIC',
-    status: 'PAUSED',
-    special_ad_categories: [],
-    destination_type: 'WEBSITE',
-  });
-
-  await prisma.campaign.update({
-    where: { id: campaignId },
-    data: { metaCampaignId: metaCampaign.id },
-  });
+  // Skip campaign creation on retry if we already have a Meta campaign ID
+  let metaCampaignId = campaign.metaCampaignId;
+  if (!metaCampaignId) {
+    const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
+      name: `Hitback — ${campaign.artistName} — ${campaign.songTitle}`,
+      objective: 'OUTCOME_TRAFFIC',
+      status: 'PAUSED',
+      special_ad_categories: [],
+      destination_type: 'WEBSITE',
+    });
+    metaCampaignId = metaCampaign.id;
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { metaCampaignId },
+    });
+  }
 
   // Upload videos and collect video IDs
   const videoIds = new Map<string, string>(); // creativeId -> metaVideoId
@@ -83,9 +87,15 @@ export async function runMetaSetup(campaignId: string) {
   }
 
   for (const audience of campaign.audiences) {
+    // Skip adset creation on retry if this audience already has a Meta adset ID
+    if (audience.metaAdSetId) {
+      console.log(`[meta-setup] Skipping adset creation for ${audience.name} — already exists`);
+      continue;
+    }
+
     const adSet = await metaPost(`/act_${adAccountId}/adsets`, token, {
       name: audience.name,
-      campaign_id: metaCampaign.id,
+      campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
       optimization_goal: 'LINK_CLICKS',
       bid_amount: 200,

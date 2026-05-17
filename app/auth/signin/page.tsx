@@ -1,11 +1,19 @@
 'use client';
-import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { signIn, useSession } from 'next-auth/react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
 
 function SignInContent() {
   const params = useSearchParams();
   const callbackUrl = params.get('callbackUrl') ?? '/campaigns';
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace(callbackUrl);
+    }
+  }, [status, callbackUrl, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">

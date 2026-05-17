@@ -11,11 +11,15 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: 'database' },
+  session: { strategy: 'jwt' },
   pages: { signIn: '/auth/signin' },
   callbacks: {
-    session({ session, user }) {
-      if (session.user) session.user.id = user.id;
+    jwt({ token, user }) {
+      if (user) token.id = user.id;
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user) session.user.id = token.id as string;
       return session;
     },
   },

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { writeFile, mkdir, rm } from 'fs/promises';
 import path from 'path';
@@ -9,7 +9,21 @@ import { getServerSession } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Quick campaign status check: /api/debug?campaign=<id>
+  const campaignId = req.nextUrl.searchParams.get('campaign');
+  if (campaignId) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { jobs: true },
+    });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    return NextResponse.json({
+      id: campaign.id,
+      status: campaign.status,
+      jobs: campaign.jobs.map(j => ({ stage: j.stage, status: j.status, error: j.error })),
+    });
+  }
   const results: Record<string, { ok: boolean; detail: string }> = {};
 
   // 1. Database

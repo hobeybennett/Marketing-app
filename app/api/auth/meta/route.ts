@@ -12,7 +12,7 @@ export async function GET() {
   const params = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     redirect_uri: `${process.env.NEXTAUTH_URL}/api/auth/meta/callback`,
-    scope: 'public_profile,email,ads_management,ads_read,pages_show_list,business_management',
+    scope: 'ads_management,ads_read,pages_show_list',
     response_type: 'code',
     state: session.user.id, // pass userId so callback knows who connected
   });

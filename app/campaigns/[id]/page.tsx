@@ -65,6 +65,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     const contentJobs = campaign.jobs?.filter((j: any) =>
       j.stage === 'SEGMENTATION' || j.stage === 'VIDEO_GEN'
     ) ?? [];
+    const doneCount = contentJobs.filter((j: any) => j.status === 'DONE').length;
+    const pct = Math.round((doneCount / Math.max(contentJobs.length, 1)) * 100);
 
     return (
       <div className="max-w-xl mx-auto">
@@ -72,10 +74,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
-          <h2 className="font-semibold text-lg mb-1">Creating your content</h2>
-          <p className="text-sm text-gray-400 mb-6">
-            Splitting your track and generating 5 video clips…
-          </p>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-semibold text-lg">Creating your content</h2>
+            <span className="text-sm text-gray-400">{pct}%</span>
+          </div>
+          <p className="text-sm text-gray-400 mb-4">Splitting your track and generating 5 video clips…</p>
+          <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
+            <div
+              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(pct, 5)}%` }}
+            />
+          </div>
           <div className="space-y-4">
             {contentJobs.map((job: any) => (
               <StageRow key={job.stage} job={job} />
@@ -147,6 +156,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     const campaignJobs = campaign.jobs?.filter((j: any) =>
       j.stage === 'COPY_GEN' || j.stage === 'AUDIENCE_GEN'
     ) ?? [];
+    const doneCount = campaignJobs.filter((j: any) => j.status === 'DONE').length;
+    const pct = Math.round((doneCount / Math.max(campaignJobs.length, 1)) * 100);
 
     return (
       <div className="max-w-xl mx-auto">
@@ -154,8 +165,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
-          <h2 className="font-semibold text-lg mb-1">Building your campaign</h2>
-          <p className="text-sm text-gray-400 mb-6">Writing ad copy and setting up audiences…</p>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-semibold text-lg">Building your campaign</h2>
+            <span className="text-sm text-gray-400">{pct}%</span>
+          </div>
+          <p className="text-sm text-gray-400 mb-4">Writing ad copy and setting up audiences…</p>
+          <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
+            <div
+              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(pct, 5)}%` }}
+            />
+          </div>
           <div className="space-y-4">
             {campaignJobs.map((job: any) => (
               <StageRow key={job.stage} job={job} />
@@ -293,13 +313,38 @@ function TrackHeader({ campaign }: { campaign: any }) {
 }
 
 function StageRow({ job }: { job: any }) {
-  const icon = job.status === 'DONE' ? '✓' : job.status === 'RUNNING' ? '⟳' : '○';
-  const color = job.status === 'DONE' ? 'text-green-400' : job.status === 'RUNNING' ? 'text-blue-400 animate-pulse' : 'text-gray-600';
+  const isDone = job.status === 'DONE';
+  const isRunning = job.status === 'RUNNING';
+  const isFailed = job.status === 'FAILED';
+
   return (
     <div className="flex items-center gap-3">
-      <span className={`text-lg font-bold ${color}`}>{icon}</span>
-      <span className={`text-sm ${job.status === 'PENDING' ? 'text-gray-500' : 'text-gray-200'}`}>
+      <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+        {isDone && (
+          <svg className="text-green-400 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+        {isRunning && (
+          <svg className="animate-spin text-blue-400 w-5 h-5" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+        )}
+        {isFailed && (
+          <svg className="text-red-400 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )}
+        {!isDone && !isRunning && !isFailed && (
+          <div className="w-4 h-4 rounded-full border-2 border-gray-600" />
+        )}
+      </div>
+      <span className={`text-sm ${isDone ? 'text-green-300' : isRunning ? 'text-blue-300 font-medium' : isFailed ? 'text-red-400' : 'text-gray-500'}`}>
         {STAGE_LABELS[job.stage] ?? job.stage}
+        {isFailed && job.error && (
+          <span className="block text-xs text-red-500 mt-0.5">{job.error}</span>
+        )}
       </span>
     </div>
   );

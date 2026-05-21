@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "DATABASE_URL=postgresql://build:build@localhost/build prisma generate && next build",
-    "start": "npx prisma db push && concurrently -r \"next start\" \"tsx workers/index.ts\"",
+    "start": "concurrently -r \"next start\" \"tsx workers/index.ts\"",
     "lint": "next lint",
     "worker": "tsx workers/index.ts",
     "db:push": "prisma db push",

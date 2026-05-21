@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "sh -c 'if [ \"$SERVICE_TYPE\" = \"worker\" ]; then exec npm run worker; else exec npm run start; fi'"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

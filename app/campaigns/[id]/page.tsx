@@ -273,12 +273,22 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   }
 
   // ── Failed ────────────────────────────────────────────────────────────────
+  const failedJob = campaign.jobs?.find((j: any) => j.status === 'FAILED');
   return (
-    <div className="max-w-xl mx-auto text-center py-12">
+    <div className="max-w-xl mx-auto py-12">
       <BackButton onClick={() => router.push('/campaigns')} />
-      <div className="text-5xl mb-4">⚠️</div>
-      <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
-      <p className="text-gray-400">Status: {status}</p>
+      <div className="text-center mb-6">
+        <div className="text-5xl mb-4">⚠️</div>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        {failedJob && (
+          <p className="text-gray-400 text-sm">Failed at: <span className="text-white">{STAGE_LABELS[failedJob.stage] ?? failedJob.stage}</span></p>
+        )}
+      </div>
+      {failedJob?.error && (
+        <div className="bg-red-900/20 border border-red-800 rounded-xl p-4">
+          <p className="text-xs text-red-300 font-mono break-all whitespace-pre-wrap">{failedJob.error}</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -29,6 +29,12 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [campaign, setCampaign] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
 
   const fetchCampaign = useCallback(async () => {
     const res = await fetch(`/api/campaigns/${params.id}`);
@@ -67,6 +73,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     ) ?? [];
     const doneCount = contentJobs.filter((j: any) => j.status === 'DONE').length;
     const pct = Math.round((doneCount / Math.max(contentJobs.length, 1)) * 100);
+    const ageMs = now - new Date(campaign.createdAt).getTime();
+    const isStale = pct === 0 && ageMs > 5 * 60 * 1000;
 
     return (
       <div className="max-w-xl mx-auto">
@@ -90,6 +98,11 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               <StageRow key={job.stage} job={job} />
             ))}
           </div>
+          {isStale && (
+            <div className="mt-5 rounded-lg border border-yellow-700 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-300">
+              <span className="font-semibold">Taking longer than expected.</span> Make sure the worker service is running on Railway — the web app and worker must both be deployed as separate services.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -292,18 +305,20 @@ function BackButton({ onClick }: { onClick: () => void }) {
 }
 
 function TrackHeader({ campaign }: { campaign: any }) {
+  const coverSrc = campaign.coverArtUrl?.startsWith('http')
+    ? campaign.coverArtUrl
+    : `/api/covers/${campaign.id}`;
+
   return (
     <div className="flex items-center gap-4">
-      {campaign.coverArtUrl?.startsWith('http') && (
-        <Image
-          src={campaign.coverArtUrl}
-          alt="cover"
-          width={56}
-          height={56}
-          className="rounded-lg shrink-0"
-          unoptimized
-        />
-      )}
+      <Image
+        src={coverSrc}
+        alt="cover"
+        width={56}
+        height={56}
+        className="rounded-lg shrink-0 bg-gray-800"
+        unoptimized
+      />
       <div>
         <h1 className="text-xl font-bold leading-tight">{campaign.songTitle}</h1>
         <p className="text-gray-400">{campaign.artistName}</p>

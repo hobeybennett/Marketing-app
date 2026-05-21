@@ -45,6 +45,7 @@ export async function runMetaSetup(campaignId: string) {
       status: 'PAUSED',
       special_ad_categories: [],
       destination_type: 'WEBSITE',
+      is_adset_budget_sharing_enabled: false,
     });
     metaCampaignId = metaCampaign.id;
     await prisma.campaign.update({

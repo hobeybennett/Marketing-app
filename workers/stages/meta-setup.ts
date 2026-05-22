@@ -66,6 +66,9 @@ export async function runMetaSetup(campaignId: string) {
     }
   }
 
+  // Upload cover art once for use as video thumbnail across all creatives
+  const coverImageHash = await uploadImageToMeta(campaign.coverArtUrl, token, adAccountId);
+
   // Create one AdCreative per video creative
   const adCreativeIds = new Map<string, string>(); // creativeId -> metaAdCreativeId
   for (const creative of campaign.creatives) {
@@ -80,6 +83,7 @@ export async function runMetaSetup(campaignId: string) {
         page_id: pageId,
         video_data: {
           video_id: videoId,
+          image_hash: coverImageHash,
           title: copy.headline,
           message: copy.primaryText,
           call_to_action: {
@@ -133,6 +137,23 @@ export async function runMetaSetup(campaignId: string) {
     where: { id: campaignId },
     data: { status: 'LIVE' },
   });
+}
+
+async function uploadImageToMeta(filePath: string, token: string, adAccountId: string): Promise<string> {
+  const fileBuffer = fs.readFileSync(filePath);
+  const form = new FormData();
+  form.append('source', new Blob([fileBuffer], { type: 'image/jpeg' }), path.basename(filePath));
+
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages?access_token=${token}`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Meta image upload failed: ${await res.text()}`);
+  const data = await res.json();
+  const images = data.images as Record<string, { hash: string }>;
+  const hash = images[Object.keys(images)[0]]?.hash;
+  if (!hash) throw new Error('Meta image upload returned no hash');
+  return hash;
 }
 
 async function uploadVideoToMeta(filePath: string, token: string, adAccountId: string, title: string): Promise<string> {

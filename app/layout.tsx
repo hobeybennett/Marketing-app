@@ -19,6 +19,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UserNav />
           </nav>
           <main className="container mx-auto px-4 py-8">{children}</main>
+          <footer className="border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6 text-xs text-gray-500">
+            <Link href="/privacy" className="hover:text-gray-300 transition">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-gray-300 transition">Terms &amp; Conditions</Link>
+          </footer>
         </SessionProvider>
       </body>
     </html>

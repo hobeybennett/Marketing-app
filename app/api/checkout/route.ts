@@ -4,9 +4,8 @@ import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
 export async function GET(req: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const session = await getServerSession();
   if (!session?.user?.id) {
     return NextResponse.redirect(new URL('/api/auth/signin', req.url));

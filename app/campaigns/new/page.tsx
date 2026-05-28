@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
 const TEST_SPOTIFY_URL = 'https://open.spotify.com/track/6Jv7kjGkhY2fT4yuBF3aTz';
@@ -356,8 +356,18 @@ function TextLayerEditor({ style, onChange }: {
 
 export default function NewCampaignPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
+
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') setPaymentSuccess(true);
+    if (payment === 'cancelled') setShowPaywall(true);
+  }, [searchParams]);
 
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
@@ -486,6 +496,7 @@ export default function NewCampaignPage() {
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
+      if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       const campaign = await res.json();
       router.push(`/campaigns/${campaign.id}`);
@@ -497,6 +508,25 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-xl mx-auto pb-16">
+      {paymentSuccess && (
+        <div className="mb-4 rounded-xl border border-green-700 bg-green-900/20 px-4 py-3 text-sm text-green-300">
+          Payment successful — your campaign credit has been added. Fill in the form below to launch your campaign.
+        </div>
+      )}
+
+      {showPaywall && (
+        <div className="mb-4 rounded-xl border border-gray-700 bg-gray-900 px-6 py-6 text-center">
+          <p className="text-lg font-semibold mb-1">Your free campaign has been used</p>
+          <p className="text-sm text-gray-400 mb-5">Each additional campaign is a one-time payment of $4.99.</p>
+          <a
+            href="/api/checkout"
+            className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-white transition"
+          >
+            Get Campaign Credit — $4.99
+          </a>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
         <h1 className="text-2xl font-bold">New Campaign</h1>

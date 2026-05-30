@@ -24,6 +24,22 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession();
     const userId = session?.user?.id ?? null;
 
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { _count: { select: { campaigns: true } } },
+      });
+      if (user && user._count.campaigns >= 1) {
+        if (user.campaignCredits <= 0) {
+          return NextResponse.json({ error: 'payment_required' }, { status: 402 });
+        }
+        await prisma.user.update({
+          where: { id: userId },
+          data: { campaignCredits: { decrement: 1 } },
+        });
+      }
+    }
+
     const formData = await req.formData();
 
     const audioFile = formData.get('audio') as File | null;

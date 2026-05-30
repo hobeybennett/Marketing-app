@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -359,6 +359,17 @@ export default function NewCampaignPage() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (payment === 'success') setPaymentSuccess(true);
+    if (payment === 'cancelled') setShowPaywall(true);
+  }, []);
+
+
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
@@ -486,6 +497,11 @@ export default function NewCampaignPage() {
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
+      if (res.status === 402) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
+      }
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
       const campaign = await res.json();
       router.push(`/campaigns/${campaign.id}`);
@@ -497,6 +513,32 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-xl mx-auto pb-16">
+
+      {/* Payment success banner */}
+      {paymentSuccess && (
+        <div className="bg-green-900 border border-green-700 text-green-300 rounded-xl p-4 mb-4 text-sm">
+          Payment successful! Your campaign credit has been added. Fill in the form below to launch your campaign.
+        </div>
+      )}
+
+      {/* Paywall modal */}
+      {showPaywall && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full text-center">
+            <h2 className="text-xl font-bold mb-2">Unlock Another Campaign</h2>
+            <p className="text-sm text-gray-400 mb-5">Each additional campaign is a one-time payment of $4.99.</p>
+            <a href="/api/checkout"
+              className="block w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-lg transition mb-3">
+              Pay $4.99 →
+            </a>
+            <button type="button" onClick={() => setShowPaywall(false)}
+              className="text-sm text-gray-500 hover:text-gray-300 transition">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
         <h1 className="text-2xl font-bold">New Campaign</h1>

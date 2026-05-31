@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 const TEST_SPOTIFY_URL = 'https://open.spotify.com/track/6Jv7kjGkhY2fT4yuBF3aTz';
@@ -356,7 +356,6 @@ function TextLayerEditor({ style, onChange }: {
 
 export default function NewCampaignPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
@@ -364,10 +363,11 @@ export default function NewCampaignPage() {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
-    const payment = searchParams.get('payment');
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
     if (payment === 'success') setPaymentSuccess(true);
     if (payment === 'cancelled') setShowPaywall(true);
-  }, [searchParams]);
+  }, []);
 
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
@@ -508,22 +508,29 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-xl mx-auto pb-16">
+
+      {/* Payment success banner */}
       {paymentSuccess && (
         <div className="mb-4 rounded-xl border border-green-700 bg-green-900/20 px-4 py-3 text-sm text-green-300">
           Payment successful — your campaign credit has been added. Fill in the form below to launch your campaign.
         </div>
       )}
 
+      {/* Paywall modal */}
       {showPaywall && (
-        <div className="mb-4 rounded-xl border border-gray-700 bg-gray-900 px-6 py-6 text-center">
-          <p className="text-lg font-semibold mb-1">Your free campaign has been used</p>
-          <p className="text-sm text-gray-400 mb-5">Each additional campaign is a one-time payment of $4.99.</p>
-          <a
-            href="/api/checkout"
-            className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-white transition"
-          >
-            Get Campaign Credit — $4.99
-          </a>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full text-center">
+            <h2 className="text-xl font-bold mb-2">Unlock Another Campaign</h2>
+            <p className="text-sm text-gray-400 mb-5">Each additional campaign is a one-time payment of $4.99.</p>
+            <a href="/api/checkout"
+              className="block w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-lg transition mb-3">
+              Get Campaign Credit — $4.99
+            </a>
+            <button type="button" onClick={() => setShowPaywall(false)}
+              className="text-sm text-gray-500 hover:text-gray-300 transition">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

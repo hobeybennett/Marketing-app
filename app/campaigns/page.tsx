@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 
 async function getCampaigns() {
   return prisma.campaign.findMany({
@@ -59,31 +60,32 @@ export default async function CampaignsPage() {
       ) : (
         <div className="space-y-4">
           {campaigns.map((c: any) => (
-            <Link
-              key={c.id}
-              href={`/campaigns/${c.id}`}
-              className="block bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-gray-600 transition"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-semibold">{c.songTitle}</p>
-                  <p className="text-gray-400">{c.artistName}</p>
-                  {c.genre && <p className="text-sm text-gray-500 mt-1">{c.genre}</p>}
+            <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition">
+              <Link href={`/campaigns/${c.id}`} className="block p-6">
+                <div className="flex items-center justify-between pr-8">
+                  <div>
+                    <p className="text-lg font-semibold">{c.songTitle}</p>
+                    <p className="text-gray-400">{c.artistName}</p>
+                    {c.genre && <p className="text-sm text-gray-500 mt-1">{c.genre}</p>}
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[c.status] ?? 'bg-gray-600'}`}
+                  >
+                    {STATUS_LABELS[c.status] ?? c.status.replace('_', ' ')}
+                  </span>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[c.status] ?? 'bg-gray-600'}`}
-                >
-                  {STATUS_LABELS[c.status] ?? c.status.replace('_', ' ')}
-                </span>
+                <p className="text-sm text-gray-500 mt-3">
+                  {new Date(c.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </p>
+              </Link>
+              <div className="absolute top-5 right-5">
+                <DeleteCampaignButton campaignId={c.id} />
               </div>
-              <p className="text-sm text-gray-500 mt-3">
-                {new Date(c.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </p>
-            </Link>
+            </div>
           ))}
         </div>
       )}

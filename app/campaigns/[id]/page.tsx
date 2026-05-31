@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
@@ -29,6 +30,12 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [campaign, setCampaign] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
 
   const fetchCampaign = useCallback(async () => {
     const res = await fetch(`/api/campaigns/${params.id}`);
@@ -67,10 +74,12 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     ) ?? [];
     const doneCount = contentJobs.filter((j: any) => j.status === 'DONE').length;
     const pct = Math.round((doneCount / Math.max(contentJobs.length, 1)) * 100);
+    const ageMs = now - new Date(campaign.createdAt).getTime();
+    const isStale = pct === 0 && ageMs > 5 * 60 * 1000;
 
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
@@ -90,6 +99,11 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               <StageRow key={job.stage} job={job} />
             ))}
           </div>
+          {isStale && (
+            <div className="mt-5 rounded-lg border border-yellow-700 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-300">
+              <span className="font-semibold">Taking longer than expected.</span> Make sure the worker service is running on Railway — the web app and worker must both be deployed as separate services.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -99,7 +113,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   if (status === 'CONTENT_READY') {
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="mt-6 mb-4 flex items-center justify-between">
@@ -161,7 +175,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
@@ -192,7 +206,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     return (
       <div className="max-w-xl mx-auto space-y-4">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
@@ -261,7 +275,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   if (status === 'LIVE' || status === 'LAUNCHING') {
     return (
       <div className="max-w-xl mx-auto text-center py-12">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
         <h2 className="text-2xl font-bold mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
         <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
@@ -276,7 +290,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const failedJob = campaign.jobs?.find((j: any) => j.status === 'FAILED');
   return (
     <div className="max-w-xl mx-auto py-12">
-      <BackButton onClick={() => router.push('/campaigns')} />
+      <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
       <div className="text-center mb-6">
         <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
@@ -293,27 +307,32 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackButton({ onClick, campaignId }: { onClick: () => void; campaignId: string }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-white text-sm mb-4 block">
-      ← Back to campaigns
-    </button>
+    <div className="flex items-center justify-between mb-4">
+      <button onClick={onClick} className="text-gray-400 hover:text-white text-sm">
+        ← Back to campaigns
+      </button>
+      <DeleteCampaignButton campaignId={campaignId} redirect />
+    </div>
   );
 }
 
 function TrackHeader({ campaign }: { campaign: any }) {
+  const coverSrc = campaign.coverArtUrl?.startsWith('http')
+    ? campaign.coverArtUrl
+    : `/api/covers/${campaign.id}`;
+
   return (
     <div className="flex items-center gap-4">
-      {campaign.coverArtUrl?.startsWith('http') && (
-        <Image
-          src={campaign.coverArtUrl}
-          alt="cover"
-          width={56}
-          height={56}
-          className="rounded-lg shrink-0"
-          unoptimized
-        />
-      )}
+      <Image
+        src={coverSrc}
+        alt="cover"
+        width={56}
+        height={56}
+        className="rounded-lg shrink-0 bg-gray-800"
+        unoptimized
+      />
       <div>
         <h1 className="text-xl font-bold leading-tight">{campaign.songTitle}</h1>
         <p className="text-gray-400">{campaign.artistName}</p>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
@@ -78,7 +79,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
@@ -112,7 +113,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   if (status === 'CONTENT_READY') {
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="mt-6 mb-4 flex items-center justify-between">
@@ -174,7 +175,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     return (
       <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
@@ -205,7 +206,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     return (
       <div className="max-w-xl mx-auto space-y-4">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
         <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
@@ -274,7 +275,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   if (status === 'LIVE' || status === 'LAUNCHING') {
     return (
       <div className="max-w-xl mx-auto text-center py-12">
-        <BackButton onClick={() => router.push('/campaigns')} />
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
         <h2 className="text-2xl font-bold mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
         <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
@@ -288,7 +289,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   // ── Failed ────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-xl mx-auto text-center py-12">
-      <BackButton onClick={() => router.push('/campaigns')} />
+      <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
       <div className="text-5xl mb-4">⚠️</div>
       <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
       <p className="text-gray-400">Status: {status}</p>
@@ -296,11 +297,14 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackButton({ onClick, campaignId }: { onClick: () => void; campaignId: string }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-white text-sm mb-4 block">
-      ← Back to campaigns
-    </button>
+    <div className="flex items-center justify-between mb-4">
+      <button onClick={onClick} className="text-gray-400 hover:text-white text-sm">
+        ← Back to campaigns
+      </button>
+      <DeleteCampaignButton campaignId={campaignId} redirect />
+    </div>
   );
 }
 

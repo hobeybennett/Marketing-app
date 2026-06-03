@@ -103,6 +103,12 @@ export async function runMetaSetup(campaignId: string) {
       continue;
     }
 
+    // Skip audiences with insufficient data (retargeting/lookalike not yet ready)
+    if ((audience as any).dataStatus === 'PENDING_DATA') {
+      console.log(`[meta-setup] Skipping adset for ${audience.name} — data status PENDING_DATA`);
+      continue;
+    }
+
     const adSet = await metaPost(`/act_${adAccountId}/adsets`, token, {
       name: audience.name,
       campaign_id: metaCampaignId,

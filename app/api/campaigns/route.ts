@@ -52,12 +52,13 @@ export async function POST(req: NextRequest) {
       artistName: z.string().min(1),
       songTitle: z.string().min(1),
       autoLaunch: z.string().optional(),
+      spotifyUrl: z.string().url().optional().or(z.literal('')),
     });
 
     const parsed = schema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
-    const { artistName, songTitle, autoLaunch } = parsed.data;
+    const { artistName, songTitle, autoLaunch, spotifyUrl } = parsed.data;
 
     const campaignId = uuidv4();
     const uploadDir = process.env.UPLOAD_DIR || '/uploads';
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
         visualConfig: visualConfigObj ? (visualConfigObj as Prisma.InputJsonValue) : undefined,
         clipDefinitions: clipDefinitions ? (clipDefinitions as Prisma.InputJsonValue) : undefined,
         userId: userId ?? undefined,
+        spotifyUrl: spotifyUrl || undefined,
         jobs: {
           create: [
             { stage: 'SEGMENTATION', status: 'PENDING' },

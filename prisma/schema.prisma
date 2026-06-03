@@ -8,28 +8,33 @@ datasource db {
 }
 
 model Campaign {
-  id             String         @id @default(uuid())
-  artistName     String
-  songTitle      String
-  genre          String?
-  mood           String?
-  audioUrl       String
-  coverArtUrl    String
-  autoLaunch     Boolean        @default(false)
-  status         CampaignStatus @default(PENDING)
-  metaCampaignId String?
-  visualConfig   Json?
+  id              String         @id @default(uuid())
+  artistName      String
+  songTitle       String
+  genre           String?
+  mood            String?
+  audioUrl        String
+  coverArtUrl     String
+  autoLaunch      Boolean        @default(false)
+  status          CampaignStatus @default(PENDING)
+  metaCampaignId  String?
+  visualConfig    Json?
   clipDefinitions Json?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  userId         String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  userId          String?
+  spotifyUrl      String?
+  lastSyncAt      DateTime?
 
-  jobs      CampaignJob[]
-  segments  AudioSegment[]
-  creatives VideoCreative[]
-  adCopies  AdCopy[]
-  audiences Audience[]
-  user      User?          @relation(fields: [userId], references: [id])
+  jobs                CampaignJob[]
+  segments            AudioSegment[]
+  creatives           VideoCreative[]
+  adCopies            AdCopy[]
+  audiences           Audience[]
+  user                User?          @relation(fields: [userId], references: [id])
+  insights            AdInsight[]
+  smartLinkClicks     SmartLinkClick[]
+  optimisationLogs    OptimisationLog[]
 }
 
 enum CampaignStatus {
@@ -90,6 +95,7 @@ model VideoCreative {
   segmentId  String
   fileUrl    String
   ctaText    String
+  metaAdId   String?
   createdAt  DateTime @default(now())
 
   campaign Campaign      @relation(fields: [campaignId], references: [id])
@@ -119,6 +125,8 @@ model Audience {
   lookalikeSeed     String?
   retargetingSource String?
   metaAdSetId       String?
+  availabilityNote  String?
+  dataStatus        String?
   createdAt         DateTime     @default(now())
 
   campaign Campaign @relation(fields: [campaignId], references: [id])
@@ -180,6 +188,62 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model AdInsight {
+  id             String   @id @default(uuid())
+  campaignId     String
+  metaAdSetId    String?
+  metaAdId       String?
+  date           DateTime
+  spend          Float    @default(0)
+  impressions    Int      @default(0)
+  cpm            Float    @default(0)
+  ctr            Float    @default(0)
+  cpc            Float    @default(0)
+  outboundClicks Int      @default(0)
+  videoViews     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, metaAdSetId, metaAdId, date])
+  @@index([campaignId])
+}
+
+model SmartLinkClick {
+  id          String   @id @default(uuid())
+  campaignId  String
+  platform    String?
+  country     String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  referrer    String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+model OptimisationLog {
+  id            String   @id @default(uuid())
+  campaignId    String
+  metaAdSetId   String?
+  metaAdId      String?
+  action        String
+  reason        String
+  previousValue Float?
+  newValue      Float?
+  createdAt     DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
 }
 
 model MetaConnection {

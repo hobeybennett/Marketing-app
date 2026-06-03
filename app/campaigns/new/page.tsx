@@ -373,6 +373,7 @@ export default function NewCampaignPage() {
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
   const [spotify, setSpotify] = useState<SpotifyData | null>(null);
+  const [saveSpotifyUrl, setSaveSpotifyUrl] = useState(true);
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState(180);
@@ -494,6 +495,7 @@ export default function NewCampaignPage() {
     formData.set('clips', JSON.stringify(clips));
     formData.set('visualConfig', JSON.stringify(visualConfig));
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
+    if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
@@ -568,6 +570,17 @@ export default function NewCampaignPage() {
             </div>
             <span className="ml-auto text-green-400 text-xs">✓</span>
           </div>
+        )}
+        {spotify && (
+          <label className="flex items-center gap-2 mt-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={saveSpotifyUrl}
+              onChange={(e) => setSaveSpotifyUrl(e.target.checked)}
+              className="w-4 h-4 accent-green-500"
+            />
+            <span className="text-xs text-gray-400">Add Spotify link to smart link page</span>
+          </label>
         )}
       </div>
 

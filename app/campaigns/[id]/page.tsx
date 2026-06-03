@@ -273,14 +273,49 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
   // ── Live ──────────────────────────────────────────────────────────────────
   if (status === 'LIVE' || status === 'LAUNCHING') {
+    const smartLinkUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/go/${params.id}`;
     return (
-      <div className="max-w-xl mx-auto text-center py-12">
+      <div className="max-w-xl mx-auto py-8">
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
-        <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
-        <h2 className="text-2xl font-bold mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
-        <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
-        {campaign.metaCampaignId && (
-          <p className="text-xs text-gray-600 mt-4">Meta ID: {campaign.metaCampaignId}</p>
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
+          <h2 className="text-2xl font-bold mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
+          <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
+          {campaign.metaCampaignId && (
+            <p className="text-xs text-gray-600 mt-4">Meta ID: {campaign.metaCampaignId}</p>
+          )}
+        </div>
+
+        {status === 'LIVE' && (
+          <>
+            {/* Smart Link section */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+              <h3 className="font-semibold mb-1">Smart Link</h3>
+              <p className="text-sm text-gray-400 mb-3">Share this link to send fans to your streaming platforms.</p>
+              <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+                <code className="text-xs text-green-400 flex-1 truncate">/go/{params.id}</code>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(smartLinkUrl)}
+                  className="text-xs text-gray-400 hover:text-white transition shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            {/* Performance link */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <h3 className="font-semibold mb-1">Performance</h3>
+              <p className="text-sm text-gray-400 mb-3">View ad spend, CTR, and optimisation actions.</p>
+              <a
+                href={`/campaigns/${params.id}/insights`}
+                className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition"
+              >
+                View Performance →
+              </a>
+            </div>
+          </>
         )}
       </div>
     );

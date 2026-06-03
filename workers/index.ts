@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Worker } from 'bullmq';
+import { Worker, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { StageJob } from '../lib/queue';
 import { prisma } from './prisma';
@@ -8,10 +8,72 @@ import { runVideoGen } from './stages/video-gen';
 import { runCopyGen } from './stages/copy-gen';
 import { runAudienceGen } from './stages/audience-gen';
 import { runMetaSetup } from './stages/meta-setup';
+import { runInsightsSync } from './stages/insights-sync';
+import { runOptimisation } from './stages/optimise';
 
 const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
 });
+
+// ── Repeatable jobs queue ────────────────────────────────────────────────────
+const insightsSyncQueue = new Queue('insights-sync', { connection });
+const optimiseQueue = new Queue('optimise', { connection });
+
+// Register repeatable job: insights sync every 6 hours
+insightsSyncQueue.add(
+  'SYNC_ALL_LIVE',
+  {},
+  {
+    repeat: { every: 6 * 60 * 60 * 1000 },
+    jobId: 'insights-sync-repeatable',
+  },
+).catch((err: unknown) => console.error('[worker] Failed to register insights-sync repeatable job:', err));
+
+// Register repeatable job: optimisation every 12 hours
+optimiseQueue.add(
+  'OPTIMISE_ALL_LIVE',
+  {},
+  {
+    repeat: { every: 12 * 60 * 60 * 1000 },
+    jobId: 'optimise-repeatable',
+  },
+).catch((err: unknown) => console.error('[worker] Failed to register optimise repeatable job:', err));
+
+// ── Insights sync worker ─────────────────────────────────────────────────────
+const insightsSyncWorker = new Worker(
+  'insights-sync',
+  async () => {
+    const liveCampaigns = await prisma.campaign.findMany({
+      where: { status: 'LIVE', metaCampaignId: { not: null } },
+      select: { id: true },
+    });
+    for (const c of liveCampaigns) {
+      await runInsightsSync(c.id);
+    }
+  },
+  { connection },
+);
+insightsSyncWorker.on('failed', (_job: unknown, err: Error) =>
+  console.error('[insights-sync worker] failed:', err.message),
+);
+
+// ── Optimise worker ──────────────────────────────────────────────────────────
+const optimiseWorker = new Worker(
+  'optimise',
+  async () => {
+    const liveCampaigns = await prisma.campaign.findMany({
+      where: { status: 'LIVE', metaCampaignId: { not: null } },
+      select: { id: true },
+    });
+    for (const c of liveCampaigns) {
+      await runOptimisation(c.id);
+    }
+  },
+  { connection },
+);
+optimiseWorker.on('failed', (_job: unknown, err: Error) =>
+  console.error('[optimise worker] failed:', err.message),
+);
 
 const worker = new Worker<StageJob>(
   'campaign',
@@ -71,7 +133,7 @@ worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:
 
 process.on('SIGTERM', async () => {
   console.log('[worker] SIGTERM received, draining…');
-  await worker.close();
+  await Promise.all([worker.close(), insightsSyncWorker.close(), optimiseWorker.close()]);
   await prisma.$disconnect();
   process.exit(0);
 });

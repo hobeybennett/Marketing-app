@@ -274,6 +274,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   // ── Live ──────────────────────────────────────────────────────────────────
   if (status === 'LIVE' || status === 'LAUNCHING') {
     const smartLinkUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/go/${params.id}`;
+    const launchingMs = now - new Date(campaign.updatedAt).getTime();
+    const isStuckLaunching = status === 'LAUNCHING' && launchingMs > 3 * 60 * 1000;
     return (
       <div className="max-w-xl mx-auto py-8">
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
@@ -285,6 +287,20 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             <p className="text-xs text-gray-600 mt-4">Meta ID: {campaign.metaCampaignId}</p>
           )}
         </div>
+
+        {isStuckLaunching && (
+          <div className="mb-4 rounded-xl border border-yellow-700 bg-yellow-900/20 px-4 py-4 text-sm text-yellow-300">
+            <p className="font-semibold mb-1">Taking longer than expected</p>
+            <p className="text-yellow-400/80 mb-3">The launch job may have stalled. Meta campaign setup is resumable — click retry to continue from where it left off.</p>
+            <button
+              onClick={() => handleAction('retry-launch')}
+              disabled={actionLoading}
+              className="bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+            >
+              {actionLoading ? 'Retrying…' : 'Retry Launch'}
+            </button>
+          </div>
+        )}
 
         {status === 'LIVE' && (
           <>

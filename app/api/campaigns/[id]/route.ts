@@ -52,6 +52,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ status: 'launching' });
   }
 
+  // Retry a stalled LAUNCHING campaign — re-dispatches META_SETUP (idempotent)
+  if (action === 'retry-launch') {
+    const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+    if (campaign.status !== CampaignStatus.LAUNCHING) {
+      return NextResponse.json({ error: 'campaign must be LAUNCHING to retry' }, { status: 400 });
+    }
+
+    // Reset the META_SETUP job record so the UI reflects a fresh attempt
+    await prisma.campaignJob.updateMany({
+      where: { campaignId: params.id, stage: 'META_SETUP' },
+      data: { status: 'PENDING', error: null },
+    });
+
+    await dispatchStage(params.id, 'META_SETUP');
+    return NextResponse.json({ status: 'launching' });
+  }
+
   return NextResponse.json({ error: 'unknown action' }, { status: 400 });
 }
 

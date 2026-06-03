@@ -20,9 +20,12 @@ export async function runMetaSetup(campaignId: string) {
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
 
-  if (!token) {
-    // Mock mode: no real Meta credentials
-    console.log(`[meta-setup] Mock mode for campaign ${campaignId}`);
+  // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
+  const forceMock = process.env.MOCK_META === 'true';
+
+  if (!token || forceMock) {
+    const reason = forceMock ? 'MOCK_META=true' : 'no token';
+    console.log(`[meta-setup] Mock mode for campaign ${campaignId} (${reason})`);
     await prisma.campaign.update({
       where: { id: campaignId },
       data: {

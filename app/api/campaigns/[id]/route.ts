@@ -61,10 +61,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: 'campaign must be LAUNCHING to retry' }, { status: 400 });
     }
 
-    // Reset the META_SETUP job record so the UI reflects a fresh attempt
+    // Reset job record and clear the partial Meta campaign ID so the stage
+    // creates a fresh campaign rather than resuming a potentially broken one
     await prisma.campaignJob.updateMany({
       where: { campaignId: params.id, stage: 'META_SETUP' },
       data: { status: 'PENDING', error: null },
+    });
+    await prisma.campaign.update({
+      where: { id: params.id },
+      data: { metaCampaignId: null },
     });
 
     await dispatchStage(params.id, 'META_SETUP');

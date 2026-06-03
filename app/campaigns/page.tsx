@@ -2,10 +2,15 @@ export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from '@/lib/auth';
 import DeleteCampaignButton from '@/components/DeleteCampaignButton';
+import NewCampaignButton from '@/components/NewCampaignButton';
+import { Suspense } from 'react';
+import PaymentBanner from '@/components/PaymentBanner';
 
-async function getCampaigns() {
+async function getCampaigns(userId: string | null) {
   return prisma.campaign.findMany({
+    where: userId ? { userId } : {},
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
   });
@@ -36,18 +41,34 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default async function CampaignsPage() {
-  const campaigns = await getCampaigns();
+  const session = await getServerSession();
+  const userId = session?.user?.id ?? null;
+  const campaigns = await getCampaigns(userId);
+
+  // Determine whether a new campaign requires payment
+  let needsPayment = false;
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { campaignCredits: true, _count: { select: { campaigns: true } } },
+    });
+    if (user && user._count.campaigns >= 1 && user.campaignCredits <= 0) {
+      needsPayment = true;
+    }
+  }
 
   return (
     <div>
+      {/* Payment success banner — reads ?payment= from URL client-side */}
+      <Suspense fallback={null}>
+        <PaymentBanner />
+      </Suspense>
+
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Campaigns</h1>
-        <Link
-          href="/campaigns/new"
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition"
-        >
-          New Campaign
-        </Link>
+        <Suspense fallback={null}>
+          <NewCampaignButton needsPayment={needsPayment} />
+        </Suspense>
       </div>
 
       {campaigns.length === 0 ? (

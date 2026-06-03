@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
       quantity: 1,
     }],
     mode: 'payment',
-    success_url: `${appUrl}/campaigns/new?payment=success`,
-    cancel_url: `${appUrl}/campaigns/new?payment=cancelled`,
+    success_url: `${appUrl}/campaigns?payment=success`,
+    cancel_url: `${appUrl}/campaigns?payment=cancelled`,
     metadata: { userId: session.user.id },
   });
 

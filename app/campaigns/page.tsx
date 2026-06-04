@@ -45,16 +45,18 @@ export default async function CampaignsPage() {
   const userId = session?.user?.id ?? null;
   const campaigns = await getCampaigns(userId);
 
-  // Determine whether a new campaign requires payment
+  // Count non-failed campaigns (includes pre-auth campaigns with userId=null)
+  const nonFailedCount = await prisma.campaign.count({
+    where: { status: { not: 'FAILED' } },
+  });
+
   let needsPayment = false;
-  if (userId) {
+  if (userId && nonFailedCount >= 1) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { campaignCredits: true, _count: { select: { campaigns: true } } },
+      select: { campaignCredits: true },
     });
-    if (user && user._count.campaigns >= 1 && user.campaignCredits <= 0) {
-      needsPayment = true;
-    }
+    if (!user || user.campaignCredits <= 0) needsPayment = true;
   }
 
   return (
@@ -66,9 +68,7 @@ export default async function CampaignsPage() {
 
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Campaigns</h1>
-        <Suspense fallback={null}>
-          <NewCampaignButton needsPayment={needsPayment} />
-        </Suspense>
+        <NewCampaignButton needsPayment={needsPayment} />
       </div>
 
       {campaigns.length === 0 ? (

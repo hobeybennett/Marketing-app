@@ -25,12 +25,13 @@ export async function POST(req: NextRequest) {
     const userId = session?.user?.id ?? null;
 
     if (userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { _count: { select: { campaigns: true } } },
+      // Count non-failed campaigns across all users (handles pre-auth campaigns with userId=null)
+      const nonFailedCount = await prisma.campaign.count({
+        where: { status: { not: 'FAILED' } },
       });
-      if (user && user._count.campaigns >= 1) {
-        if (user.campaignCredits <= 0) {
+      if (nonFailedCount >= 1) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user || user.campaignCredits <= 0) {
           return NextResponse.json({ error: 'payment_required' }, { status: 402 });
         }
         await prisma.user.update({

@@ -1,16 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function NewCampaignButton({ needsPayment }: { needsPayment: boolean }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [showPaywall, setShowPaywall] = useState(false);
-
-  useEffect(() => {
-    if (searchParams.get('payment') === 'cancelled') setShowPaywall(true);
-  }, [searchParams]);
 
   function handleClick() {
     if (needsPayment) {

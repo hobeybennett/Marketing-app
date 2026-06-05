@@ -16,7 +16,7 @@ export default function UserNav() {
         {session.user.image ? (
           <Image src={session.user.image} alt="" width={32} height={32} className="rounded-full" />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center text-sm font-medium text-white">
             {session.user.name?.[0] ?? session.user.email?.[0] ?? '?'}
           </div>
         )}

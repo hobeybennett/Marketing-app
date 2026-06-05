@@ -7,7 +7,7 @@ export default function PaymentBanner() {
   if (searchParams.get('payment') !== 'success') return null;
 
   return (
-    <div className="mb-6 rounded-xl border border-green-700 bg-green-900/20 px-4 py-3 text-sm text-green-300">
+    <div className="mb-6 rounded-xl border border-violet-700/50 bg-violet-900/20 px-4 py-3 text-sm text-violet-200">
       Payment successful — your campaign credit has been added. Click <strong>New Campaign</strong> to get started.
     </div>
   );

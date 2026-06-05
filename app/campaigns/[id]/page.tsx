@@ -84,14 +84,14 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold text-lg">Creating your content</h2>
+            <h2 className="font-display font-700 text-lg">Creating your content</h2>
             <span className="text-sm text-gray-400">{pct}%</span>
           </div>
           <p className="text-sm text-gray-400 mb-4">Splitting your track and generating 5 video clips…</p>
           <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
             <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(pct, 5)}%` }}
+              className="h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(pct, 5)}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
             />
           </div>
           <div className="space-y-4">
@@ -157,7 +157,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <button
           onClick={() => handleAction('continue')}
           disabled={actionLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-6 py-3 rounded-xl font-semibold text-lg transition"
+          className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-50"
         >
           {actionLoading ? 'Starting…' : 'Continue to Campaign Setup →'}
         </button>

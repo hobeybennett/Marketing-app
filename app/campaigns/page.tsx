@@ -17,15 +17,15 @@ async function getCampaigns(userId: string | null) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-gray-600',
-  PROCESSING: 'bg-blue-600',
-  CONTENT_READY: 'bg-yellow-500',
-  BUILDING: 'bg-blue-500',
-  READY: 'bg-green-600',
-  LAUNCHING: 'bg-purple-600',
-  LIVE: 'bg-green-500',
-  FAILED: 'bg-red-600',
-  PAUSED: 'bg-gray-500',
+  PENDING: 'bg-gray-700 text-gray-300',
+  PROCESSING: 'bg-blue-900/50 text-blue-300 border border-blue-700/50',
+  CONTENT_READY: 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/50',
+  BUILDING: 'bg-blue-900/50 text-blue-300 border border-blue-700/50',
+  READY: 'bg-violet-900/50 text-violet-300 border border-violet-700/50',
+  LAUNCHING: 'bg-violet-900/50 text-violet-300 border border-violet-700/50',
+  LIVE: 'bg-green-900/50 text-green-300 border border-green-700/50',
+  FAILED: 'bg-red-900/50 text-red-300 border border-red-700/50',
+  PAUSED: 'bg-gray-700 text-gray-400',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -67,7 +67,7 @@ export default async function CampaignsPage() {
       </Suspense>
 
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Campaigns</h1>
+        <h1 className="font-display text-3xl font-700">Campaigns</h1>
         <NewCampaignButton needsPayment={needsPayment} />
       </div>
 
@@ -81,11 +81,11 @@ export default async function CampaignsPage() {
       ) : (
         <div className="space-y-4">
           {campaigns.map((c: any) => (
-            <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition">
+            <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl card-hover transition">
               <Link href={`/campaigns/${c.id}`} className="block p-6">
                 <div className="flex items-center justify-between pr-8">
                   <div>
-                    <p className="text-lg font-semibold">{c.songTitle}</p>
+                    <p className="font-display text-lg font-700">{c.songTitle}</p>
                     <p className="text-gray-400">{c.artistName}</p>
                     {c.genre && <p className="text-sm text-gray-500 mt-1">{c.genre}</p>}
                   </div>

@@ -16,9 +16,15 @@ function SignInContent() {
   }, [status, callbackUrl, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-10 w-full max-w-sm text-center">
-        <h1 className="text-3xl font-bold mb-2">Hitback</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 relative overflow-hidden">
+      {/* Atmospheric background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/3 w-96 h-96 rounded-full bg-violet-600/10 blur-[120px]" />
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 rounded-full bg-blue-500/10 blur-[100px]" />
+      </div>
+
+      <div className="relative z-10 bg-gray-900 border border-gray-800 rounded-2xl p-10 w-full max-w-sm text-center shadow-2xl shadow-black/40">
+        <h1 className="font-display text-4xl font-800 gradient-text mb-2 tracking-tight">Hitback</h1>
         <p className="text-gray-400 text-sm mb-8">Automated music promotion on Meta</p>
         <button
           onClick={() => signIn('google', { callbackUrl })}

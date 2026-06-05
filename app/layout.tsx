@@ -12,10 +12,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gray-950 text-white">
+      <body className="min-h-screen bg-gray-950 text-gray-100 font-body">
         <SessionProvider>
-          <nav className="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
-            <Link href="/campaigns" className="font-bold text-lg">Hitback</Link>
+          <nav className="sticky top-0 z-40 border-b border-gray-800 bg-gray-950/80 backdrop-blur-md px-6 py-3 flex items-center justify-between">
+            <Link href="/campaigns" className="font-display text-lg font-700 gradient-text tracking-tight">
+              Hitback
+            </Link>
             <UserNav />
           </nav>
           <main className="container mx-auto px-4 py-8">{children}</main>

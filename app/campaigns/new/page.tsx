@@ -507,13 +507,13 @@ export default function NewCampaignPage() {
       {showPaywall && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full text-center">
-            <h2 className="text-xl font-bold mb-2">Unlock Another Campaign</h2>
+            <h2 className="font-display text-xl font-700 mb-2">Unlock Another Campaign</h2>
             <p className="text-sm text-gray-400 mb-5">
               Each additional campaign is a one-time payment of $4.99.
             </p>
             <a
               href="/api/checkout"
-              className="block w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-lg transition mb-3"
+              className="btn-primary block w-full px-6 py-3 text-lg mb-3"
             >
               Get Campaign Credit — $4.99
             </a>
@@ -530,7 +530,7 @@ export default function NewCampaignPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
-        <h1 className="text-2xl font-bold">New Campaign</h1>
+        <h1 className="font-display text-2xl font-700">New Campaign</h1>
         <button type="button" onClick={useTestData}
           className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
           Use test data
@@ -750,7 +750,7 @@ export default function NewCampaignPage() {
           {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
           <button type="button" onClick={handleSubmit} disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-xl font-semibold text-lg transition">
+            className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed">
             {loading ? 'Creating…' : 'Generate Videos →'}
           </button>
         </>

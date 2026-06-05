@@ -7,17 +7,32 @@ import { useState } from 'react';
 export default function UserNav() {
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   if (!session?.user) return null;
+
+  const initials = session.user.name
+    ? session.user.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+    : (session.user.email?.[0] ?? '?').toUpperCase();
+
+  const showImage = !!session.user.image && !imgError;
 
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2">
-        {session.user.image ? (
-          <Image src={session.user.image} alt="" width={32} height={32} className="rounded-full" />
+        {showImage ? (
+          <Image
+            src={session.user.image!}
+            alt=""
+            width={32}
+            height={32}
+            className="rounded-full ring-2 ring-violet-500/30"
+            onError={() => setImgError(true)}
+            unoptimized
+          />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center text-sm font-medium text-white">
-            {session.user.name?.[0] ?? session.user.email?.[0] ?? '?'}
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-blue-500 flex items-center justify-center text-xs font-semibold text-white ring-2 ring-violet-500/30">
+            {initials}
           </div>
         )}
       </button>

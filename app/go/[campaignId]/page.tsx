@@ -45,8 +45,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      {/* Record page view on load */}
+    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-4 relative overflow-hidden">
       <SmartLinkClickRecorder
         campaignId={campaign.id}
         utmSource={utmSource}
@@ -55,9 +54,20 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
         utmContent={utmContent}
       />
 
-      <div className="w-full max-w-sm">
+      {/* Blurred cover art background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <img
+          src={coverSrc}
+          alt=""
+          className="w-full h-full object-cover opacity-20 blur-2xl scale-110"
+        />
+        <div className="absolute inset-0 bg-gray-950/70" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
         {/* Cover art */}
-        <div className="aspect-square w-full mb-6 rounded-2xl overflow-hidden bg-gray-900 relative">
+        <div className="aspect-square w-full mb-6 rounded-2xl overflow-hidden bg-gray-900 relative shadow-2xl shadow-black/60"
+             style={{ boxShadow: '0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)' }}>
           <Image
             src={coverSrc}
             alt={`${campaign.songTitle} cover art`}
@@ -68,15 +78,15 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
         </div>
 
         {/* Track info */}
-        <h1 className="text-2xl font-bold text-center mb-1">{campaign.songTitle}</h1>
-        <p className="text-gray-400 text-center mb-8">{campaign.artistName}</p>
+        <h1 className="font-display text-2xl font-700 text-center mb-1">{campaign.songTitle}</h1>
+        <p className="text-gray-400 text-center mb-8 text-sm tracking-wide uppercase">{campaign.artistName}</p>
 
         {/* Streaming buttons */}
         <div className="space-y-3">
           {campaign.spotifyUrl && (
             <a
               href={buildClickUrl('spotify')}
-              className="flex items-center justify-center gap-3 w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-4 px-6 rounded-xl transition"
+              className="flex items-center justify-center gap-3 w-full bg-[#1db954] hover:bg-[#1ed760] text-black font-semibold py-4 px-6 rounded-xl transition"
             >
               <SpotifyIcon />
               Listen on Spotify
@@ -85,7 +95,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
           <a
             href={buildClickUrl('apple_music')}
-            className="flex items-center justify-center gap-3 w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-4 px-6 rounded-xl transition"
+            className="flex items-center justify-center gap-3 w-full bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 backdrop-blur text-white font-semibold py-4 px-6 rounded-xl transition"
           >
             <AppleMusicIcon />
             Apple Music
@@ -93,14 +103,14 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
           <a
             href={buildClickUrl('youtube_music')}
-            className="flex items-center justify-center gap-3 w-full bg-red-700 hover:bg-red-600 text-white font-semibold py-4 px-6 rounded-xl transition"
+            className="flex items-center justify-center gap-3 w-full bg-gray-800/80 hover:bg-gray-700/80 border border-gray-700/50 backdrop-blur text-white font-semibold py-4 px-6 rounded-xl transition"
           >
             <YouTubeMusicIcon />
             YouTube Music
           </a>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-8">Powered by Hitback</p>
+        <p className="text-center text-xs text-gray-600 mt-8 tracking-widest uppercase">Powered by Hitback</p>
       </div>
     </div>
   );

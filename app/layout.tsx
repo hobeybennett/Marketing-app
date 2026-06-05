@@ -5,7 +5,7 @@ import SessionProvider from '@/components/SessionProvider';
 import UserNav from '@/components/UserNav';
 
 export const metadata: Metadata = {
-  title: 'Hitwave',
+  title: 'Hypewave',
   description: 'Automated music promotion platform',
   icons: {
     icon: '/icon.svg',
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionProvider>
           <nav className="sticky top-0 z-40 border-b border-gray-800 bg-gray-950/80 backdrop-blur-md px-6 py-3 flex items-center justify-between">
             <Link href="/campaigns" className="font-display text-lg font-700 gradient-text tracking-tight">
-              Hitwave
+              Hypewave
             </Link>
             <UserNav />
           </nav>

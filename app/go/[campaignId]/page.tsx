@@ -110,7 +110,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
           </a>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-8 tracking-widest uppercase">Powered by Hitwave</p>
+        <p className="text-center text-xs text-gray-600 mt-8 tracking-widest uppercase">Powered by Hypewave</p>
       </div>
     </div>
   );

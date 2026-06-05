@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 export {};
 /**
- * Production smoke tests for Hitwave.
+ * Production smoke tests for Hypewave.
  * Run: BASE_URL=https://your-app.up.railway.app npx tsx scripts/test-production.ts
  * Or:  npx tsx scripts/test-production.ts  (uses NEXT_PUBLIC_BASE_URL env var)
  */

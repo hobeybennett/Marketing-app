@@ -46,16 +46,16 @@ const FONT_FAMILY_LABEL: Record<FontFamily, string> = {
 
 const BG_ANIM_CSS: Record<BgAnimation, string> = {
   'none': '',
-  'zoom-in': 'hitwave-zoom-in 12s ease-in-out infinite',
-  'zoom-out': 'hitwave-zoom-out 12s ease-in-out infinite',
-  'slow-pan': 'hitwave-pan 14s ease-in-out infinite',
-  'pulse': 'hitwave-pulse 4s ease-in-out infinite',
+  'zoom-in': 'hypewave-zoom-in 12s ease-in-out infinite',
+  'zoom-out': 'hypewave-zoom-out 12s ease-in-out infinite',
+  'slow-pan': 'hypewave-pan 14s ease-in-out infinite',
+  'pulse': 'hypewave-pulse 4s ease-in-out infinite',
 };
 
 const TEXT_ANIM_CSS: Record<TextAnimation, string> = {
   'none': '',
-  'fade-in': 'hitwave-fade-in 1.2s ease forwards',
-  'slide-up': 'hitwave-slide-up 0.9s ease forwards',
+  'fade-in': 'hypewave-fade-in 1.2s ease forwards',
+  'slide-up': 'hypewave-slide-up 0.9s ease forwards',
 };
 
 const VPOS_STYLE: Record<VAlign, React.CSSProperties> = {
@@ -173,23 +173,23 @@ function VideoPreview({
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
       <style>{`
-        @keyframes hitwave-zoom-in {
+        @keyframes hypewave-zoom-in {
           0% { transform: scale(1.05); } 100% { transform: scale(1.4); }
         }
-        @keyframes hitwave-zoom-out {
+        @keyframes hypewave-zoom-out {
           0% { transform: scale(1.4); } 100% { transform: scale(1.05); }
         }
-        @keyframes hitwave-pan {
+        @keyframes hypewave-pan {
           0%, 100% { transform: scale(1.15) translateX(-6%); }
           50%       { transform: scale(1.15) translateX(6%); }
         }
-        @keyframes hitwave-pulse {
+        @keyframes hypewave-pulse {
           0%, 100% { transform: scale(1.05); } 50% { transform: scale(1.12); }
         }
-        @keyframes hitwave-fade-in {
+        @keyframes hypewave-fade-in {
           from { opacity: 0; } to { opacity: 1; }
         }
-        @keyframes hitwave-slide-up {
+        @keyframes hypewave-slide-up {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
         }

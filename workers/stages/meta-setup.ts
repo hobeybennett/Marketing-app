@@ -43,7 +43,7 @@ export async function runMetaSetup(campaignId: string) {
   let metaCampaignId = campaign.metaCampaignId;
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
-      name: `Hitwave — ${campaign.artistName} — ${campaign.songTitle}`,
+      name: `Hypewave — ${campaign.artistName} — ${campaign.songTitle}`,
       objective: 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
@@ -91,7 +91,7 @@ export async function runMetaSetup(campaignId: string) {
           message: copy.primaryText,
           call_to_action: {
             type: 'LISTEN_MUSIC',
-            value: { link: `https://hitwave.app/c/${campaignId}` },
+            value: { link: `https://hypewave.app/c/${campaignId}` },
           },
         },
       },

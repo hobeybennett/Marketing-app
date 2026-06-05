@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Hitwave** is an automated music promotion platform. Users paste a Spotify link, upload an audio file, customise visuals, and the platform generates 5 × 30-second MP4 ad creatives, writes ad copy via Claude API, builds audiences, and launches a Meta (Facebook/Instagram) ad campaign — all automatically.
+**Hypewave** is an automated music promotion platform. Users paste a Spotify link, upload an audio file, customise visuals, and the platform generates 5 × 30-second MP4 ad creatives, writes ad copy via Claude API, builds audiences, and launches a Meta (Facebook/Instagram) ad campaign — all automatically.
 
 Active development branch: `claude/migrate-marketing-app-jfiNE`
 
@@ -117,7 +117,7 @@ UPLOAD_DIR            File storage path (must be shared volume in production)
 ANTHROPIC_API_KEY     Claude API (copy-gen stage)
 SPOTIFY_CLIENT_ID     Spotify Web API (track lookup)
 SPOTIFY_CLIENT_SECRET
-NEXTAUTH_URL          Full app URL (e.g. https://hitwave.up.railway.app)
+NEXTAUTH_URL          Full app URL (e.g. https://hypewave.up.railway.app)
 NEXTAUTH_SECRET       Random 32+ char string (openssl rand -base64 32)
 GOOGLE_CLIENT_ID      Google OAuth
 GOOGLE_CLIENT_SECRET

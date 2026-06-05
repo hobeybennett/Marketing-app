@@ -49,7 +49,7 @@ export default function MetaConnectSection({ connection }: Props) {
           )}
           <div className="flex gap-2 pt-2">
             <a href="/api/auth/meta"
-              className="flex-1 text-center py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 transition">
+              className="btn-primary flex-1 py-2 text-xs">
               Reconnect
             </a>
             <button onClick={disconnect} disabled={disconnecting}
@@ -60,7 +60,7 @@ export default function MetaConnectSection({ connection }: Props) {
         </div>
       ) : (
         <a href="/api/auth/meta"
-          className="block w-full text-center py-2.5 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 transition">
+          className="btn-primary block w-full py-2.5 text-sm">
           Connect Meta Account
         </a>
       )}

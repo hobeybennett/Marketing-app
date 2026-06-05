@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-xl mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-8">Settings</h1>
+      <h1 className="font-display text-2xl font-700 mb-8">Settings</h1>
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-1">Account</h2>

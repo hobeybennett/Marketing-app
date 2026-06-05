@@ -263,7 +263,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <button
           onClick={() => handleAction('launch')}
           disabled={actionLoading || !hasCreativeWithCopy}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed px-6 py-3 rounded-xl font-semibold text-lg transition"
+          className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {actionLoading ? 'Launching…' : 'Launch Campaign'}
         </button>
@@ -281,7 +281,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <div className="text-center mb-6">
           <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
-          <h2 className="text-2xl font-bold mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
+          <h2 className="font-display text-2xl font-700 mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
           <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
           {campaign.metaCampaignId && (
             <p className="text-xs text-gray-600 mt-4">Meta ID: {campaign.metaCampaignId}</p>
@@ -385,7 +385,7 @@ function TrackHeader({ campaign }: { campaign: any }) {
         unoptimized
       />
       <div>
-        <h1 className="text-xl font-bold leading-tight">{campaign.songTitle}</h1>
+        <h1 className="font-display text-xl font-700 leading-tight">{campaign.songTitle}</h1>
         <p className="text-gray-400">{campaign.artistName}</p>
       </div>
     </div>

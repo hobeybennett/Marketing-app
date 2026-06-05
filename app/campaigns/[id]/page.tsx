@@ -180,14 +180,14 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="font-semibold text-lg">Building your campaign</h2>
+            <h2 className="font-display font-700 text-lg">Building your campaign</h2>
             <span className="text-sm text-gray-400">{pct}%</span>
           </div>
           <p className="text-sm text-gray-400 mb-4">Writing ad copy and setting up audiences…</p>
           <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
             <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(pct, 5)}%` }}
+              className="h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(pct, 5)}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
             />
           </div>
           <div className="space-y-4">
@@ -210,7 +210,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         <TrackHeader campaign={campaign} />
 
         <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
-          <h2 className="font-semibold text-lg mb-1">Ready to launch</h2>
+          <h2 className="font-display font-700 text-lg mb-1">Ready to launch</h2>
           <p className="text-sm text-gray-400">Everything's set up. Review below and launch when ready.</p>
         </div>
 

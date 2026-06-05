@@ -63,6 +63,6 @@ export async function GET(
     redirectUrl = '/';
   }
 
-  // Pass through UTM params to destination if it's a hitback URL
+  // Pass through UTM params to destination if it's a hitwave URL
   return NextResponse.redirect(redirectUrl, 302);
 }

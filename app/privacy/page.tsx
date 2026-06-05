@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-white">1. Who We Are</h2>
         <p>
-          Hitback ("we", "us", "our") is an automated music promotion platform that helps artists
+          Hitwave ("we", "us", "our") is an automated music promotion platform that helps artists
           create and launch Meta (Facebook/Instagram) advertising campaigns. This Privacy Policy
           explains how we collect, use, and protect your personal information.
         </p>
@@ -91,8 +91,8 @@ export default function PrivacyPolicy() {
         <h2 className="text-xl font-semibold text-white">9. Contact</h2>
         <p>
           For privacy questions or data requests, email us at{' '}
-          <a href="mailto:privacy@hitback.app" className="text-blue-400 hover:underline">
-            privacy@hitback.app
+          <a href="mailto:privacy@hitwave.app" className="text-blue-400 hover:underline">
+            privacy@hitwave.app
           </a>.
         </p>
       </section>

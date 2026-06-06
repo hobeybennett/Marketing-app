@@ -9,11 +9,33 @@ import { Suspense } from 'react';
 import PaymentBanner from '@/components/PaymentBanner';
 
 async function getCampaigns(userId: string | null) {
-  return prisma.campaign.findMany({
+  const campaigns = await prisma.campaign.findMany({
     where: userId ? { userId } : {},
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
   });
+
+  const liveIds = campaigns.filter(c => c.status === 'LIVE').map(c => c.id);
+
+  let spendMap: Record<string, number> = {};
+  let clickMap: Record<string, number> = {};
+
+  if (liveIds.length > 0) {
+    const spendData = await prisma.adInsight.groupBy({
+      by: ['campaignId'],
+      where: { campaignId: { in: liveIds }, metaAdSetId: null, metaAdId: null },
+      _sum: { spend: true },
+    });
+    const clickData = await prisma.smartLinkClick.groupBy({
+      by: ['campaignId'],
+      where: { campaignId: { in: liveIds } },
+      _count: { id: true },
+    });
+    spendMap = Object.fromEntries(spendData.map(s => [s.campaignId, s._sum.spend ?? 0]));
+    clickMap = Object.fromEntries(clickData.map(c => [c.campaignId, c._count.id ?? 0]));
+  }
+
+  return { campaigns, spendMap, clickMap };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -43,7 +65,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function CampaignsPage() {
   const session = await getServerSession();
   const userId = session?.user?.id ?? null;
-  const campaigns = await getCampaigns(userId);
+  const { campaigns, spendMap, clickMap } = await getCampaigns(userId);
 
   // Count non-failed campaigns (includes pre-auth campaigns with userId=null)
   const nonFailedCount = await prisma.campaign.count({
@@ -80,7 +102,7 @@ export default async function CampaignsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {campaigns.map((c: any) => (
+          {campaigns.map((c) => (
             <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl card-hover transition">
               <Link href={`/campaigns/${c.id}`} className="block p-6">
                 <div className="flex items-center justify-between pr-8">
@@ -102,6 +124,16 @@ export default async function CampaignsPage() {
                     day: 'numeric',
                   })}
                 </p>
+                {c.status === 'LIVE' && ((spendMap[c.id] ?? 0) > 0 || (clickMap[c.id] ?? 0) > 0) && (
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    {(spendMap[c.id] ?? 0) > 0 && <span>${(spendMap[c.id] as number).toFixed(2)} spent</span>}
+                    {(clickMap[c.id] ?? 0) > 0 && <span>{clickMap[c.id]} link clicks</span>}
+                    <Link href={`/campaigns/${c.id}/insights`} onClick={e => e.stopPropagation()}
+                      className="text-violet-400 hover:text-violet-300 transition ml-auto">
+                      View stats →
+                    </Link>
+                  </div>
+                )}
               </Link>
               <div className="absolute top-5 right-5">
                 <DeleteCampaignButton campaignId={c.id} />

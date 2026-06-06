@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
-import { dispatchStage } from '@/lib/queue';
+import { fetchCampaignInsights } from '@/lib/meta-insights';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,55 +23,95 @@ export async function GET(
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const insights = await prisma.adInsight.findMany({
+  // All insights ordered by date asc
+  const allInsights = await prisma.adInsight.findMany({
     where: { campaignId: params.id },
-    orderBy: { date: 'desc' },
+    orderBy: { date: 'asc' },
   });
 
-  // Build summary
-  const totalSpend = insights.reduce((s, r) => s + r.spend, 0);
-  const totalImpressions = insights.reduce((s, r) => s + r.impressions, 0);
-  const totalOutboundClicks = insights.reduce((s, r) => s + r.outboundClicks, 0);
-  const avgCtr = insights.length > 0 ? insights.reduce((s, r) => s + r.ctr, 0) / insights.length : 0;
-  const avgCpm = insights.length > 0 ? insights.reduce((s, r) => s + r.cpm, 0) / insights.length : 0;
-  const avgCpc = insights.length > 0 ? insights.reduce((s, r) => s + r.cpc, 0) / insights.length : 0;
+  // Smart link clicks
+  const allClicks = await prisma.smartLinkClick.findMany({
+    where: { campaignId: params.id },
+  });
 
-  // Group by adset for best/worst
-  const adSetMap = new Map<string, { totalSpend: number; totalImpressions: number; totalCtr: number; count: number; metaAdSetId: string }>();
-  for (const row of insights.filter(r => r.metaAdSetId)) {
-    const key = row.metaAdSetId!;
-    const existing = adSetMap.get(key) ?? { totalSpend: 0, totalImpressions: 0, totalCtr: 0, count: 0, metaAdSetId: key };
-    existing.totalSpend += row.spend;
-    existing.totalImpressions += row.impressions;
-    existing.totalCtr += row.ctr;
-    existing.count += 1;
-    adSetMap.set(key, existing);
-  }
+  // Audiences for metaAdSetId → name mapping
+  const audiences = await prisma.audience.findMany({
+    where: { campaignId: params.id },
+  });
 
-  const adSetSummaries = Array.from(adSetMap.values()).map(as => ({
-    metaAdSetId: as.metaAdSetId,
-    totalSpend: as.totalSpend,
-    totalImpressions: as.totalImpressions,
-    avgCtr: as.count > 0 ? as.totalCtr / as.count : 0,
+  // Campaign-level rows: metaAdSetId IS NULL and metaAdId IS NULL
+  const campaignRows = allInsights.filter(r => r.metaAdSetId === null && r.metaAdId === null);
+
+  // Totals from campaign-level rows
+  const totalSpend = campaignRows.reduce((s, r) => s + r.spend, 0);
+  const totalImpressions = campaignRows.reduce((s, r) => s + r.impressions, 0);
+  const totalVideoViews = campaignRows.reduce((s, r) => s + r.videoViews, 0);
+  const totalOutboundClicks = campaignRows.reduce((s, r) => s + r.outboundClicks, 0);
+  const avgCtr = campaignRows.length > 0
+    ? campaignRows.reduce((s, r) => s + r.ctr, 0) / campaignRows.length
+    : 0;
+  const cpcRows = campaignRows.filter(r => r.cpc > 0);
+  const avgCpc = cpcRows.length > 0
+    ? cpcRows.reduce((s, r) => s + r.cpc, 0) / cpcRows.length
+    : 0;
+
+  // Daily array from campaign-level rows
+  const daily = campaignRows.map(r => ({
+    date: r.date,
+    spend: r.spend,
+    impressions: r.impressions,
+    ctr: r.ctr,
   }));
 
-  adSetSummaries.sort((a, b) => b.avgCtr - a.avgCtr);
-  const bestAdSet = adSetSummaries[0] ?? null;
-  const worstAdSet = adSetSummaries[adSetSummaries.length - 1] ?? null;
+  // Adset breakdown grouped by metaAdSetId (adset-level rows only)
+  const adsetRows = allInsights.filter(r => r.metaAdSetId !== null && r.metaAdId === null);
+  const adsetMap = new Map<string, { spend: number; impressions: number; ctrSum: number; count: number }>();
+  for (const row of adsetRows) {
+    const key = row.metaAdSetId!;
+    const existing = adsetMap.get(key) ?? { spend: 0, impressions: 0, ctrSum: 0, count: 0 };
+    existing.spend += row.spend;
+    existing.impressions += row.impressions;
+    existing.ctrSum += row.ctr;
+    existing.count += 1;
+    adsetMap.set(key, existing);
+  }
+
+  const audienceMap = new Map(audiences.map(a => [a.metaAdSetId, a]));
+  const adsetBreakdown = Array.from(adsetMap.entries()).map(([metaAdSetId, data]) => {
+    const aud = audienceMap.get(metaAdSetId);
+    return {
+      metaAdSetId,
+      audienceName: aud?.name ?? null,
+      audienceType: aud?.type ?? null,
+      spend: data.spend,
+      impressions: data.impressions,
+      avgCtr: data.count > 0 ? data.ctrSum / data.count : 0,
+    };
+  });
+
+  // Smart link click summary
+  const byPlatform: Record<string, number> = {};
+  for (const click of allClicks) {
+    const platform = click.platform ?? 'unknown';
+    byPlatform[platform] = (byPlatform[platform] ?? 0) + 1;
+  }
 
   return NextResponse.json({
-    insights,
-    lastSyncAt: campaign.lastSyncAt,
-    summary: {
-      totalSpend,
-      totalImpressions,
+    totals: {
+      spend: totalSpend,
+      impressions: totalImpressions,
+      videoViews: totalVideoViews,
+      outboundClicks: totalOutboundClicks,
       avgCtr,
-      avgCpm,
       avgCpc,
-      totalOutboundClicks,
     },
-    bestAdSet,
-    worstAdSet,
+    daily,
+    adsetBreakdown,
+    smartLinkClicks: {
+      total: allClicks.length,
+      byPlatform,
+    },
+    lastSyncAt: campaign.lastSyncAt,
   });
 }
 
@@ -84,28 +124,78 @@ export async function POST(
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const campaign = await prisma.campaign.findUnique({
-    where: { id: params.id },
-    select: { id: true, userId: true },
-  });
-  if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  if (campaign.userId && campaign.userId !== session.user.id) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: { user: { include: { metaConnection: true } } },
+    });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (campaign.userId && campaign.userId !== session.user.id) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
+    if (!campaign.metaCampaignId) {
+      return NextResponse.json(
+        { error: 'Campaign has no Meta campaign ID yet — launch the campaign first.' },
+        { status: 400 },
+      );
+    }
+
+    const token =
+      campaign.user?.metaConnection?.accessToken ?? process.env.META_ACCESS_TOKEN;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: 'No Meta access token available. Connect your Meta account in Settings.' },
+        { status: 400 },
+      );
+    }
+
+    const insights = await fetchCampaignInsights(campaign.metaCampaignId, token);
+
+    for (const insight of insights) {
+      const existing = await prisma.adInsight.findFirst({
+        where: {
+          campaignId: params.id,
+          metaAdSetId: insight.metaAdSetId ?? null,
+          metaAdId: insight.metaAdId ?? null,
+          date: insight.date,
+        },
+      });
+
+      const payload = {
+        spend: insight.spend,
+        impressions: insight.impressions,
+        cpm: insight.cpm,
+        ctr: insight.ctr,
+        cpc: insight.cpc,
+        outboundClicks: insight.outboundClicks,
+        videoViews: insight.videoViews,
+      };
+
+      if (existing) {
+        await prisma.adInsight.update({ where: { id: existing.id }, data: payload });
+      } else {
+        await prisma.adInsight.create({
+          data: {
+            campaignId: params.id,
+            metaAdSetId: insight.metaAdSetId ?? null,
+            metaAdId: insight.metaAdId ?? null,
+            date: insight.date,
+            ...payload,
+          },
+        });
+      }
+    }
+
+    await prisma.campaign.update({
+      where: { id: params.id },
+      data: { lastSyncAt: new Date() },
+    });
+
+    return NextResponse.json({ synced: insights.length });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  // Trigger manual sync by dispatching to insights-sync queue via a one-off job
-  // We can't import insights-sync directly (worker-side code), so we'll run it inline
-  // For now, just mark that a sync was requested — the worker will handle it on next run
-  // A better solution dispatches to the insights-sync queue
-  const { Queue } = await import('bullmq');
-  const { Redis } = await import('ioredis');
-  const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-    maxRetriesPerRequest: null,
-    lazyConnect: true,
-  });
-  const insightsSyncQueue = new Queue('insights-sync', { connection });
-  await insightsSyncQueue.add('MANUAL_SYNC', { campaignId: params.id }, { jobId: `manual-sync-${params.id}-${Date.now()}` });
-  await connection.quit();
-
-  return NextResponse.json({ triggered: true });
 }

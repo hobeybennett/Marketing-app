@@ -33,12 +33,30 @@ interface SmartLinkClicks {
   byPlatform: Record<string, number>;
 }
 
+interface CreativeStat {
+  id: string;
+  index: number;
+  metaAdId: string | null;
+  fileUrl: string;
+  ctaText: string;
+  adStatus: string;
+  startSec: number | null;
+  endSec: number | null;
+  totalSpend: number;
+  totalImpressions: number;
+  totalVideoViews: number;
+  totalOutboundClicks: number;
+  avgCtr: number;
+  hasData: boolean;
+}
+
 interface InsightsPayload {
   totals: Totals;
   daily: DailyRow[];
   adsetBreakdown: AdsetBreakdownRow[];
   smartLinkClicks: SmartLinkClicks;
   lastSyncAt: string | null;
+  creativeStats: CreativeStat[];
 }
 
 interface CampaignBasic {
@@ -62,12 +80,22 @@ function fmtDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function videoApiUrl(fileUrl: string): string {
+  const filename = fileUrl.split('/').pop() ?? '';
+  const parts = fileUrl.split('/');
+  const videosIdx = parts.indexOf('videos');
+  const campaignId = videosIdx > 0 ? parts[videosIdx - 1] : '';
+  return `/api/videos/${campaignId}/${filename}`;
+}
+
 export default function InsightsPage({ params }: { params: { id: string } }) {
   const [insights, setInsights] = useState<InsightsPayload | null>(null);
   const [campaign, setCampaign] = useState<CampaignBasic | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState('');
 
   const fetchAll = useCallback(async () => {
     const [iRes, cRes] = await Promise.all([
@@ -104,6 +132,24 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function handleToggle(creativeId: string, currentStatus: string) {
+    setTogglingId(creativeId);
+    setToggleError('');
+    const action = currentStatus === 'ACTIVE' ? 'pause' : 'resume';
+    const res = await fetch(`/api/campaigns/${params.id}/creatives/${creativeId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setToggleError((err as { error?: string }).error || 'Failed to update ad status');
+    } else {
+      await fetchAll();
+    }
+    setTogglingId(null);
+  }
+
   if (loading) {
     return <div className="text-gray-400 text-center py-20">Loading…</div>;
   }
@@ -120,6 +166,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
   const adsetBreakdown = insights?.adsetBreakdown ?? [];
   const smartLink = insights?.smartLinkClicks ?? { total: 0, byPlatform: {} };
   const lastSyncAt = insights?.lastSyncAt ?? null;
+  const creativeStats = insights?.creativeStats ?? [];
 
   const isEmpty =
     totals.spend === 0 && totals.impressions === 0 && smartLink.total === 0;
@@ -129,6 +176,9 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
 
   // Smart link platform breakdown
   const platformEntries = Object.entries(smartLink.byPlatform).sort((a, b) => b[1] - a[1]);
+
+  // Creative performance sorted by avgCtr desc
+  const sortedCreatives = [...creativeStats].sort((a, b) => b.avgCtr - a.avgCtr);
 
   return (
     <div className="max-w-2xl mx-auto pb-16">
@@ -174,10 +224,35 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
 
       {/* Empty state */}
       {isEmpty ? (
-        <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-500">
-          <p className="text-base font-medium mb-1">No performance data yet.</p>
-          <p className="text-sm">Sync from Meta once your campaign has been running.</p>
-        </div>
+        <>
+          <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-500">
+            <p className="text-base font-medium mb-1">No performance data yet.</p>
+            <p className="text-sm">Sync from Meta once your campaign has been running.</p>
+          </div>
+
+          {/* Creative Performance (shown even in empty state if creatives exist) */}
+          {creativeStats.length > 0 && (
+            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <h3 className="font-display font-700 text-base mb-3">Creative Performance</h3>
+              {toggleError && (
+                <div className="mb-3 border border-red-700 bg-red-900/20 rounded-lg px-3 py-2 text-sm text-red-300">
+                  {toggleError}
+                </div>
+              )}
+              <div className="space-y-3">
+                {sortedCreatives.map((creative, sortIdx) => (
+                  <CreativeCard
+                    key={creative.id}
+                    creative={creative}
+                    isTop={sortIdx === 0}
+                    togglingId={togglingId}
+                    onToggle={handleToggle}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <>
           {/* Stats grid */}
@@ -192,6 +267,29 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
               value={totals.avgCpc > 0 ? `$${totals.avgCpc.toFixed(2)}` : '—'}
             />
           </div>
+
+          {/* Creative Performance */}
+          {creativeStats.length > 0 && (
+            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <h3 className="font-display font-700 text-base mb-3">Creative Performance</h3>
+              {toggleError && (
+                <div className="mb-3 border border-red-700 bg-red-900/20 rounded-lg px-3 py-2 text-sm text-red-300">
+                  {toggleError}
+                </div>
+              )}
+              <div className="space-y-3">
+                {sortedCreatives.map((creative, sortIdx) => (
+                  <CreativeCard
+                    key={creative.id}
+                    creative={creative}
+                    isTop={sortIdx === 0}
+                    togglingId={togglingId}
+                    onToggle={handleToggle}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Smart Link card */}
           <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -297,6 +395,92 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+interface CreativeCardProps {
+  creative: CreativeStat;
+  isTop: boolean;
+  togglingId: string | null;
+  onToggle: (id: string, status: string) => void;
+}
+
+function CreativeCard({ creative, isTop, togglingId, onToggle }: CreativeCardProps) {
+  const isToggling = togglingId === creative.id;
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col sm:flex-row">
+      {/* Video thumbnail */}
+      <video
+        src={videoApiUrl(creative.fileUrl)}
+        muted
+        playsInline
+        className="w-full sm:w-20 h-20 object-cover shrink-0 bg-gray-800"
+      />
+      {/* Content */}
+      <div className="p-3 flex-1">
+        {/* Top row: clip label + badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">Clip {creative.index + 1}</span>
+          {isTop && (
+            <span className="bg-violet-900/50 text-violet-300 border border-violet-700/50 text-xs px-2 py-0.5 rounded-full">
+              Top
+            </span>
+          )}
+          {creative.adStatus === 'ACTIVE' ? (
+            <span className="bg-green-900/50 text-green-300 border border-green-700/50 text-xs px-2 py-0.5 rounded-full">
+              Active
+            </span>
+          ) : (
+            <span className="bg-gray-700 text-gray-400 text-xs px-2 py-0.5 rounded-full">
+              Paused
+            </span>
+          )}
+        </div>
+
+        {/* Time range */}
+        {creative.startSec !== null && creative.endSec !== null && (
+          <p className="text-xs text-gray-500 mt-0.5">
+            {creative.startSec.toFixed(0)}s – {creative.endSec.toFixed(0)}s
+          </p>
+        )}
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+          {creative.hasData ? (
+            <>
+              <span>CTR <span className="text-blue-400 tabular-nums">{creative.avgCtr.toFixed(2)}%</span></span>
+              <span>Spend <span className="tabular-nums">${creative.totalSpend.toFixed(2)}</span></span>
+              <span>Views <span className="tabular-nums">{creative.totalVideoViews.toLocaleString()}</span></span>
+            </>
+          ) : (
+            <span className="text-gray-500">No data yet</span>
+          )}
+        </div>
+
+        {/* Bottom row: pause/resume button */}
+        <div className="flex justify-end mt-2">
+          {creative.adStatus === 'ACTIVE' ? (
+            <button
+              type="button"
+              onClick={() => onToggle(creative.id, creative.adStatus)}
+              disabled={isToggling}
+              className="text-xs px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition disabled:opacity-50"
+            >
+              {isToggling ? '…' : 'Pause'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onToggle(creative.id, creative.adStatus)}
+              disabled={isToggling}
+              className="text-xs px-3 py-1 rounded-lg bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 border border-violet-700/50 transition disabled:opacity-50"
+            >
+              {isToggling ? '…' : 'Resume'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

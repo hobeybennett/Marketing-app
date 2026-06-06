@@ -96,6 +96,7 @@ model VideoCreative {
   fileUrl    String
   ctaText    String
   metaAdId   String?
+  adStatus   String   @default("ACTIVE")
   createdAt  DateTime @default(now())
 
   campaign Campaign      @relation(fields: [campaignId], references: [id])

@@ -96,6 +96,40 @@ export async function GET(
     byPlatform[platform] = (byPlatform[platform] ?? 0) + 1;
   }
 
+  // Per-creative stats
+  const creatives = await prisma.videoCreative.findMany({
+    where: { campaignId: params.id },
+    include: { segment: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const adLevel = allInsights.filter(i => !!i.metaAdId);
+
+  const creativeStats = creatives.map((creative, index) => {
+    const rows = adLevel.filter(i => i.metaAdId === creative.metaAdId);
+    const totalSpendC = rows.reduce((s, r) => s + r.spend, 0);
+    const totalImpressionsC = rows.reduce((s, r) => s + r.impressions, 0);
+    const totalVideoViewsC = rows.reduce((s, r) => s + r.videoViews, 0);
+    const totalOutboundClicksC = rows.reduce((s, r) => s + r.outboundClicks, 0);
+    const avgCtrC = rows.length > 0 ? rows.reduce((s, r) => s + r.ctr, 0) / rows.length : 0;
+    return {
+      id: creative.id,
+      index,
+      metaAdId: creative.metaAdId,
+      fileUrl: creative.fileUrl,
+      ctaText: creative.ctaText,
+      adStatus: creative.adStatus,
+      startSec: creative.segment?.startSec ?? null,
+      endSec: creative.segment?.endSec ?? null,
+      totalSpend: totalSpendC,
+      totalImpressions: totalImpressionsC,
+      totalVideoViews: totalVideoViewsC,
+      totalOutboundClicks: totalOutboundClicksC,
+      avgCtr: avgCtrC,
+      hasData: rows.length > 0,
+    };
+  });
+
   return NextResponse.json({
     totals: {
       spend: totalSpend,
@@ -112,6 +146,7 @@ export async function GET(
       byPlatform,
     },
     lastSyncAt: campaign.lastSyncAt,
+    creativeStats,
   });
 }
 

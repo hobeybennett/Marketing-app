@@ -22,10 +22,13 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
     if (userId && session.payment_status === 'paid') {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { campaignCredits: { increment: 1 } },
-      });
+      const existing = await prisma.stripeEvent.findUnique({ where: { id: session.id } });
+      if (!existing) {
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
+          prisma.stripeEvent.create({ data: { id: session.id, userId } }),
+        ]);
+      }
     }
   }
 

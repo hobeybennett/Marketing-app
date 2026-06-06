@@ -247,6 +247,14 @@ model OptimisationLog {
   @@index([campaignId])
 }
 
+// Tracks processed Stripe checkout sessions to prevent double-crediting
+// when both the webhook and the verify fallback endpoint fire.
+model StripeEvent {
+  id        String   @id // Stripe checkout session ID (cs_...)
+  userId    String
+  createdAt DateTime @default(now())
+}
+
 model MetaConnection {
   id             String    @id @default(uuid())
   userId         String    @unique

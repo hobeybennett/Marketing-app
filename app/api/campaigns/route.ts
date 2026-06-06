@@ -25,11 +25,10 @@ export async function POST(req: NextRequest) {
     const userId = session?.user?.id ?? null;
 
     if (userId) {
-      // Count non-failed campaigns across all users (handles pre-auth campaigns with userId=null)
-      const nonFailedCount = await prisma.campaign.count({
-        where: { status: { not: 'FAILED' } },
+      const userCampaignCount = await prisma.campaign.count({
+        where: { userId, status: { not: 'FAILED' } },
       });
-      if (nonFailedCount >= 1) {
+      if (userCampaignCount >= 1) {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user || user.campaignCredits <= 0) {
           return NextResponse.json({ error: 'payment_required' }, { status: 402 });

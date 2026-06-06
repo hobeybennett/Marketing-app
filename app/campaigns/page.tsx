@@ -67,18 +67,18 @@ export default async function CampaignsPage() {
   const userId = session?.user?.id ?? null;
   const { campaigns, spendMap, clickMap } = await getCampaigns(userId);
 
-  // Count non-failed campaigns (includes pre-auth campaigns with userId=null)
-  const nonFailedCount = await prisma.campaign.count({
-    where: { status: { not: 'FAILED' } },
-  });
-
   let needsPayment = false;
-  if (userId && nonFailedCount >= 1) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { campaignCredits: true },
+  if (userId) {
+    const userCampaignCount = await prisma.campaign.count({
+      where: { userId, status: { not: 'FAILED' } },
     });
-    if (!user || user.campaignCredits <= 0) needsPayment = true;
+    if (userCampaignCount >= 1) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { campaignCredits: true },
+      });
+      if (!user || user.campaignCredits <= 0) needsPayment = true;
+    }
   }
 
   return (

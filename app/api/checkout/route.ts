@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       price_data: {
         currency: 'usd',
         product_data: {
-          name: 'Hypewave Campaign Credit',
+          name: 'Promohit Campaign Credit',
           description: 'Launch one Meta ad campaign for your music',
         },
         unit_amount: 499,

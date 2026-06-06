@@ -63,6 +63,6 @@ export async function GET(
     redirectUrl = '/';
   }
 
-  // Pass through UTM params to destination if it's a hypewave URL
+  // Pass through UTM params to destination if it's a promohit URL
   return NextResponse.redirect(redirectUrl, 302);
 }

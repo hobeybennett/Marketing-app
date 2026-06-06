@@ -24,7 +24,7 @@ function SignInContent() {
       </div>
 
       <div className="relative z-10 bg-gray-900 border border-gray-800 rounded-2xl p-10 w-full max-w-sm text-center shadow-2xl shadow-black/40">
-        <h1 className="font-display text-4xl font-800 gradient-text mb-2 tracking-tight">Hypewave</h1>
+        <h1 className="font-display text-4xl font-800 gradient-text mb-2 tracking-tight">Promohit</h1>
         <p className="text-gray-400 text-sm mb-8">Automated music promotion on Meta</p>
         <button
           onClick={() => signIn('google', { callbackUrl })}

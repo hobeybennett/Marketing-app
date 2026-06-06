@@ -43,22 +43,25 @@ export async function GET(req: NextRequest) {
     // Get Meta user ID
     const meRes = await fetch(`https://graph.facebook.com/v22.0/me?fields=id,name&access_token=${longToken}`);
     const me = await meRes.json();
+    if (me.error) throw new Error(`Meta user lookup failed: ${me.error.message}`);
 
     // Get first ad account
     const adAccountsRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id&limit=10&access_token=${longToken}`
     );
     const adAccountsData = await adAccountsRes.json();
+    if (adAccountsData.error) throw new Error(`Ad account lookup failed: ${adAccountsData.error.message} (code ${adAccountsData.error.code})`);
     const adAccount = adAccountsData.data?.[0];
-    if (!adAccount) throw new Error('No Meta ad accounts found. Make sure your Meta account has access to an Ad Account.');
+    if (!adAccount) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
 
     // Get first page
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id&limit=10&access_token=${longToken}`
     );
     const pagesData = await pagesRes.json();
+    if (pagesData.error) throw new Error(`Page lookup failed: ${pagesData.error.message} (code ${pagesData.error.code})`);
     const page = pagesData.data?.[0];
-    if (!page) throw new Error('No Facebook Pages found. You need a Facebook Page to run ads.');
+    if (!page) throw new Error('No Facebook Pages found. Create a Facebook Page at facebook.com/pages/create first.');
 
     const expiresAt = expires_in
       ? new Date(Date.now() + expires_in * 1000)

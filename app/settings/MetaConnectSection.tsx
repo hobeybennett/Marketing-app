@@ -7,16 +7,33 @@ type Props = {
     adAccountName: string | null;
     pageName: string | null;
     tokenExpiresAt: Date | null;
+    pixelId: string | null;
+    pixelName: string | null;
   } | null;
 };
 
 export default function MetaConnectSection({ connection }: Props) {
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState(false);
+  const [editingPixel, setEditingPixel] = useState(false);
+  const [pixelInput, setPixelInput] = useState('');
+  const [savingPixel, setSavingPixel] = useState(false);
 
   async function disconnect() {
     setDisconnecting(true);
     await fetch('/api/auth/meta/disconnect', { method: 'POST' });
+    router.refresh();
+  }
+
+  async function savePixel() {
+    setSavingPixel(true);
+    await fetch('/api/settings/pixel', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pixelId: pixelInput }),
+    });
+    setSavingPixel(false);
+    setEditingPixel(false);
     router.refresh();
   }
 
@@ -56,6 +73,64 @@ export default function MetaConnectSection({ connection }: Props) {
               className="flex-1 py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 transition disabled:opacity-50">
               {disconnecting ? 'Disconnecting...' : 'Disconnect'}
             </button>
+          </div>
+
+          {/* Meta Pixel section */}
+          <div className="pt-4 border-t border-gray-800 mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-medium text-gray-200">Meta Pixel</p>
+                <p className="text-xs text-gray-500">Tracks conversions on your smart link page</p>
+              </div>
+              {!editingPixel && (
+                <button
+                  onClick={() => {
+                    setPixelInput(connection.pixelId ?? '');
+                    setEditingPixel(true);
+                  }}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+
+            {editingPixel ? (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={pixelInput}
+                  onChange={(e) => setPixelInput(e.target.value)}
+                  placeholder="Enter Pixel ID"
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={savePixel}
+                  disabled={savingPixel}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50"
+                >
+                  {savingPixel ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditingPixel(false)}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm">
+                <span className="text-gray-500">Pixel ID: </span>
+                {connection.pixelId ? (
+                  <span className="font-mono text-gray-200">{connection.pixelId}</span>
+                ) : (
+                  <span className="text-gray-600">Not set</span>
+                )}
+                {connection.pixelName && (
+                  <span className="text-gray-500 ml-2">({connection.pixelName})</span>
+                )}
+              </p>
+            )}
           </div>
         </div>
       ) : (

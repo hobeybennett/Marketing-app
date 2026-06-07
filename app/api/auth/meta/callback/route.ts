@@ -67,6 +67,20 @@ export async function GET(req: NextRequest) {
       ? new Date(Date.now() + expires_in * 1000)
       : null;
 
+    // Get first pixel (best-effort — not required)
+    let pixelId: string | null = null;
+    let pixelName: string | null = null;
+    try {
+      const pixelsRes = await fetch(
+        `https://graph.facebook.com/v22.0/me/adspixels?fields=id,name&limit=1&access_token=${longToken}`
+      );
+      const pixelsData = await pixelsRes.json();
+      if (!pixelsData.error && pixelsData.data?.[0]) {
+        pixelId = pixelsData.data[0].id;
+        pixelName = pixelsData.data[0].name ?? null;
+      }
+    } catch { /* non-fatal */ }
+
     await prisma.metaConnection.upsert({
       where: { userId },
       create: {
@@ -78,6 +92,8 @@ export async function GET(req: NextRequest) {
         adAccountName: adAccount.name,
         pageId: page.id,
         pageName: page.name,
+        pixelId,
+        pixelName,
       },
       update: {
         accessToken: longToken,
@@ -87,6 +103,8 @@ export async function GET(req: NextRequest) {
         adAccountName: adAccount.name,
         pageId: page.id,
         pageName: page.name,
+        pixelId,
+        pixelName,
       },
     });
 

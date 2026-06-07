@@ -104,8 +104,8 @@ export default async function CampaignsPage() {
         <div className="space-y-4">
           {campaigns.map((c) => (
             <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl card-hover transition">
-              <Link href={`/campaigns/${c.id}`} className="block p-6">
-                <div className="flex items-center justify-between pr-8">
+              <Link href={`/campaigns/${c.id}`} className="block px-6 pt-6 pb-4 pr-14">
+                <div className="flex items-center justify-between">
                   <div>
                     <p className="font-display text-lg font-700">{c.songTitle}</p>
                     <p className="text-gray-400">{c.artistName}</p>
@@ -124,17 +124,17 @@ export default async function CampaignsPage() {
                     day: 'numeric',
                   })}
                 </p>
-                {c.status === 'LIVE' && ((spendMap[c.id] ?? 0) > 0 || (clickMap[c.id] ?? 0) > 0) && (
-                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                    {(spendMap[c.id] ?? 0) > 0 && <span>${(spendMap[c.id] as number).toFixed(2)} spent</span>}
-                    {(clickMap[c.id] ?? 0) > 0 && <span>{clickMap[c.id]} link clicks</span>}
-                    <Link href={`/campaigns/${c.id}/insights`} onClick={e => e.stopPropagation()}
-                      className="text-violet-400 hover:text-violet-300 transition ml-auto">
-                      View stats →
-                    </Link>
-                  </div>
-                )}
               </Link>
+              {c.status === 'LIVE' && ((spendMap[c.id] ?? 0) > 0 || (clickMap[c.id] ?? 0) > 0) && (
+                <div className="flex items-center gap-4 px-6 pb-4 text-xs text-gray-500">
+                  {(spendMap[c.id] ?? 0) > 0 && <span>${(spendMap[c.id] as number).toFixed(2)} spent</span>}
+                  {(clickMap[c.id] ?? 0) > 0 && <span>{clickMap[c.id]} link clicks</span>}
+                  <Link href={`/campaigns/${c.id}/insights`}
+                    className="text-violet-400 hover:text-violet-300 transition ml-auto">
+                    View stats →
+                  </Link>
+                </div>
+              )}
               <div className="absolute top-5 right-5">
                 <DeleteCampaignButton campaignId={c.id} />
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -15,6 +15,7 @@ type BgMode = 'generate' | 'upload';
 type BgAnimation = 'none' | 'zoom-in' | 'zoom-out' | 'slow-pan' | 'pulse';
 type TextAnimation = 'none' | 'fade-in' | 'slide-up';
 type TextLayer = 'heading' | 'subheading' | 'cta';
+type Mode = 'quick' | 'custom';
 
 type TextLayerStyle = {
   vAlign: VAlign;
@@ -125,7 +126,6 @@ function VideoPreview({
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
 
-  // Group elements by vAlign so elements at the same position stack naturally
   type Item = { key: string; hAlign: HAlign; node: React.ReactNode };
   const groups: Record<VAlign, Item[]> = { top: [], center: [], bottom: [] };
 
@@ -195,7 +195,6 @@ function VideoPreview({
         }
       `}</style>
 
-      {/* Background */}
       {bgSrc && !isUploadedVideo && (
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
           <img key={animKey} src={bgSrc} alt="" style={{
@@ -218,13 +217,11 @@ function VideoPreview({
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
       )}
 
-      {/* Gradient vignette */}
       <div style={{
         position: 'absolute', inset: 0,
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, transparent 28%, transparent 68%, rgba(0,0,0,0.55) 100%)',
       }} />
 
-      {/* Text groups — each vAlign zone is an independent absolutely-positioned div */}
       {(['top', 'center', 'bottom'] as VAlign[]).map(vAlign => {
         const items = groups[vAlign];
         if (items.length === 0) return null;
@@ -271,6 +268,31 @@ function SegmentBtn({ active, onClick, children }: {
   );
 }
 
+// ── Section toggle header ──────────────────────────────────────────────────
+
+function SectionHeader({ title, expanded, onRecommend, onCustomise }: {
+  title: string;
+  expanded: boolean;
+  onRecommend: () => void;
+  onCustomise: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <p className="text-sm font-semibold">{title}</p>
+      <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+        <button type="button" onClick={onRecommend}
+          className={`px-3 py-1.5 font-medium transition ${!expanded ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+          Recommended
+        </button>
+        <button type="button" onClick={onCustomise}
+          className={`px-3 py-1.5 font-medium transition border-l border-gray-700 ${expanded ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+          Customise
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── TextLayerEditor ────────────────────────────────────────────────────────
 
 function TextLayerEditor({ style, onChange }: {
@@ -278,7 +300,6 @@ function TextLayerEditor({ style, onChange }: {
 }) {
   return (
     <div className="space-y-3">
-      {/* Vertical */}
       <div>
         <p className="text-xs text-gray-500 mb-1.5">Vertical</p>
         <div className="grid grid-cols-3 gap-2">
@@ -290,7 +311,6 @@ function TextLayerEditor({ style, onChange }: {
         </div>
       </div>
 
-      {/* Horizontal */}
       <div>
         <p className="text-xs text-gray-500 mb-1.5">Horizontal</p>
         <div className="grid grid-cols-3 gap-2">
@@ -302,7 +322,6 @@ function TextLayerEditor({ style, onChange }: {
         </div>
       </div>
 
-      {/* Size + Weight + Colour */}
       <div className="grid grid-cols-3 gap-2">
         <div>
           <p className="text-xs text-gray-500 mb-1.5">Size</p>
@@ -334,7 +353,6 @@ function TextLayerEditor({ style, onChange }: {
         </div>
       </div>
 
-      {/* Font family */}
       <div>
         <p className="text-xs text-gray-500 mb-1.5">Font</p>
         <div className="flex flex-wrap gap-2">
@@ -359,6 +377,9 @@ export default function NewCampaignPage() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
+  const [mode, setMode] = useState<Mode>('quick');
+  // tracks which custom sections are expanded (collapsed = recommended)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
@@ -369,7 +390,6 @@ export default function NewCampaignPage() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState(180);
 
-  // Background
   const [bgMode, setBgMode] = useState<BgMode>('generate');
   const [bgFile, setBgFile] = useState<File | null>(null);
   const [bgPreview, setBgPreview] = useState<string | null>(null);
@@ -377,21 +397,17 @@ export default function NewCampaignPage() {
   const [bgAnimation, setBgAnimation] = useState<BgAnimation>('zoom-in');
   const [textAnimation, setTextAnimation] = useState<TextAnimation>('fade-in');
 
-  // Text content
   const [artistName, setArtistName] = useState('');
   const [songTitle, setSongTitle] = useState('');
   const [ctaText, setCtaText] = useState('Listen Now');
   const [customCta, setCustomCta] = useState('');
 
-  // Per-element text styles
   const [headingStyle, setHeadingStyle] = useState<TextLayerStyle>(DEFAULT_HEADING);
   const [subheadingStyle, setSubheadingStyle] = useState<TextLayerStyle>(DEFAULT_SUBHEADING);
   const [ctaStyle, setCtaStyle] = useState<TextLayerStyle>(DEFAULT_CTA);
   const [selectedLayer, setSelectedLayer] = useState<TextLayer>('heading');
 
   const [animKey, setAnimKey] = useState(0);
-
-  // Clips
   const [clips, setClips] = useState<Clip[]>(initClips(180));
   const [editingName, setEditingName] = useState<number | null>(null);
 
@@ -415,6 +431,24 @@ export default function NewCampaignPage() {
     selectedLayer === 'heading' ? headingStyle
     : selectedLayer === 'subheading' ? subheadingStyle
     : ctaStyle;
+
+  function resetAllToDefaults(dur = audioDuration) {
+    setBgMode('generate'); setBgFile(null); setBgPreview(null); setBlurAmount(20);
+    setBgAnimation('zoom-in'); setTextAnimation('fade-in');
+    setCtaText('Listen Now'); setCustomCta('');
+    setHeadingStyle(DEFAULT_HEADING); setSubheadingStyle(DEFAULT_SUBHEADING); setCtaStyle(DEFAULT_CTA);
+    setClips(initClips(dur));
+    setExpanded(new Set());
+    replayAnim();
+  }
+
+  function openSection(key: string) {
+    setExpanded(prev => new Set([...prev, key]));
+  }
+
+  function closeSection(key: string) {
+    setExpanded(prev => { const n = new Set(prev); n.delete(key); return n; });
+  }
 
   async function lookupSpotify(url = spotifyUrl) {
     if (!url.trim()) return;
@@ -511,17 +545,11 @@ export default function NewCampaignPage() {
             <p className="text-sm text-gray-400 mb-5">
               Each additional campaign is a one-time payment of $4.99.
             </p>
-            <a
-              href="/api/checkout"
-              className="btn-primary block w-full px-6 py-3 text-lg mb-3"
-            >
+            <a href="/api/checkout" className="btn-primary block w-full px-6 py-3 text-lg mb-3">
               Get Campaign Credit — $4.99
             </a>
-            <button
-              type="button"
-              onClick={() => setShowPaywall(false)}
-              className="text-sm text-gray-500 hover:text-gray-300 transition"
-            >
+            <button type="button" onClick={() => setShowPaywall(false)}
+              className="text-sm text-gray-500 hover:text-gray-300 transition">
               Cancel
             </button>
           </div>
@@ -529,7 +557,7 @@ export default function NewCampaignPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between py-4 mb-2">
+      <div className="flex items-center justify-between py-4 mb-4">
         <h1 className="font-display text-2xl font-700">New Campaign</h1>
         <button type="button" onClick={useTestData}
           className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
@@ -537,7 +565,37 @@ export default function NewCampaignPage() {
         </button>
       </div>
 
-      {/* Spotify */}
+      {/* ── Mode picker ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <button type="button"
+          onClick={() => { setMode('quick'); resetAllToDefaults(); }}
+          className={`p-4 rounded-xl border text-left transition ${mode === 'quick'
+            ? 'bg-violet-900/40 border-violet-600'
+            : 'bg-gray-900 border-gray-800 hover:border-gray-600'}`}>
+          <div className="text-2xl mb-2">⚡</div>
+          <p className={`font-semibold text-sm ${mode === 'quick' ? 'text-white' : 'text-gray-300'}`}>
+            Quick Launch
+          </p>
+          <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+            Recommended settings, launch in one click
+          </p>
+        </button>
+        <button type="button"
+          onClick={() => setMode('custom')}
+          className={`p-4 rounded-xl border text-left transition ${mode === 'custom'
+            ? 'bg-violet-900/40 border-violet-600'
+            : 'bg-gray-900 border-gray-800 hover:border-gray-600'}`}>
+          <div className="text-2xl mb-2">🎨</div>
+          <p className={`font-semibold text-sm ${mode === 'custom' ? 'text-white' : 'text-gray-300'}`}>
+            Customise
+          </p>
+          <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+            Choose background, animations &amp; clip positions
+          </p>
+        </button>
+      </div>
+
+      {/* ── Spotify ─────────────────────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
         <p className="text-sm font-medium text-gray-300 mb-3">Paste your Spotify link</p>
         <div className="flex gap-2">
@@ -565,18 +623,15 @@ export default function NewCampaignPage() {
         )}
         {spotify && (
           <label className="flex items-center gap-2 mt-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={saveSpotifyUrl}
+            <input type="checkbox" checked={saveSpotifyUrl}
               onChange={(e) => setSaveSpotifyUrl(e.target.checked)}
-              className="w-4 h-4 accent-green-500"
-            />
+              className="w-4 h-4 accent-green-500" />
             <span className="text-xs text-gray-400">Add Spotify link to smart link page</span>
           </label>
         )}
       </div>
 
-      {/* Audio upload */}
+      {/* ── Audio upload ─────────────────────────────────────────────────── */}
       {spotify && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
           <p className="text-sm font-medium text-gray-300 mb-3">Upload your track</p>
@@ -588,6 +643,7 @@ export default function NewCampaignPage() {
         </div>
       )}
 
+      {/* ── Editor (shown after both Spotify + audio) ─────────────────── */}
       {showEditor && (
         <>
           {/* Preview */}
@@ -605,153 +661,230 @@ export default function NewCampaignPage() {
             ↺ Replay animation
           </button>
 
-          {/* Background */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
-            <p className="text-sm font-semibold">Background</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => { setBgMode('generate'); replayAnim(); }}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition
-                  ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                ✨ Generate
+          {/* ── Quick Launch summary ────────────────────────────────────── */}
+          {mode === 'quick' && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+              <p className="text-sm font-semibold text-gray-200 mb-3">What we'll create for you</p>
+              <ul className="space-y-2.5">
+                {[
+                  'Blurred cover art background with zoom-in animation',
+                  '5 clips, evenly spread across your track',
+                  'Song title + artist name overlay, fade-in entrance',
+                  '"Listen Now" call to action',
+                  'AI-written ad copy for each video',
+                  '3 target audiences — interest, retargeting, lookalike',
+                ].map(item => (
+                  <li key={item} className="flex items-start gap-2.5 text-sm text-gray-400">
+                    <span className="text-green-400 mt-0.5 shrink-0">✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" onClick={() => setMode('custom')}
+                className="mt-4 text-xs text-violet-400 hover:text-violet-300 transition">
+                Want to customise instead? →
               </button>
-              <button type="button" onClick={() => bgInputRef.current?.click()}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition
-                  ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                ⬆ Upload
-              </button>
             </div>
-            {bgMode === 'upload' && bgFile && <p className="text-xs text-gray-400">{bgFile.name}</p>}
-            <input ref={bgInputRef} type="file" accept="image/*,video/*"
-              onChange={(e) => handleBgUpload(e.target.files?.[0] ?? null)} className="hidden" />
+          )}
 
-            <div>
-              <div className="flex justify-between text-xs text-gray-400 mb-1.5">
-                <span>Blur</span><span>{blurAmount}px</span>
+          {/* ── Custom sections ─────────────────────────────────────────── */}
+          {mode === 'custom' && (
+            <>
+              {/* Background */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
+                <SectionHeader
+                  title="Background"
+                  expanded={expanded.has('bg')}
+                  onRecommend={() => {
+                    setBgMode('generate'); setBgFile(null); setBgPreview(null); setBlurAmount(20);
+                    replayAnim(); closeSection('bg');
+                  }}
+                  onCustomise={() => openSection('bg')}
+                />
+                {!expanded.has('bg') ? (
+                  <p className="text-xs text-gray-500">Cover art · 20px blur · Zoom-in animation</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => { setBgMode('generate'); replayAnim(); }}
+                        className={`py-2.5 rounded-lg text-sm font-medium border transition
+                          ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                        ✨ Generate
+                      </button>
+                      <button type="button" onClick={() => bgInputRef.current?.click()}
+                        className={`py-2.5 rounded-lg text-sm font-medium border transition
+                          ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                        ⬆ Upload
+                      </button>
+                    </div>
+                    {bgMode === 'upload' && bgFile && <p className="text-xs text-gray-400">{bgFile.name}</p>}
+                    <input ref={bgInputRef} type="file" accept="image/*,video/*"
+                      onChange={(e) => handleBgUpload(e.target.files?.[0] ?? null)} className="hidden" />
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                        <span>Blur</span><span>{blurAmount}px</span>
+                      </div>
+                      <input type="range" min={0} max={40} step={1} value={blurAmount}
+                        onChange={(e) => setBlurAmount(Number(e.target.value))}
+                        className="w-full accent-blue-500 h-1.5 cursor-pointer" />
+                      <div className="flex justify-between text-xs text-gray-700 mt-0.5">
+                        <span>Sharp</span><span>Max blur</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <input type="range" min={0} max={40} step={1} value={blurAmount}
-                onChange={(e) => setBlurAmount(Number(e.target.value))}
-                className="w-full accent-blue-500 h-1.5 cursor-pointer" />
-              <div className="flex justify-between text-xs text-gray-700 mt-0.5">
-                <span>Sharp</span><span>Max blur</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Animations */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
-            <p className="text-sm font-semibold">Animation</p>
-            <div>
-              <p className="text-xs text-gray-500 mb-2">Background</p>
-              <div className="flex flex-wrap gap-2">
-                {(['none', 'zoom-in', 'zoom-out', 'slow-pan', 'pulse'] as BgAnimation[]).map(a => (
-                  <Pill key={a} active={bgAnimation === a} onClick={() => { setBgAnimation(a); replayAnim(); }}>
-                    {a === 'none' ? 'Static' : a === 'zoom-in' ? 'Zoom in' : a === 'zoom-out' ? 'Zoom out' : a === 'slow-pan' ? 'Slow pan' : 'Pulse'}
-                  </Pill>
-                ))}
+              {/* Animation */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
+                <SectionHeader
+                  title="Animation"
+                  expanded={expanded.has('anim')}
+                  onRecommend={() => {
+                    setBgAnimation('zoom-in'); setTextAnimation('fade-in');
+                    replayAnim(); closeSection('anim');
+                  }}
+                  onCustomise={() => openSection('anim')}
+                />
+                {!expanded.has('anim') ? (
+                  <p className="text-xs text-gray-500">Background: Zoom in · Text entrance: Fade in</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2">Background</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(['none', 'zoom-in', 'zoom-out', 'slow-pan', 'pulse'] as BgAnimation[]).map(a => (
+                          <Pill key={a} active={bgAnimation === a} onClick={() => { setBgAnimation(a); replayAnim(); }}>
+                            {a === 'none' ? 'Static' : a === 'zoom-in' ? 'Zoom in' : a === 'zoom-out' ? 'Zoom out' : a === 'slow-pan' ? 'Slow pan' : 'Pulse'}
+                          </Pill>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2">Text entrance</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(['none', 'fade-in', 'slide-up'] as TextAnimation[]).map(a => (
+                          <Pill key={a} active={textAnimation === a} onClick={() => { setTextAnimation(a); replayAnim(); }}>
+                            {a === 'none' ? 'Static' : a === 'fade-in' ? 'Fade in' : 'Slide up'}
+                          </Pill>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-2">Text entrance</p>
-              <div className="flex flex-wrap gap-2">
-                {(['none', 'fade-in', 'slide-up'] as TextAnimation[]).map(a => (
-                  <Pill key={a} active={textAnimation === a} onClick={() => { setTextAnimation(a); replayAnim(); }}>
-                    {a === 'none' ? 'Static' : a === 'fade-in' ? 'Fade in' : 'Slide up'}
-                  </Pill>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          {/* Text overlay */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3 space-y-4">
-            <p className="text-sm font-semibold">Text</p>
+              {/* Text */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
+                <SectionHeader
+                  title="Text"
+                  expanded={expanded.has('text')}
+                  onRecommend={() => {
+                    setCtaText('Listen Now'); setCustomCta('');
+                    setHeadingStyle(DEFAULT_HEADING); setSubheadingStyle(DEFAULT_SUBHEADING); setCtaStyle(DEFAULT_CTA);
+                    closeSection('text');
+                  }}
+                  onCustomise={() => openSection('text')}
+                />
+                {!expanded.has('text') ? (
+                  <p className="text-xs text-gray-500">Song title + artist · White · "Listen Now" CTA</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Artist</label>
+                        <input value={artistName} onChange={(e) => setArtistName(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Title</label>
+                        <input value={songTitle} onChange={(e) => setSongTitle(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                      </div>
+                    </div>
 
-            {/* Content inputs */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Artist</label>
-                <input value={artistName} onChange={(e) => setArtistName(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Title</label>
-                <input value={songTitle} onChange={(e) => setSongTitle(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-              </div>
-            </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2">Call to action</p>
+                      <div className="flex flex-wrap gap-2">
+                        {CTA_OPTIONS.map(opt => (
+                          <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
+                        ))}
+                        <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
+                      </div>
+                      {ctaText === 'custom' && (
+                        <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
+                          placeholder="Enter CTA…"
+                          className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                      )}
+                    </div>
 
-            {/* CTA */}
-            <div>
-              <p className="text-xs text-gray-500 mb-2">Call to action</p>
-              <div className="flex flex-wrap gap-2">
-                {CTA_OPTIONS.map(opt => (
-                  <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
-                ))}
-                <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
+                    <div className="border-t border-gray-800 pt-4">
+                      <p className="text-xs text-gray-500 mb-2">Style</p>
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        {(['heading', 'subheading', 'cta'] as TextLayer[]).map(layer => (
+                          <button key={layer} type="button" onClick={() => setSelectedLayer(layer)}
+                            className={`py-2 rounded-lg text-xs font-medium border transition
+                              ${selectedLayer === layer ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                            {layer === 'heading' ? 'Heading' : layer === 'subheading' ? 'Subheading' : 'CTA'}
+                          </button>
+                        ))}
+                      </div>
+                      <TextLayerEditor style={currentLayerStyle} onChange={(patch) => updateLayer(selectedLayer, patch)} />
+                    </div>
+                  </div>
+                )}
               </div>
-              {ctaText === 'custom' && (
-                <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
-                  placeholder="Enter CTA…"
-                  className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-              )}
-            </div>
 
-            {/* Per-layer style editor */}
-            <div className="border-t border-gray-800 pt-4">
-              <p className="text-xs text-gray-500 mb-2">Style</p>
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {(['heading', 'subheading', 'cta'] as TextLayer[]).map(layer => (
-                  <button key={layer} type="button" onClick={() => setSelectedLayer(layer)}
-                    className={`py-2 rounded-lg text-xs font-medium border transition
-                      ${selectedLayer === layer ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                    {layer === 'heading' ? 'Heading' : layer === 'subheading' ? 'Subheading' : 'CTA'}
-                  </button>
-                ))}
+              {/* Clips */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
+                <SectionHeader
+                  title="Clips"
+                  expanded={expanded.has('clips')}
+                  onRecommend={() => { setClips(initClips(audioDuration)); closeSection('clips'); }}
+                  onCustomise={() => openSection('clips')}
+                />
+                {!expanded.has('clips') ? (
+                  <p className="text-xs text-gray-500">5 clips · Evenly spaced across your track</p>
+                ) : (
+                  <div className="space-y-3 mt-1">
+                    {clips.map((clip, i) => (
+                      <div key={i} className="bg-gray-800 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          {editingName === i ? (
+                            <input autoFocus value={clip.name}
+                              onChange={(e) => updateClip(i, { name: e.target.value })}
+                              onBlur={() => setEditingName(null)}
+                              onKeyDown={(e) => e.key === 'Enter' && setEditingName(null)}
+                              className="bg-gray-700 border border-gray-600 rounded px-2 py-0.5 text-sm font-medium text-white outline-none w-36" />
+                          ) : (
+                            <button type="button" onClick={() => setEditingName(i)}
+                              className="text-sm font-semibold hover:text-blue-400 transition">
+                              {clip.name} <span className="text-gray-600 text-xs">✏</span>
+                            </button>
+                          )}
+                          <span className="text-xs text-gray-400 tabular-nums">
+                            {formatTime(clip.startSec)} – {formatTime(clip.startSec + 30)}
+                          </span>
+                        </div>
+                        <input type="range" min={0} max={maxStart} step={1} value={clip.startSec}
+                          onChange={(e) => updateClip(i, { startSec: Number(e.target.value) })}
+                          className="w-full accent-blue-500 h-1.5 cursor-pointer" />
+                        <div className="flex justify-between text-xs text-gray-600 mt-1">
+                          <span>0:00</span><span>{formatTime(audioDuration)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <TextLayerEditor
-                style={currentLayerStyle}
-                onChange={(patch) => updateLayer(selectedLayer, patch)}
-              />
-            </div>
-          </div>
-
-          {/* Clips */}
-          <div className="space-y-3 mb-6">
-            <p className="text-sm font-semibold px-1">Clips</p>
-            {clips.map((clip, i) => (
-              <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  {editingName === i ? (
-                    <input autoFocus value={clip.name}
-                      onChange={(e) => updateClip(i, { name: e.target.value })}
-                      onBlur={() => setEditingName(null)}
-                      onKeyDown={(e) => e.key === 'Enter' && setEditingName(null)}
-                      className="bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-sm font-medium text-white outline-none w-36" />
-                  ) : (
-                    <button type="button" onClick={() => setEditingName(i)}
-                      className="text-sm font-semibold hover:text-blue-400 transition">
-                      {clip.name} <span className="text-gray-600 text-xs">✏</span>
-                    </button>
-                  )}
-                  <span className="text-xs text-gray-400 tabular-nums">
-                    {formatTime(clip.startSec)} – {formatTime(clip.startSec + 30)}
-                  </span>
-                </div>
-                <input type="range" min={0} max={maxStart} step={1} value={clip.startSec}
-                  onChange={(e) => updateClip(i, { startSec: Number(e.target.value) })}
-                  className="w-full accent-blue-500 h-1.5 cursor-pointer" />
-                <div className="flex justify-between text-xs text-gray-600 mt-1">
-                  <span>0:00</span><span>{formatTime(audioDuration)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+            </>
+          )}
 
           {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
           <button type="button" onClick={handleSubmit} disabled={loading}
-            className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed">
-            {loading ? 'Creating…' : 'Generate Videos →'}
+            className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed mt-3">
+            {loading ? 'Creating…' : mode === 'quick' ? '⚡ Generate Videos' : 'Generate Videos →'}
           </button>
         </>
       )}

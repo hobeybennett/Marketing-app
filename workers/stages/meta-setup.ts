@@ -189,12 +189,15 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Meta API error on ${endpoint}: ${err}`);
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || json?.error) {
+    const e = json?.error;
+    const msg = e?.error_user_msg || e?.message || JSON.stringify(json);
+    throw new Error(`Meta API error on ${endpoint}: ${msg}`);
   }
 
-  return res.json();
+  return json;
 }
 
 function buildTargeting(audience: { type: string; interests: string[] }) {

@@ -68,16 +68,22 @@ export default async function CampaignsPage() {
   const { campaigns, spendMap, clickMap } = await getCampaigns(userId);
 
   let needsPayment = false;
+  let credits = 0;
+  let isPro = false;
+
   if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { campaignCredits: true, subscriptionStatus: true },
+    });
+    credits = user?.campaignCredits ?? 0;
+    isPro = user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing';
+
     const userCampaignCount = await prisma.campaign.count({
       where: { userId, status: { not: 'FAILED' } },
     });
-    if (userCampaignCount >= 1) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { campaignCredits: true },
-      });
-      if (!user || user.campaignCredits <= 0) needsPayment = true;
+    if (userCampaignCount >= 1 && !isPro && credits <= 0) {
+      needsPayment = true;
     }
   }
 
@@ -90,7 +96,20 @@ export default async function CampaignsPage() {
 
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-display text-3xl font-700">Campaigns</h1>
-        <NewCampaignButton needsPayment={needsPayment} />
+        <div className="flex items-center gap-3">
+          {userId && (
+            isPro ? (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-violet-900/50 border border-violet-700/50 text-violet-300">
+                Pro ∞
+              </span>
+            ) : (
+              <span className="text-xs text-gray-500">
+                {credits} credit{credits !== 1 ? 's' : ''}
+              </span>
+            )
+          )}
+          <NewCampaignButton needsPayment={needsPayment} isPro={isPro} credits={credits} />
+        </div>
       </div>
 
       {campaigns.length === 0 ? (

@@ -18,10 +18,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
+  // ── One-time payment or subscription checkout completed ──────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
-    if (userId && session.payment_status === 'paid') {
+    if (!userId) return NextResponse.json({ received: true });
+
+    // Store Stripe customer ID for future checkouts
+    if (session.customer) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { stripeCustomerId: session.customer as string },
+      }).catch(() => {});
+    }
+
+    if (session.mode === 'payment' && session.payment_status === 'paid') {
       const existing = await prisma.stripeEvent.findUnique({ where: { id: session.id } });
       if (!existing) {
         await prisma.$transaction([
@@ -30,6 +41,28 @@ export async function POST(req: NextRequest) {
         ]);
       }
     }
+
+    if (session.mode === 'subscription' && session.subscription) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscriptionId: session.subscription as string,
+          subscriptionStatus: 'active',
+        },
+      });
+    }
+  }
+
+  // ── Subscription status changes (renewals, cancellations, payment failure) ─
+  if (
+    event.type === 'customer.subscription.updated' ||
+    event.type === 'customer.subscription.deleted'
+  ) {
+    const sub = event.data.object as Stripe.Subscription;
+    await prisma.user.updateMany({
+      where: { subscriptionId: sub.id },
+      data: { subscriptionStatus: sub.status },
+    });
   }
 
   return NextResponse.json({ received: true });

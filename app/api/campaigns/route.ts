@@ -29,14 +29,20 @@ export async function POST(req: NextRequest) {
         where: { userId, status: { not: 'FAILED' } },
       });
       if (userCampaignCount >= 1) {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user || user.campaignCredits <= 0) {
-          return NextResponse.json({ error: 'payment_required' }, { status: 402 });
-        }
-        await prisma.user.update({
+        const user = await prisma.user.findUnique({
           where: { id: userId },
-          data: { campaignCredits: { decrement: 1 } },
+          select: { campaignCredits: true, subscriptionStatus: true },
         });
+        const isPro = user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing';
+        if (!isPro) {
+          if (!user || user.campaignCredits <= 0) {
+            return NextResponse.json({ error: 'payment_required' }, { status: 402 });
+          }
+          await prisma.user.update({
+            where: { id: userId },
+            data: { campaignCredits: { decrement: 1 } },
+          });
+        }
       }
     }
 

@@ -11,9 +11,14 @@ export default async function SettingsPage({
   const session = await getServerSession();
   if (!session?.user?.id) redirect('/auth/signin');
 
-  const metaConnection = await prisma.metaConnection.findUnique({
-    where: { userId: session.user.id },
-  });
+  const [metaConnection, user] = await Promise.all([
+    prisma.metaConnection.findUnique({ where: { userId: session.user.id } }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { campaignCredits: true, subscriptionStatus: true, subscriptionId: true },
+    }),
+  ]);
+  const isPro = user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing';
 
   const metaError = searchParams.meta_error
     ? decodeURIComponent(searchParams.meta_error)
@@ -40,6 +45,32 @@ export default async function SettingsPage({
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-4">
         <h2 className="font-semibold mb-1">Account</h2>
         <p className="text-sm text-gray-400">{session.user.email}</p>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-4">
+        <h2 className="font-semibold mb-3">Billing</h2>
+        {isPro ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium text-white">Promohit Pro</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-900/50 border border-violet-700/50 text-violet-300">Active</span>
+              </div>
+              <p className="text-sm text-gray-400">Unlimited campaigns · $29.99/month</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-300">{user?.campaignCredits ?? 0} campaign credit{(user?.campaignCredits ?? 0) !== 1 ? 's' : ''}</p>
+              <p className="text-xs text-gray-500 mt-0.5">First campaign is free</p>
+            </div>
+            <a href="/api/checkout/pro"
+              className="text-sm text-violet-400 hover:text-violet-300 transition font-medium">
+              Upgrade to Pro →
+            </a>
+          </div>
+        )}
       </div>
 
       <MetaConnectSection connection={metaConnection} />

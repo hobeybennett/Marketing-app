@@ -15,8 +15,13 @@ export async function GET(req: NextRequest) {
   const appUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { stripeCustomerId: true, email: true },
+    select: { stripeCustomerId: true, email: true, subscriptionStatus: true },
   });
+
+  // Already subscribed — send to manage portal instead
+  if (user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing') {
+    return NextResponse.redirect(new URL('/settings', req.url));
+  }
 
   const checkoutSession = await stripe.checkout.sessions.create({
     customer: user?.stripeCustomerId ?? undefined,
@@ -26,15 +31,16 @@ export async function GET(req: NextRequest) {
       price_data: {
         currency: 'usd',
         product_data: {
-          name: 'Promohit Campaign Credit',
-          description: 'Launch one Meta ad campaign for your music',
+          name: 'Promohit Pro',
+          description: 'Unlimited campaigns every month',
         },
-        unit_amount: 500,
+        unit_amount: 2999,
+        recurring: { interval: 'month' },
       },
       quantity: 1,
     }],
-    mode: 'payment',
-    success_url: `${appUrl}/campaigns?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+    mode: 'subscription',
+    success_url: `${appUrl}/campaigns?payment=pro_success`,
     cancel_url: `${appUrl}/campaigns?payment=cancelled`,
     metadata: { userId: session.user.id },
   });

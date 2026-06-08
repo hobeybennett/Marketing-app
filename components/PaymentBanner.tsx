@@ -19,6 +19,14 @@ export default function PaymentBanner() {
     }).then(() => setVerified(true)).catch(() => setVerified(true));
   }, [payment, sessionId]);
 
+  if (payment === 'pro_success') {
+    return (
+      <div className="mb-6 rounded-xl border border-violet-700/50 bg-violet-900/20 px-4 py-3 text-sm text-violet-200">
+        Welcome to Promohit Pro — unlimited campaigns activated. Click <strong>New Campaign</strong> to get started.
+      </div>
+    );
+  }
+
   if (payment !== 'success') return null;
 
   return (

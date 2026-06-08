@@ -46,7 +46,7 @@ export default function NewCampaignButton({
                 <span className="text-xs font-bold uppercase tracking-widest text-violet-400">Most popular</span>
               </div>
               <p className="font-display font-700 text-lg text-white">Promohit Pro</p>
-              <p className="text-2xl font-bold text-violet-300 my-1">$29.99<span className="text-sm font-normal text-gray-400">/month</span></p>
+              <p className="text-2xl font-bold text-violet-300 my-1">$9.99<span className="text-sm font-normal text-gray-400">/month</span></p>
               <p className="text-sm text-gray-400">Unlimited campaigns, cancel anytime</p>
             </a>
 

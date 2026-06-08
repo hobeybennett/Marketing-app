@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
           name: 'Promohit Pro',
           description: 'Unlimited campaigns every month',
         },
-        unit_amount: 2999,
+        unit_amount: 999,
         recurring: { interval: 'month' },
       },
       quantity: 1,

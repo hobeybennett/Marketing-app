@@ -258,6 +258,16 @@ model StripeEvent {
   createdAt DateTime @default(now())
 }
 
+model OtpToken {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
 model MetaConnection {
   id             String    @id @default(uuid())
   userId         String    @unique

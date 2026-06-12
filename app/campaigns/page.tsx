@@ -71,13 +71,19 @@ export default async function CampaignsPage() {
   let credits = 0;
   let isPro = false;
 
+  let hasMetaConnection = false;
+
   if (userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { campaignCredits: true, subscriptionStatus: true },
-    });
+    const [user, metaConnection] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { campaignCredits: true, subscriptionStatus: true },
+      }),
+      prisma.metaConnection.findUnique({ where: { userId } }),
+    ]);
     credits = user?.campaignCredits ?? 0;
     isPro = user?.subscriptionStatus === 'active' || user?.subscriptionStatus === 'trialing';
+    hasMetaConnection = !!metaConnection;
 
     const userCampaignCount = await prisma.campaign.count({
       where: { userId, status: { not: 'FAILED' } },
@@ -93,6 +99,22 @@ export default async function CampaignsPage() {
       <Suspense fallback={null}>
         <PaymentBanner />
       </Suspense>
+
+      {/* Meta account setup nudge */}
+      {userId && !hasMetaConnection && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-amber-700/50 bg-amber-900/15 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-amber-400 text-lg shrink-0">⚠</span>
+            <p className="text-sm text-amber-200">
+              Connect your Meta account to run campaigns on Facebook &amp; Instagram.
+            </p>
+          </div>
+          <a href="/api/auth/meta"
+            className="shrink-0 text-xs font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+            Connect Meta →
+          </a>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-8">
         <h1 className="font-display text-3xl font-700">Campaigns</h1>

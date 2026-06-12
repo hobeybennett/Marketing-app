@@ -203,16 +203,29 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   // ── Phase 2 done: ready to launch ─────────────────────────────────────────
   if (status === 'READY') {
     const hasCreativeWithCopy = campaign.creatives?.some((c: any) => c.adCopies?.length > 0);
+    const hasMetaConnection = campaign.hasMetaConnection;
 
     return (
       <div className="max-w-xl mx-auto space-y-4">
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <TrackHeader campaign={campaign} />
 
-        <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
-          <h2 className="font-display font-700 text-lg mb-1">Ready to launch</h2>
-          <p className="text-sm text-gray-400">Everything's set up. Review below and launch when ready.</p>
-        </div>
+        {hasMetaConnection ? (
+          <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
+            <h2 className="font-display font-700 text-lg mb-1">Ready to launch</h2>
+            <p className="text-sm text-gray-400">Everything's set up. Review below and launch when ready.</p>
+          </div>
+        ) : (
+          <div className="border border-amber-700/50 bg-amber-900/15 rounded-xl p-5">
+            <h2 className="font-display font-700 text-lg mb-1 text-amber-200">Connect Meta to launch</h2>
+            <p className="text-sm text-amber-300/80 mb-3">
+              Your videos and ad copy are ready — you just need to connect your Meta account before the campaign can go live.
+            </p>
+            <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
+              Go to Settings → Connect Meta
+            </a>
+          </div>
+        )}
 
         {/* Creatives + copy */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -262,7 +275,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
         <button
           onClick={() => handleAction('launch')}
-          disabled={actionLoading || !hasCreativeWithCopy}
+          disabled={actionLoading || !hasCreativeWithCopy || !hasMetaConnection}
           className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {actionLoading ? 'Launching…' : 'Launch Campaign'}
@@ -339,6 +352,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
   // ── Failed ────────────────────────────────────────────────────────────────
   const failedJob = campaign.jobs?.find((j: any) => j.status === 'FAILED');
+  const isMetaSetupFailure = failedJob?.stage === 'META_SETUP';
   return (
     <div className="max-w-xl mx-auto py-12">
       <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
@@ -349,6 +363,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           <p className="text-gray-400 text-sm">Failed at: <span className="text-white">{STAGE_LABELS[failedJob.stage] ?? failedJob.stage}</span></p>
         )}
       </div>
+      {isMetaSetupFailure && (
+        <div className="mb-4 border border-amber-700/50 bg-amber-900/15 rounded-xl p-5">
+          <p className="font-semibold text-amber-200 mb-1">Meta account issue</p>
+          <p className="text-sm text-amber-300/80 mb-3">
+            The campaign failed while setting up your Meta ads. Make sure your Meta account is connected and your Ad Account is active.
+          </p>
+          <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
+            Check Meta in Settings →
+          </a>
+        </div>
+      )}
       {failedJob?.error && (
         <div className="bg-red-900/20 border border-red-800 rounded-xl p-4">
           <p className="text-xs text-red-300 font-mono break-all whitespace-pre-wrap">{failedJob.error}</p>

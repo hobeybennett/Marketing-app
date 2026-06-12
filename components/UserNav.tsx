@@ -9,7 +9,11 @@ export default function UserNav() {
   const [open, setOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
 
-  if (!session?.user) return null;
+  if (!session?.user) return (
+    <Link href="/auth/signin" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+      Sign up / Log in
+    </Link>
+  );
 
   const initials = session.user.name
     ? session.user.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()

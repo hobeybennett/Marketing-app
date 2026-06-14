@@ -385,6 +385,7 @@ export default function CampaignNewForm() {
   const [spotifyError, setSpotifyError] = useState('');
   const [spotify, setSpotify] = useState<SpotifyData | null>(null);
   const [saveSpotifyUrl, setSaveSpotifyUrl] = useState(true);
+  const [spotifyPlaylistUrl, setSpotifyPlaylistUrl] = useState('');
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioDuration, setAudioDuration] = useState(180);
@@ -521,6 +522,7 @@ export default function CampaignNewForm() {
     formData.set('visualConfig', JSON.stringify(visualConfig));
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
     if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
+    if (spotifyPlaylistUrl.trim()) formData.set('spotifyPlaylistUrl', spotifyPlaylistUrl.trim());
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
@@ -627,6 +629,24 @@ export default function CampaignNewForm() {
               className="w-4 h-4 accent-green-500" />
             <span className="text-xs text-gray-400">Add Spotify link to smart link page</span>
           </label>
+        )}
+        {spotify && (
+          <div className="mt-4 pt-4 border-t border-gray-800">
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">
+              Spotify playlist link{' '}
+              <span className="text-gray-600 font-normal">(optional)</span>
+            </label>
+            <input
+              type="url"
+              value={spotifyPlaylistUrl}
+              onChange={(e) => setSpotifyPlaylistUrl(e.target.value)}
+              placeholder="https://open.spotify.com/playlist/..."
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-green-500 outline-none text-sm placeholder-gray-600"
+            />
+            <p className="text-xs text-gray-600 mt-1.5">
+              Fans on the smart link page can choose to go to this playlist instead of the single track.
+            </p>
+          </div>
         )}
       </div>
 

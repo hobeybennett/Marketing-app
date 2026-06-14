@@ -55,6 +55,12 @@ export async function GET(
       select: { spotifyUrl: true },
     });
     redirectUrl = campaign?.spotifyUrl ?? 'https://open.spotify.com';
+  } else if (platform === 'spotify_playlist') {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.campaignId },
+      select: { spotifyPlaylistUrl: true },
+    });
+    redirectUrl = campaign?.spotifyPlaylistUrl ?? 'https://open.spotify.com';
   } else if (platform === 'apple_music') {
     redirectUrl = 'https://music.apple.com';
   } else if (platform === 'youtube_music') {

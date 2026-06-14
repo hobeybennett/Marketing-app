@@ -24,6 +24,7 @@ model Campaign {
   updatedAt       DateTime       @updatedAt
   userId          String?
   spotifyUrl      String?
+  spotifyPlaylistUrl String?
   lastSyncAt      DateTime?
 
   jobs                CampaignJob[]

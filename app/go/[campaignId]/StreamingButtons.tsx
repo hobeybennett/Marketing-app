@@ -24,6 +24,27 @@ export function SpotifyButton({ href, songTitle, artistName }: { href: string; s
   );
 }
 
+export function SpotifyPlaylistButton({ href, destination, songTitle, artistName }: {
+  href: string; destination: string; songTitle: string; artistName: string;
+}) {
+  function handleClick() {
+    firePixel('spotify_playlist', songTitle, artistName);
+    window.location.href = destination;
+  }
+  return (
+    <a
+      href={href}
+      onClick={(e) => { e.preventDefault(); handleClick(); }}
+      className="flex items-center justify-center gap-3 w-full border border-[#1db954]/50 hover:border-[#1db954] hover:bg-[#1db954]/10 text-[#1db954] font-semibold py-4 px-6 rounded-xl transition"
+    >
+      <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+      </svg>
+      Listen on playlist
+    </a>
+  );
+}
+
 export function AppleMusicButton({ href, songTitle, artistName }: { href: string; songTitle: string; artistName: string }) {
   return (
     <a href={href} onClick={() => firePixel('apple_music', songTitle, artistName)}

@@ -27,35 +27,131 @@ interface VisualConfig {
   cta?: ElementStyle;
 }
 
-const FONT_SIZE_MAP: Record<string, number> = { sm: 13, md: 18, lg: 26 };
+// Font size in pixels for a 1080×1080 video.
+// Calibrated against the preview's CSS px values (13/18/26) at ~370px container width,
+// scaled up to 1080px (÷ 370 × 1080 ≈ ×2.9) then rounded to look good on screen.
+const FONT_SIZE_MAP: Record<string, number> = { sm: 46, md: 60, lg: 78 };
 
-function fontSizePt(size: string | undefined, bold?: boolean): number {
-  const base = FONT_SIZE_MAP[size ?? 'md'] ?? 18;
-  // rough bold approximation: bump by 1pt
-  return bold ? base + 1 : base;
+// Font files available on Railway's Nix environment (ffmpeg nixPkg installs these).
+const FONT_FILES: Record<string, { regular: string; bold: string }> = {
+  sans: {
+    regular: '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    bold:    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+  },
+  serif: {
+    regular: '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+    bold:    '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf',
+  },
+  display: {
+    // No Impact on Nix — use Liberation Sans Bold as closest heavy sans
+    regular: '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+    bold:    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+  },
+  mono: {
+    regular: '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+    bold:    '/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf',
+  },
+  narrow: {
+    regular: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    bold:    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  },
+};
+
+function resolveFont(fontFamily: string | undefined, bold: boolean | undefined): string {
+  const family = (fontFamily && FONT_FILES[fontFamily]) ? fontFamily : 'sans';
+  const fonts = FONT_FILES[family];
+  return bold ? fonts.bold : fonts.regular;
 }
 
-function toFFmpegColor(hex: string | undefined): string {
-  if (!hex) return '0xFFFFFF@1.0';
+function fontSize(size: string | undefined): number {
+  return FONT_SIZE_MAP[size ?? 'md'] ?? 60;
+}
+
+function toFFmpegColor(hex: string | undefined, alpha = '1.0'): string {
+  if (!hex) return `0xFFFFFF@${alpha}`;
   const stripped = hex.replace('#', '');
-  return `0x${stripped.toUpperCase()}@1.0`;
+  return `0x${stripped.toUpperCase()}@${alpha}`;
 }
 
 function xExpr(hAlign: string | undefined): string {
   switch (hAlign) {
-    case 'left':  return 'w*0.05';
-    case 'right': return 'w-text_w-w*0.05';
+    case 'left':  return 'w*0.06';
+    case 'right': return 'w-text_w-w*0.06';
     default:      return '(w-text_w)/2';
   }
 }
 
-function yExpr(vAlign: string | undefined): string {
-  switch (vAlign) {
-    case 'top':    return 'h*0.1';
-    case 'bottom': return 'h*0.75';
-    default:       return '(h-text_h)/2';
+// ── Grouped Y-position computation ─────────────────────────────────────────
+// The preview groups text layers that share the same vAlign and stacks them.
+// We replicate that here using absolute pixel positions (video is always 1080×1080).
+
+const VIDEO_SIZE = 1080;
+const EDGE_PAD   = 38;   // pixels from top/bottom edge (mirrors preview's bottom: 20 scaled up)
+const ITEM_GAP   = 10;   // gap between stacked items in the same group
+
+function computeYPositions(
+  heading: ElementStyle,
+  subheading: ElementStyle,
+  cta: ElementStyle,
+  headFontSize: number,
+  subFontSize: number,
+  ctaFontSize: number,
+): { headingY: number; subheadingY: number; ctaY: number } {
+  // Approximate rendered text height (FFmpeg's drawtext renders slightly below fontsize)
+  const headH = Math.round(headFontSize * 1.1);
+  const subH  = Math.round(subFontSize  * 1.1);
+  const ctaH  = Math.round(ctaFontSize  * 1.1);
+
+  const elements = [
+    { key: 'heading'    as const, vAlign: heading.vAlign    ?? 'bottom', height: headH },
+    { key: 'subheading' as const, vAlign: subheading.vAlign ?? 'bottom', height: subH  },
+    { key: 'cta'        as const, vAlign: cta.vAlign        ?? 'bottom', height: ctaH  },
+  ];
+
+  const groups: Record<string, typeof elements> = { top: [], center: [], bottom: [] };
+  for (const el of elements) {
+    (groups[el.vAlign] ?? groups.bottom).push(el);
   }
+
+  const yMap: Record<string, number> = {};
+
+  for (const [align, items] of Object.entries(groups)) {
+    if (items.length === 0) continue;
+    const totalH = items.reduce((s, it, i) => s + it.height + (i > 0 ? ITEM_GAP : 0), 0);
+    let startY: number;
+    if (align === 'top')         startY = EDGE_PAD;
+    else if (align === 'center') startY = Math.round((VIDEO_SIZE - totalH) / 2);
+    else                         startY = VIDEO_SIZE - EDGE_PAD - totalH;
+
+    let y = startY;
+    for (const item of items) {
+      yMap[item.key] = y;
+      y += item.height + ITEM_GAP;
+    }
+  }
+
+  return {
+    headingY:    yMap.heading    ?? Math.round(VIDEO_SIZE * 0.4),
+    subheadingY: yMap.subheading ?? Math.round(VIDEO_SIZE * 0.55),
+    ctaY:        yMap.cta        ?? Math.round(VIDEO_SIZE * 0.75),
+  };
 }
+
+// ── Gradient overlay (approximates preview CSS) ─────────────────────────────
+// Preview: linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, transparent 28%,
+//                                     transparent 68%, rgba(0,0,0,0.55) 100%)
+// We approximate with banded drawbox calls (no native gradient in drawtext pipeline).
+
+const GRADIENT_FILTERS = [
+  // Top fade: 0% → 28%  (rgba 0.18 → 0)
+  'drawbox=x=0:y=0:w=iw:h=ih*0.14:color=black@0.12:t=fill',
+  'drawbox=x=0:y=0:w=iw:h=ih*0.07:color=black@0.06:t=fill',
+  // Bottom fade: 68% → 100%  (rgba 0 → 0.55)
+  'drawbox=x=0:y=ih*0.68:w=iw:h=ih*0.08:color=black@0.10:t=fill',
+  'drawbox=x=0:y=ih*0.76:w=iw:h=ih*0.08:color=black@0.18:t=fill',
+  'drawbox=x=0:y=ih*0.84:w=iw:h=ih*0.08:color=black@0.28:t=fill',
+  'drawbox=x=0:y=ih*0.92:w=iw:h=ih*0.08:color=black@0.40:t=fill',
+];
 
 export async function runVideoGen(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({
@@ -119,17 +215,34 @@ function generateVideo(opts: {
   const vc = visualConfig ?? {};
   const heading    = vc.heading    ?? {};
   const subheading = vc.subheading ?? {};
+  const cta        = vc.cta        ?? {};
 
-  const headingFontSize = fontSizePt(heading.fontSize, heading.fontBold);
-  const subFontSize     = fontSizePt(subheading.fontSize, subheading.fontBold);
-  const headingColor    = toFFmpegColor(heading.fontColor);
-  const subColor        = toFFmpegColor(subheading.fontColor);
+  const headFontSize = fontSize(heading.fontSize    ?? 'lg');
+  const subFontSize  = fontSize(subheading.fontSize ?? 'md');
+  const ctaFontSize  = fontSize(cta.fontSize        ?? 'sm');
 
-  const drawText = [
-    `drawtext=text='${esc(songTitle)}':fontsize=${headingFontSize}:fontcolor=${headingColor}:x=${xExpr(heading.hAlign)}:y=${yExpr(heading.vAlign)}:shadowcolor=black:shadowx=2:shadowy=2`,
-    `drawtext=text='${esc(artistName)}':fontsize=${subFontSize}:fontcolor=${subColor}:x=${xExpr(subheading.hAlign)}:y=${yExpr(subheading.vAlign)}:shadowcolor=black:shadowx=2:shadowy=2`,
-    `drawtext=text='${esc(ctaText)}':fontsize=42:fontcolor=yellow:x=(w-text_w)/2:y=h*0.91:shadowcolor=black:shadowx=2:shadowy=2`,
-  ].join(',');
+  const headFont = resolveFont(heading.fontFamily,    heading.fontBold    ?? true);
+  const subFont  = resolveFont(subheading.fontFamily, subheading.fontBold);
+  const ctaFont  = resolveFont(cta.fontFamily,        cta.fontBold        ?? true);
+
+  const headColor = toFFmpegColor(heading.fontColor);
+  const subColor  = toFFmpegColor(subheading.fontColor, '0.9');
+  const ctaColor  = toFFmpegColor(cta.fontColor ?? '#FFD700');
+
+  const { headingY, subheadingY, ctaY } = computeYPositions(
+    heading, subheading, cta,
+    headFontSize, subFontSize, ctaFontSize,
+  );
+
+  const headX = xExpr(heading.hAlign);
+  const subX  = xExpr(subheading.hAlign);
+  const ctaX  = xExpr(cta.hAlign);
+
+  const drawTextFilters = [
+    `drawtext=fontfile='${headFont}':text='${esc(songTitle)}':fontsize=${headFontSize}:fontcolor=${headColor}:x=${headX}:y=${headingY}:shadowcolor=black@0.8:shadowx=3:shadowy=3:fix_bounds=true`,
+    `drawtext=fontfile='${subFont}':text='${esc(artistName)}':fontsize=${subFontSize}:fontcolor=${subColor}:x=${subX}:y=${subheadingY}:shadowcolor=black@0.8:shadowx=2:shadowy=2:fix_bounds=true`,
+    `drawtext=fontfile='${ctaFont}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=${ctaX}:y=${ctaY}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true`,
+  ];
 
   const blurAmount = vc.blurAmount ?? 0;
   const videoFilters: string[] = [
@@ -139,7 +252,9 @@ function generateVideo(opts: {
   if (blurAmount > 0) {
     videoFilters.push(`boxblur=${blurAmount}:1`);
   }
-  videoFilters.push(drawText);
+  // Gradient overlay — must come before drawtext so text renders on top
+  videoFilters.push(...GRADIENT_FILTERS);
+  videoFilters.push(...drawTextFilters);
 
   return new Promise((resolve, reject) => {
     ffmpeg()
@@ -157,9 +272,9 @@ function generateVideo(opts: {
 
 function esc(text: string): string {
   return text
-    .replace(/'/g, '’')  // smart quote avoids escape issues
-    .replace(/\\/g, '/')       // replace backslash with forward slash
-    .replace(/:/g, ' -')       // replace colon with dash (safe in filenames/titles)
+    .replace(/'/g, '’')  // smart quote avoids ffmpeg escape issues
+    .replace(/\\/g, '/')
+    .replace(/:/g, ' -')
     .replace(/\[/g, '(')
     .replace(/\]/g, ')');
 }

@@ -31,7 +31,8 @@ type Clip = { name: string; startSec: number };
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const FONT_SIZE_PX: Record<FontSize, number> = { sm: 13, md: 18, lg: 26 };
+// Mirrors video-gen.ts FONT_SIZE_MAP scaled to preview size (~480px ÷ 1080px ≈ 0.44)
+const FONT_SIZE_PX: Record<FontSize, number> = { sm: 23, md: 30, lg: 39 };
 
 const FONT_FAMILY_CSS: Record<FontFamily, string> = {
   sans: 'system-ui, -apple-system, sans-serif',
@@ -60,9 +61,9 @@ const TEXT_ANIM_CSS: Record<TextAnimation, string> = {
 };
 
 const VPOS_STYLE: Record<VAlign, React.CSSProperties> = {
-  top: { position: 'absolute', top: 20, left: 0, right: 0 },
+  top: { position: 'absolute', top: '6%', left: 0, right: 0 },
   center: { position: 'absolute', top: '50%', left: 0, right: 0, transform: 'translateY(-50%)' },
-  bottom: { position: 'absolute', bottom: 20, left: 0, right: 0 },
+  bottom: { position: 'absolute', bottom: '8%', left: 0, right: 0 },
 };
 
 const HALIGN_STYLE: Record<HAlign, React.CSSProperties> = {

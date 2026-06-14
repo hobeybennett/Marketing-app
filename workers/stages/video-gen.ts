@@ -27,33 +27,41 @@ interface VisualConfig {
   cta?: ElementStyle;
 }
 
-const FONT_SIZE_MAP: Record<string, number> = { sm: 13, md: 18, lg: 26 };
+const FONT_SIZE_MAP: Record<string, number> = { sm: 52, md: 68, lg: 88 };
 
 function fontSizePt(size: string | undefined, bold?: boolean): number {
-  const base = FONT_SIZE_MAP[size ?? 'md'] ?? 18;
-  // rough bold approximation: bump by 1pt
-  return bold ? base + 1 : base;
+  const base = FONT_SIZE_MAP[size ?? 'md'] ?? 68;
+  return bold ? base + 4 : base;
 }
 
-function toFFmpegColor(hex: string | undefined): string {
-  if (!hex) return '0xFFFFFF@1.0';
+function toFFmpegColor(hex: string | undefined, alpha = '1.0'): string {
+  if (!hex) return `0xFFFFFF@${alpha}`;
   const stripped = hex.replace('#', '');
-  return `0x${stripped.toUpperCase()}@1.0`;
+  return `0x${stripped.toUpperCase()}@${alpha}`;
 }
 
 function xExpr(hAlign: string | undefined): string {
   switch (hAlign) {
-    case 'left':  return 'w*0.05';
-    case 'right': return 'w-text_w-w*0.05';
+    case 'left':  return 'w*0.06';
+    case 'right': return 'w-text_w-w*0.06';
     default:      return '(w-text_w)/2';
   }
 }
 
-function yExpr(vAlign: string | undefined): string {
+// Separate Y functions so heading and subheading don't overlap when sharing the same vAlign
+function headingYExpr(vAlign: string | undefined): string {
   switch (vAlign) {
-    case 'top':    return 'h*0.1';
-    case 'bottom': return 'h*0.75';
-    default:       return '(h-text_h)/2';
+    case 'top':    return 'h*0.06';
+    case 'bottom': return 'h*0.64';
+    default:       return '(h/2)-text_h-8';
+  }
+}
+
+function subheadingYExpr(vAlign: string | undefined): string {
+  switch (vAlign) {
+    case 'top':    return 'h*0.18';
+    case 'bottom': return 'h*0.77';
+    default:       return 'h/2+8';
   }
 }
 
@@ -119,16 +127,20 @@ function generateVideo(opts: {
   const vc = visualConfig ?? {};
   const heading    = vc.heading    ?? {};
   const subheading = vc.subheading ?? {};
+  const cta        = vc.cta        ?? {};
 
-  const headingFontSize = fontSizePt(heading.fontSize, heading.fontBold);
-  const subFontSize     = fontSizePt(subheading.fontSize, subheading.fontBold);
-  const headingColor    = toFFmpegColor(heading.fontColor);
-  const subColor        = toFFmpegColor(subheading.fontColor);
+  const headingFontSize = fontSizePt(heading.fontSize ?? 'lg', heading.fontBold ?? true);
+  const subFontSize     = fontSizePt(subheading.fontSize ?? 'md', subheading.fontBold);
+  const ctaFontSize     = fontSizePt(cta.fontSize ?? 'sm', cta.fontBold ?? true);
+
+  const headingColor = toFFmpegColor(heading.fontColor);
+  const subColor     = toFFmpegColor(subheading.fontColor, '0.9');
+  const ctaColor     = toFFmpegColor(cta.fontColor ?? '#FFD700');
 
   const drawText = [
-    `drawtext=text='${esc(songTitle)}':fontsize=${headingFontSize}:fontcolor=${headingColor}:x=${xExpr(heading.hAlign)}:y=${yExpr(heading.vAlign)}:shadowcolor=black:shadowx=2:shadowy=2`,
-    `drawtext=text='${esc(artistName)}':fontsize=${subFontSize}:fontcolor=${subColor}:x=${xExpr(subheading.hAlign)}:y=${yExpr(subheading.vAlign)}:shadowcolor=black:shadowx=2:shadowy=2`,
-    `drawtext=text='${esc(ctaText)}':fontsize=42:fontcolor=yellow:x=(w-text_w)/2:y=h*0.91:shadowcolor=black:shadowx=2:shadowy=2`,
+    `drawtext=text='${esc(songTitle)}':fontsize=${headingFontSize}:fontcolor=${headingColor}:x=${xExpr(heading.hAlign)}:y=${headingYExpr(heading.vAlign)}:shadowcolor=black:shadowx=3:shadowy=3:fix_bounds=true`,
+    `drawtext=text='${esc(artistName)}':fontsize=${subFontSize}:fontcolor=${subColor}:x=${xExpr(subheading.hAlign)}:y=${subheadingYExpr(subheading.vAlign)}:shadowcolor=black:shadowx=2:shadowy=2:fix_bounds=true`,
+    `drawtext=text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=${xExpr(cta.hAlign)}:y=h*0.91:shadowcolor=black:shadowx=2:shadowy=2:fix_bounds=true`,
   ].join(',');
 
   const blurAmount = vc.blurAmount ?? 0;

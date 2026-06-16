@@ -1,11 +1,14 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.EMAIL_FROM ?? 'Promohit <noreply@promohit.com>';
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
+const FROM = () => process.env.EMAIL_FROM ?? 'Promohit <noreply@promohit.com>';
 
 export async function sendOtpEmail(email: string, code: string) {
-  await resend.emails.send({
-    from: FROM,
+  await getResend().emails.send({
+    from: FROM(),
     to: email,
     subject: `${code} — your Promohit sign-in code`,
     html: `

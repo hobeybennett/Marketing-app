@@ -27,10 +27,20 @@ interface VisualConfig {
   cta?: ElementStyle;
 }
 
-// Font size in pixels for a 1080×1080 video.
-// Calibrated against the preview's CSS px values (13/18/26) at ~370px container width,
-// scaled up to 1080px (÷ 370 × 1080 ≈ ×2.9) then rounded to look good on screen.
-const FONT_SIZE_MAP: Record<string, number> = { sm: 46, md: 60, lg: 78 };
+// Base font sizes in pixels for a 1080×1080 video.
+// These are the sizes used for short text; dynamicFontSize() reduces them for long strings.
+const FONT_SIZE_MAP: Record<string, number> = { sm: 46, md: 62, lg: 82 };
+
+// Safe drawable width (1080 minus 70px per side of padding)
+const MAX_TEXT_WIDTH = 940;
+
+// Reduce font size so text fits within MAX_TEXT_WIDTH.
+// Uses a conservative character-width ratio for Liberation Sans (0.58 covers bold too).
+function dynamicFontSize(text: string, base: number, min = 32): number {
+  const estimated = text.length * base * 0.58;
+  if (estimated <= MAX_TEXT_WIDTH) return base;
+  return Math.max(Math.floor(MAX_TEXT_WIDTH / (text.length * 0.58)), min);
+}
 
 // Font files available on Railway's Nix environment (ffmpeg nixPkg installs these).
 const FONT_FILES: Record<string, { regular: string; bold: string }> = {
@@ -217,9 +227,9 @@ function generateVideo(opts: {
   const subheading = vc.subheading ?? {};
   const cta        = vc.cta        ?? {};
 
-  const headFontSize = fontSize(heading.fontSize    ?? 'lg');
-  const subFontSize  = fontSize(subheading.fontSize ?? 'md');
-  const ctaFontSize  = fontSize(cta.fontSize        ?? 'sm');
+  const headFontSize = dynamicFontSize(songTitle,  fontSize(heading.fontSize    ?? 'lg'));
+  const subFontSize  = dynamicFontSize(artistName, fontSize(subheading.fontSize ?? 'md'));
+  const ctaFontSize  = dynamicFontSize(ctaText,    fontSize(cta.fontSize        ?? 'sm'));
 
   const headFont = resolveFont(heading.fontFamily,    heading.fontBold    ?? true);
   const subFont  = resolveFont(subheading.fontFamily, subheading.fontBold);

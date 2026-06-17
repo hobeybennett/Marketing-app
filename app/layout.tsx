@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     apple: '/icon.svg',
   },
   other: {
-    'facebook-domain-verification': 't1c34em9w1aybhigpq8pkr8ldzcldp',
+    'facebook-domain-verification': '646ok5rl4e9mpirah1l5gy0nyoumxz',
   },
 };
 

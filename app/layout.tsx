@@ -11,6 +11,9 @@ export const metadata: Metadata = {
     icon: '/icon.svg',
     apple: '/icon.svg',
   },
+  other: {
+    'facebook-domain-verification': 't1c34em9w1aybhigpq8pkr8ldzcldp',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

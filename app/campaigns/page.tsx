@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 import DeleteCampaignButton from '@/components/DeleteCampaignButton';
@@ -66,6 +67,11 @@ export default async function CampaignsPage() {
   const session = await getServerSession();
   const userId = session?.user?.id ?? null;
   const { campaigns, spendMap, clickMap } = await getCampaigns(userId);
+
+  // First-time users go through onboarding before seeing an empty dashboard
+  if (userId && campaigns.length === 0) {
+    redirect('/onboarding');
+  }
 
   let needsPayment = false;
   let credits = 0;

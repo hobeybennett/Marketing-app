@@ -375,10 +375,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         </div>
       )}
       {failedJob?.error && (
-        <div className="bg-red-900/20 border border-red-800 rounded-xl p-4">
+        <div className="bg-red-900/20 border border-red-800 rounded-xl p-4 mb-4">
           <p className="text-xs text-red-300 font-mono break-all whitespace-pre-wrap">{failedJob.error}</p>
         </div>
       )}
+      <button
+        onClick={() => handleAction('retry')}
+        disabled={actionLoading}
+        className="btn-primary w-full py-3 disabled:opacity-50"
+      >
+        {actionLoading ? 'Retrying…' : '↺ Retry'}
+      </button>
     </div>
   );
 }

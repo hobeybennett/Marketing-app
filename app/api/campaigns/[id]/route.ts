@@ -79,6 +79,48 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ status: 'launching' });
   }
 
+  // Retry any FAILED campaign — re-dispatches the failed stage from scratch
+  if (action === 'retry') {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: { jobs: true },
+    });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (campaign.status !== CampaignStatus.FAILED) {
+      return NextResponse.json({ error: 'campaign must be FAILED to retry' }, { status: 400 });
+    }
+
+    const failedJob = campaign.jobs.find(j => j.status === 'FAILED');
+    if (!failedJob) return NextResponse.json({ error: 'no failed job found' }, { status: 400 });
+
+    const stageStatusMap: Partial<Record<string, CampaignStatus>> = {
+      SEGMENTATION: CampaignStatus.PENDING,
+      VIDEO_GEN:    CampaignStatus.PROCESSING,
+      COPY_GEN:     CampaignStatus.BUILDING,
+      AUDIENCE_GEN: CampaignStatus.BUILDING,
+      META_SETUP:   CampaignStatus.LAUNCHING,
+    };
+    const newStatus = stageStatusMap[failedJob.stage];
+    if (!newStatus) return NextResponse.json({ error: 'unknown stage' }, { status: 400 });
+
+    await prisma.campaignJob.updateMany({
+      where: { campaignId: params.id, stage: failedJob.stage },
+      data: { status: 'PENDING', error: null },
+    });
+
+    await prisma.campaign.update({
+      where: { id: params.id },
+      data: {
+        status: newStatus,
+        // Clear partial Meta state so META_SETUP starts fresh
+        ...(failedJob.stage === 'META_SETUP' ? { metaCampaignId: null } : {}),
+      },
+    });
+
+    await dispatchStage(params.id, failedJob.stage as any);
+    return NextResponse.json({ status: 'retrying', stage: failedJob.stage });
+  }
+
   return NextResponse.json({ error: 'unknown action' }, { status: 400 });
 }
 

@@ -90,8 +90,8 @@ export async function runMetaSetup(campaignId: string) {
           title: copy.headline,
           message: copy.primaryText,
           call_to_action: {
-            type: 'LISTEN_MUSIC',
-            value: { link: `https://promohit.app/c/${campaignId}` },
+            type: 'LEARN_MORE',
+            value: { link: `${process.env.NEXTAUTH_URL}/go/${campaignId}` },
           },
         },
       },

@@ -45,14 +45,22 @@ export async function GET(req: NextRequest) {
     const me = await meRes.json();
     if (me.error) throw new Error(`Meta user lookup failed: ${me.error.message}`);
 
-    // Get first ad account
+    // Get first ad account — include business field so we can prefer BM-owned accounts
     const adAccountsRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id&limit=10&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id,business,account_status&limit=25&access_token=${longToken}`
     );
     const adAccountsData = await adAccountsRes.json();
     if (adAccountsData.error) throw new Error(`Ad account lookup failed: ${adAccountsData.error.message} (code ${adAccountsData.error.code})`);
-    const adAccount = adAccountsData.data?.[0];
-    if (!adAccount) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
+    const allAccounts = adAccountsData.data ?? [];
+    if (!allAccounts.length) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
+    // Log all accounts so we can diagnose which one is being selected
+    console.log('[meta/callback] Available ad accounts:', JSON.stringify(allAccounts.map((a: any) => ({
+      id: a.account_id, name: a.name, status: a.account_status, businessId: a.business?.id, businessName: a.business?.name
+    })), null, 2));
+    // Prefer Business Manager-owned accounts over personal ad accounts
+    const adAccount = allAccounts.find((a: any) => a.business?.id) ?? allAccounts[0];
+    console.log(`[meta/callback] Selected ad account: ${adAccount.account_id} (${adAccount.name}) businessId=${adAccount.business?.id ?? 'none — personal account'}`);
+
 
     // Get first page — include access_token to get the Page Access Token for ad creatives
     const pagesRes = await fetch(

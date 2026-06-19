@@ -129,7 +129,11 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     setLoading(false);
   }, [params.id]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    // Load cached data immediately, then auto-sync in background
+    fetchAll().then(() => handleSync());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSync() {
     setSyncing(true);

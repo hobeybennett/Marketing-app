@@ -45,9 +45,9 @@ export async function GET(req: NextRequest) {
     const me = await meRes.json();
     if (me.error) throw new Error(`Meta user lookup failed: ${me.error.message}`);
 
-    // Fetch all ad accounts with status + business membership
+    // Fetch all ad accounts with status (no business field — requires business_management permission)
     const adAccountsRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id,business,account_status&limit=25&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id,account_status&limit=25&access_token=${longToken}`
     );
     const adAccountsData = await adAccountsRes.json();
     if (adAccountsData.error) throw new Error(`Ad account lookup failed: ${adAccountsData.error.message} (code ${adAccountsData.error.code})`);
@@ -55,23 +55,22 @@ export async function GET(req: NextRequest) {
     if (!allAccounts.length) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
 
     console.log('[meta/callback] All ad accounts:', JSON.stringify(allAccounts.map((a: any) => ({
-      id: a.account_id, name: a.name, status: a.account_status, businessId: a.business?.id,
+      id: a.account_id, name: a.name, status: a.account_status,
     }))));
 
     // Filter to active accounts only (status 1), exclude closed (101) / disabled (2)
     const activeAccounts = allAccounts.filter((a: any) => a.account_status === 1);
     if (!activeAccounts.length) throw new Error('No active Meta ad accounts found. All accounts may be closed or disabled.');
 
-    // Default selection: prefer BM-owned over personal
-    const defaultAccount = activeAccounts.find((a: any) => a.business?.id) ?? activeAccounts[0];
-    console.log(`[meta/callback] Default account: ${defaultAccount.account_id} (${defaultAccount.name}) businessId=${defaultAccount.business?.id ?? 'personal'}`);
+    const defaultAccount = activeAccounts[0];
+    console.log(`[meta/callback] Default account: ${defaultAccount.account_id} (${defaultAccount.name})`);
 
-    // Build the stored list of available accounts (no token needed — just metadata)
+    // Store the full list so the user can pick from Settings
     const availableAdAccounts = activeAccounts.map((a: any) => ({
       id: a.account_id,
       name: a.name,
-      businessId: a.business?.id ?? null,
-      businessName: a.business?.name ?? null,
+      businessId: null,
+      businessName: null,
     }));
 
     // Fetch all pages — include access_token for Page Access Token

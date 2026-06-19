@@ -88,6 +88,14 @@ function videoApiUrl(fileUrl: string): string {
   return `/api/videos/${campaignId}/${filename}`;
 }
 
+function thumbApiUrl(fileUrl: string): string {
+  const filename = (fileUrl.split('/').pop() ?? '').replace('.mp4', '_thumb.jpg');
+  const parts = fileUrl.split('/');
+  const videosIdx = parts.indexOf('videos');
+  const campaignId = videosIdx > 0 ? parts[videosIdx - 1] : '';
+  return `/api/videos/${campaignId}/thumb/${filename}`;
+}
+
 export default function InsightsPage({ params }: { params: { id: string } }) {
   const [insights, setInsights] = useState<InsightsPayload | null>(null);
   const [campaign, setCampaign] = useState<CampaignBasic | null>(null);
@@ -413,8 +421,10 @@ function CreativeCard({ creative, isTop, togglingId, onToggle }: CreativeCardPro
       {/* Video thumbnail */}
       <video
         src={videoApiUrl(creative.fileUrl)}
+        poster={thumbApiUrl(creative.fileUrl)}
         muted
         playsInline
+        preload="none"
         className="w-full sm:w-20 h-20 object-cover shrink-0 bg-gray-800"
       />
       {/* Content */}

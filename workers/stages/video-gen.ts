@@ -197,6 +197,17 @@ export async function runVideoGen(campaignId: string) {
       visualConfig,
     });
 
+    // Extract first frame as a thumbnail for the browser <video poster> attribute
+    const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(outputFile)
+        .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
+        .output(thumbFile)
+        .on('end', () => resolve())
+        .on('error', () => resolve()) // non-fatal
+        .run();
+    });
+
     await prisma.videoCreative.create({
       data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
     });

@@ -7,12 +7,18 @@ import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
-  // fileUrl is like /uploads/{campaignId}/videos/creative_0.mp4
-  // extract campaignId as the segment before 'videos'
   const parts = fileUrl.split('/');
   const videosIdx = parts.indexOf('videos');
   const campaignId = videosIdx > 0 ? parts[videosIdx - 1] : '';
   return `/api/videos/${campaignId}/${filename}`;
+}
+
+function thumbApiUrl(fileUrl: string): string {
+  const filename = (fileUrl.split('/').pop() ?? '').replace('.mp4', '_thumb.jpg');
+  const parts = fileUrl.split('/');
+  const videosIdx = parts.indexOf('videos');
+  const campaignId = videosIdx > 0 ? parts[videosIdx - 1] : '';
+  return `/api/videos/${campaignId}/thumb/${filename}`;
 }
 
 const POLLING_STATUSES = new Set(['PENDING', 'PROCESSING', 'BUILDING', 'LAUNCHING']);
@@ -237,8 +243,10 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
                   {creative.fileUrl && (
                     <video
                       src={videoApiUrl(creative.fileUrl)}
+                      poster={thumbApiUrl(creative.fileUrl)}
                       muted
                       playsInline
+                      preload="none"
                       className="w-16 h-16 object-cover rounded shrink-0 bg-gray-700"
                     />
                   )}

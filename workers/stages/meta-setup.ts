@@ -17,6 +17,8 @@ export async function runMetaSetup(campaignId: string) {
   // Prefer user's stored Meta connection; fall back to env vars for legacy campaigns
   const metaConn = campaign.user?.metaConnection;
   const token = metaConn?.accessToken ?? process.env.META_ACCESS_TOKEN;
+  // Page Access Token is required for object_story_spec ad creatives; fall back to user token
+  const pageToken = metaConn?.pageAccessToken ?? token;
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
 
@@ -80,7 +82,7 @@ export async function runMetaSetup(campaignId: string) {
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;
 
-    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, token, {
+    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken!, {
       name: `${campaign.songTitle} — creative ${campaign.creatives.indexOf(creative) + 1}`,
       object_story_spec: {
         page_id: pageId,

@@ -54,14 +54,15 @@ export async function GET(req: NextRequest) {
     const adAccount = adAccountsData.data?.[0];
     if (!adAccount) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
 
-    // Get first page
+    // Get first page — include access_token to get the Page Access Token for ad creatives
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id&limit=10&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token&limit=10&access_token=${longToken}`
     );
     const pagesData = await pagesRes.json();
     if (pagesData.error) throw new Error(`Page lookup failed: ${pagesData.error.message} (code ${pagesData.error.code})`);
     const page = pagesData.data?.[0];
     if (!page) throw new Error('No Facebook Pages found. Create a Facebook Page at facebook.com/pages/create first.');
+    const pageAccessToken: string | null = page.access_token ?? null;
 
     const expiresAt = expires_in
       ? new Date(Date.now() + expires_in * 1000)
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
       create: {
         userId,
         accessToken: longToken,
+        pageAccessToken,
         tokenExpiresAt: expiresAt,
         metaUserId: me.id,
         adAccountId: adAccount.account_id,
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest) {
       },
       update: {
         accessToken: longToken,
+        pageAccessToken,
         tokenExpiresAt: expiresAt,
         metaUserId: me.id,
         adAccountId: adAccount.account_id,

@@ -284,6 +284,30 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     );
   }
 
+  // ── Paused ───────────────────────────────────────────────────────────────
+  if (status === 'PAUSED') {
+    return (
+      <div className="max-w-xl mx-auto py-8">
+        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-4">⏸</div>
+          <h2 className="font-display text-2xl font-700 mb-2">Campaign paused</h2>
+          <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4 text-sm text-gray-400 text-center">
+          Your Meta ads are paused and not spending. Resume to continue delivery.
+        </div>
+        <button
+          onClick={() => handleAction('resume')}
+          disabled={actionLoading}
+          className="btn-primary w-full py-3 disabled:opacity-50"
+        >
+          {actionLoading ? 'Resuming…' : '▶ Resume Campaign'}
+        </button>
+      </div>
+    );
+  }
+
   // ── Live ──────────────────────────────────────────────────────────────────
   if (status === 'LIVE' || status === 'LAUNCHING') {
     const smartLinkUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/go/${params.id}`;
@@ -317,6 +341,17 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
         {status === 'LIVE' && (
           <>
+            {/* Pause control */}
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => handleAction('pause')}
+                disabled={actionLoading}
+                className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-4 py-1.5 rounded-lg transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Pausing…' : '⏸ Pause campaign'}
+              </button>
+            </div>
+
             {/* Smart Link section */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
               <h3 className="font-semibold mb-1">Smart Link</h3>

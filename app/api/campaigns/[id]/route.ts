@@ -121,7 +121,62 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ status: 'retrying', stage: failedJob.stage });
   }
 
+  if (action === 'pause') {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: { user: { include: { metaConnection: true } } },
+    });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (campaign.status !== CampaignStatus.LIVE) {
+      return NextResponse.json({ error: 'campaign must be LIVE to pause' }, { status: 400 });
+    }
+
+    if (campaign.metaCampaignId) {
+      const token = campaign.user?.metaConnection?.accessToken ?? process.env.META_ACCESS_TOKEN;
+      if (token) await metaStatusUpdate(campaign.metaCampaignId, token, 'PAUSED');
+    }
+
+    await prisma.campaign.update({ where: { id: params.id }, data: { status: CampaignStatus.PAUSED } });
+    return NextResponse.json({ status: 'paused' });
+  }
+
+  if (action === 'resume') {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      include: { user: { include: { metaConnection: true } }, audiences: true },
+    });
+    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (campaign.status !== CampaignStatus.PAUSED) {
+      return NextResponse.json({ error: 'campaign must be PAUSED to resume' }, { status: 400 });
+    }
+
+    if (campaign.metaCampaignId) {
+      const token = campaign.user?.metaConnection?.accessToken ?? process.env.META_ACCESS_TOKEN;
+      if (token) {
+        await metaStatusUpdate(campaign.metaCampaignId, token, 'ACTIVE');
+        for (const audience of campaign.audiences) {
+          if (audience.metaAdSetId) await metaStatusUpdate(audience.metaAdSetId, token, 'ACTIVE');
+        }
+      }
+    }
+
+    await prisma.campaign.update({ where: { id: params.id }, data: { status: CampaignStatus.LIVE } });
+    return NextResponse.json({ status: 'live' });
+  }
+
   return NextResponse.json({ error: 'unknown action' }, { status: 400 });
+}
+
+async function metaStatusUpdate(objectId: string, token: string, status: string) {
+  const res = await fetch(`https://graph.facebook.com/v22.0/${objectId}?access_token=${token}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(`Meta status update failed for ${objectId}: ${JSON.stringify(err?.error)}`);
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

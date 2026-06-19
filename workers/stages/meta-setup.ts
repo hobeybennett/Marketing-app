@@ -85,7 +85,7 @@ export async function runMetaSetup(campaignId: string) {
     if (!videoId) continue;
 
     const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken!, {
-      name: `${campaign.songTitle} — creative ${campaign.creatives.indexOf(creative) + 1}`,
+      name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
       object_story_spec: {
         page_id: pageId,
         video_data: {
@@ -136,8 +136,9 @@ export async function runMetaSetup(campaignId: string) {
       const adCreativeId = adCreativeIds.get(creative.id);
       if (!adCreativeId) continue; // skip if no creative
 
+      const clipNum = campaign.creatives.indexOf(creative) + 1;
       await metaPost(`/act_${adAccountId}/ads`, token, {
-        name: `${campaign.songTitle} — ${creative.ctaText} — ${audience.name}`,
+        name: `${campaign.songTitle} — Clip ${clipNum} — ${audience.name}`,
         adset_id: adSet.id,
         status: 'PAUSED',
         creative: { creative_id: adCreativeId },

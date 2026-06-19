@@ -207,9 +207,32 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
   return json;
 }
 
+// Countries where Spotify is available and Meta advertising is permitted without
+// additional advertiser-side consent requirements. Excludes: China (Meta blocked),
+// Russia (Spotify suspended), and US-sanctioned territories (Cuba, Iran, North Korea, Syria).
+const SPOTIFY_MARKETS = [
+  // English-speaking
+  'US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'ZA',
+  // Western Europe
+  'DE', 'FR', 'ES', 'IT', 'NL', 'SE', 'NO', 'DK', 'FI', 'AT', 'CH', 'BE', 'PT', 'LU', 'IS',
+  // Central & Eastern Europe
+  'PL', 'CZ', 'HU', 'RO', 'SK', 'HR', 'SI', 'BG', 'EE', 'LV', 'LT', 'GR', 'CY', 'MT',
+  'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
+  // Latin America
+  'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
+  // Asia-Pacific
+  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'TH', 'ID', 'VN', 'HK',
+  // Middle East
+  'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
+  // Africa
+  'NG', 'GH', 'KE', 'TZ', 'UG', 'SN', 'CM', 'CI',
+  // Caucasus & Central Asia
+  'AM', 'GE', 'AZ', 'KZ',
+];
+
 function buildTargeting(audience: { type: string; interests: string[] }) {
   const base: Record<string, unknown> = {
-    geo_locations: { countries: ['US'] },
+    geo_locations: { countries: SPOTIFY_MARKETS },
     age_min: 18,
     age_max: 65,
   };

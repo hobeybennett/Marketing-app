@@ -28,7 +28,7 @@ export async function runAudienceGen(campaignId: string) {
       },
       {
         campaignId,
-        name: 'Lookalike — 1% US',
+        name: 'Lookalike — Top 1%',
         type: 'LOOKALIKE',
         interests: [],
         lookalikeSeed: 'page_fans',

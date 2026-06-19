@@ -82,7 +82,7 @@ export default async function SettingsPage({
             <p className="text-xs text-gray-500 mb-4">Unlimited campaigns, renews monthly</p>
             <a href="/api/billing-portal"
               className="inline-flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 px-4 py-2 rounded-lg text-gray-300 transition">
-              Manage subscription →
+              Manage subscription
             </a>
             <p className="text-xs text-gray-600 mt-2">Update card, view invoices, cancel — all in one place.</p>
           </>
@@ -96,7 +96,7 @@ export default async function SettingsPage({
             </div>
             <a href="/api/checkout/pro"
               className="text-sm text-violet-400 hover:text-violet-300 transition font-medium whitespace-nowrap ml-4">
-              Go Pro $9.99/mo →
+              Go Pro $9.99/mo
             </a>
           </div>
         )}

@@ -204,7 +204,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
         <Link href="/campaigns" className="text-gray-400 hover:text-white text-sm transition">
-          ← Campaigns
+          Campaigns
         </Link>
         <button
           type="button"
@@ -240,7 +240,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
                 disabled={actionLoading}
                 className="text-sm border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white px-4 py-1.5 rounded-lg transition disabled:opacity-50"
               >
-                {actionLoading ? '…' : '⏸ Pause'}
+                {actionLoading ? '…' : 'Pause'}
               </button>
             )}
             {campaign?.status === 'PAUSED' && (
@@ -249,7 +249,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
                 disabled={actionLoading}
                 className="text-sm bg-violet-600 hover:bg-violet-500 text-white px-4 py-1.5 rounded-lg transition disabled:opacity-50"
               >
-                {actionLoading ? '…' : '▶ Resume'}
+                {actionLoading ? '…' : 'Resume'}
               </button>
             )}
           </div>
@@ -258,7 +258,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
         {/* Status badge */}
         {campaign?.status === 'PAUSED' && (
           <span className="inline-block mt-2 text-xs bg-gray-800 text-gray-400 border border-gray-700 px-2.5 py-1 rounded-full">
-            ⏸ Paused — ads not delivering
+            Paused — ads not delivering
           </span>
         )}
       </div>

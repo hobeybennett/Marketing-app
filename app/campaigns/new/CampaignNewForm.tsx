@@ -574,7 +574,6 @@ export default function CampaignNewForm() {
           className={`p-4 rounded-xl border text-left transition ${mode === 'quick'
             ? 'bg-violet-900/40 border-violet-600'
             : 'bg-gray-900 border-gray-800 hover:border-gray-600'}`}>
-          <div className="text-2xl mb-2">⚡</div>
           <p className={`font-semibold text-sm ${mode === 'quick' ? 'text-white' : 'text-gray-300'}`}>
             Quick Launch
           </p>
@@ -587,7 +586,6 @@ export default function CampaignNewForm() {
           className={`p-4 rounded-xl border text-left transition ${mode === 'custom'
             ? 'bg-violet-900/40 border-violet-600'
             : 'bg-gray-900 border-gray-800 hover:border-gray-600'}`}>
-          <div className="text-2xl mb-2">🎨</div>
           <p className={`font-semibold text-sm ${mode === 'custom' ? 'text-white' : 'text-gray-300'}`}>
             Customise
           </p>
@@ -620,7 +618,7 @@ export default function CampaignNewForm() {
               <p className="text-sm font-medium">{spotify.songTitle}</p>
               <p className="text-xs text-gray-400">{spotify.artistName}</p>
             </div>
-            <span className="ml-auto text-green-400 text-xs">✓</span>
+            <span className="ml-auto text-green-400 text-xs">Found</span>
           </div>
         )}
         {spotify && (
@@ -678,7 +676,7 @@ export default function CampaignNewForm() {
           </div>
           <button type="button" onClick={replayAnim}
             className="w-full text-xs text-gray-500 hover:text-gray-300 py-2 mb-4 transition">
-            ↺ Replay animation
+            Replay animation
           </button>
 
           {/* ── Quick Launch summary ────────────────────────────────────── */}
@@ -695,14 +693,14 @@ export default function CampaignNewForm() {
                   '3 target audiences — interest, retargeting, lookalike',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2.5 text-sm text-gray-400">
-                    <span className="text-green-400 mt-0.5 shrink-0">✓</span>
+                    <span className="text-green-500 mt-0.5 shrink-0 text-base leading-none">–</span>
                     {item}
                   </li>
                 ))}
               </ul>
               <button type="button" onClick={() => setMode('custom')}
                 className="mt-4 text-xs text-violet-400 hover:text-violet-300 transition">
-                Want to customise instead? →
+                Want to customise instead?
               </button>
             </div>
           )}
@@ -729,12 +727,12 @@ export default function CampaignNewForm() {
                       <button type="button" onClick={() => { setBgMode('generate'); replayAnim(); }}
                         className={`py-2.5 rounded-lg text-sm font-medium border transition
                           ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                        ✨ Generate
+                        Generate
                       </button>
                       <button type="button" onClick={() => bgInputRef.current?.click()}
                         className={`py-2.5 rounded-lg text-sm font-medium border transition
                           ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                        ⬆ Upload
+                        Upload
                       </button>
                     </div>
                     {bgMode === 'upload' && bgFile && <p className="text-xs text-gray-400">{bgFile.name}</p>}
@@ -879,7 +877,7 @@ export default function CampaignNewForm() {
                           ) : (
                             <button type="button" onClick={() => setEditingName(i)}
                               className="text-sm font-semibold hover:text-blue-400 transition">
-                              {clip.name} <span className="text-gray-600 text-xs">✏</span>
+                              {clip.name}
                             </button>
                           )}
                           <span className="text-xs text-gray-400 tabular-nums">
@@ -904,7 +902,7 @@ export default function CampaignNewForm() {
 
           <button type="button" onClick={handleSubmit} disabled={loading}
             className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed mt-3">
-            {loading ? 'Creating…' : mode === 'quick' ? '⚡ Generate Videos' : 'Generate Videos →'}
+            {loading ? 'Creating…' : 'Generate Videos'}
           </button>
         </>
       )}

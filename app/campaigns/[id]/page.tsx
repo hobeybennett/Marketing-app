@@ -127,7 +127,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             <h2 className="font-semibold text-lg">Your videos are ready</h2>
             <p className="text-sm text-gray-400">{campaign.creatives?.length} clips generated</p>
           </div>
-          <span className="text-green-400 text-sm font-medium">✓ Content done</span>
+          <span className="text-green-400 text-sm font-medium">Content ready</span>
         </div>
 
         <div className="space-y-3 mb-6">
@@ -165,7 +165,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           disabled={actionLoading}
           className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-50"
         >
-          {actionLoading ? 'Starting…' : 'Continue to Campaign Setup →'}
+          {actionLoading ? 'Starting…' : 'Continue to Campaign Setup'}
         </button>
       </div>
     );
@@ -228,7 +228,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               Your videos and ad copy are ready — you just need to connect your Meta account before the campaign can go live.
             </p>
             <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
-              Go to Settings → Connect Meta
+              Go to Settings to connect Meta
             </a>
           </div>
         )}
@@ -298,7 +298,6 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
       <div className="max-w-xl mx-auto py-8">
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <div className="text-center mb-6">
-          <div className="text-5xl mb-4">⏸</div>
           <h2 className="font-display text-2xl font-700 mb-2">Campaign paused</h2>
           <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
         </div>
@@ -310,7 +309,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           disabled={actionLoading}
           className="btn-primary w-full py-3 disabled:opacity-50"
         >
-          {actionLoading ? 'Resuming…' : '▶ Resume Campaign'}
+          {actionLoading ? 'Resuming…' : 'Resume Campaign'}
         </button>
       </div>
     );
@@ -325,8 +324,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
       <div className="max-w-xl mx-auto py-8">
         <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
         <div className="text-center mb-6">
-          <div className="text-5xl mb-4">{status === 'LIVE' ? '🚀' : '⏳'}</div>
-          <h2 className="font-display text-2xl font-700 mb-2">{status === 'LIVE' ? 'Campaign is live!' : 'Launching…'}</h2>
+          <h2 className="font-display text-2xl font-700 mb-2">{status === 'LIVE' ? 'Campaign is live' : 'Launching…'}</h2>
           <p className="text-gray-400">{campaign.artistName} — {campaign.songTitle}</p>
           {campaign.metaCampaignId && (
             <p className="text-xs text-gray-600 mt-4">Meta ID: {campaign.metaCampaignId}</p>
@@ -356,7 +354,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
                 disabled={actionLoading}
                 className="text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-4 py-1.5 rounded-lg transition disabled:opacity-50"
               >
-                {actionLoading ? 'Pausing…' : '⏸ Pause campaign'}
+                {actionLoading ? 'Pausing…' : 'Pause campaign'}
               </button>
             </div>
 
@@ -384,7 +382,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
                 href={`/campaigns/${params.id}/insights`}
                 className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition"
               >
-                View Performance →
+                View Performance
               </a>
             </div>
           </>
@@ -400,7 +398,6 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     <div className="max-w-xl mx-auto py-12">
       <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
       <div className="text-center mb-6">
-        <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
         {failedJob && (
           <p className="text-gray-400 text-sm">Failed at: <span className="text-white">{STAGE_LABELS[failedJob.stage] ?? failedJob.stage}</span></p>
@@ -413,7 +410,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             The campaign failed while setting up your Meta ads. Make sure your Meta account is connected and your Ad Account is active.
           </p>
           <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
-            Check Meta in Settings →
+            Check Meta in Settings
           </a>
         </div>
       )}
@@ -427,7 +424,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         disabled={actionLoading}
         className="btn-primary w-full py-3 disabled:opacity-50"
       >
-        {actionLoading ? 'Retrying…' : '↺ Retry'}
+        {actionLoading ? 'Retrying…' : 'Retry'}
       </button>
     </div>
   );
@@ -437,7 +434,7 @@ function BackButton({ onClick, campaignId }: { onClick: () => void; campaignId: 
   return (
     <div className="flex items-center justify-between mb-4">
       <button onClick={onClick} className="text-gray-400 hover:text-white text-sm">
-        ← Back to campaigns
+        Back to campaigns
       </button>
       <DeleteCampaignButton campaignId={campaignId} redirect />
     </div>

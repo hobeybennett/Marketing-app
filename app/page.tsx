@@ -88,7 +88,7 @@ export default async function Home() {
             href="#how-it-works"
             className="text-sm text-gray-400 hover:text-gray-200 transition-colors border border-gray-700 hover:border-gray-500 rounded-xl px-6 py-3"
           >
-            See how it works ↓
+            See how it works
           </a>
         </div>
 
@@ -223,7 +223,7 @@ export default async function Home() {
             <ul className="space-y-2.5 text-sm text-gray-300 mb-8 flex-1">
               {['1 campaign included', '5 video ad creatives', 'Smart stream link', 'Performance dashboard'].map((item) => (
                 <li key={item} className="flex gap-2.5">
-                  <span className="text-violet-400 mt-px">✓</span>
+                  <span className="text-violet-400 mt-px">–</span>
                   {item}
                 </li>
               ))}
@@ -265,7 +265,7 @@ export default async function Home() {
                 'Priority processing',
               ].map((item) => (
                 <li key={item} className="flex gap-2.5">
-                  <span className="text-violet-400 mt-px">✓</span>
+                  <span className="text-violet-400 mt-px">–</span>
                   {item}
                 </li>
               ))}

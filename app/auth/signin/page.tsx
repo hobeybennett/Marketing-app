@@ -124,7 +124,7 @@ function SignInContent() {
                 disabled={sending || !email.trim()}
                 className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {sending ? 'Sending code…' : 'Continue with email →'}
+                {sending ? 'Sending code…' : 'Continue with email'}
               </button>
             </form>
 
@@ -184,7 +184,7 @@ function SignInContent() {
                 disabled={verifying || code.length !== 6}
                 className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed mb-4"
               >
-                {verifying ? 'Verifying…' : 'Sign in →'}
+                {verifying ? 'Verifying…' : 'Sign in'}
               </button>
             </form>
 

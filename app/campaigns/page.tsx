@@ -16,27 +16,31 @@ async function getCampaigns(userId: string | null) {
     include: { jobs: true },
   });
 
-  const liveIds = campaigns.filter(c => c.status === 'LIVE').map(c => c.id);
+  const activeIds = campaigns
+    .filter(c => c.status === 'LIVE' || c.status === 'PAUSED')
+    .map(c => c.id);
 
   let spendMap: Record<string, number> = {};
+  let viewsMap: Record<string, number> = {};
   let clickMap: Record<string, number> = {};
 
-  if (liveIds.length > 0) {
-    const spendData = await prisma.adInsight.groupBy({
+  if (activeIds.length > 0) {
+    const insightData = await prisma.adInsight.groupBy({
       by: ['campaignId'],
-      where: { campaignId: { in: liveIds }, metaAdSetId: null, metaAdId: null },
-      _sum: { spend: true },
+      where: { campaignId: { in: activeIds }, metaAdSetId: null, metaAdId: null },
+      _sum: { spend: true, videoViews: true },
     });
     const clickData = await prisma.smartLinkClick.groupBy({
       by: ['campaignId'],
-      where: { campaignId: { in: liveIds } },
+      where: { campaignId: { in: activeIds } },
       _count: { id: true },
     });
-    spendMap = Object.fromEntries(spendData.map(s => [s.campaignId, s._sum.spend ?? 0]));
+    spendMap = Object.fromEntries(insightData.map(s => [s.campaignId, s._sum.spend ?? 0]));
+    viewsMap = Object.fromEntries(insightData.map(s => [s.campaignId, s._sum.videoViews ?? 0]));
     clickMap = Object.fromEntries(clickData.map(c => [c.campaignId, c._count.id ?? 0]));
   }
 
-  return { campaigns, spendMap, clickMap };
+  return { campaigns, spendMap, viewsMap, clickMap };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -66,7 +70,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function CampaignsPage() {
   const session = await getServerSession();
   const userId = session?.user?.id ?? null;
-  const { campaigns, spendMap, clickMap } = await getCampaigns(userId);
+  const { campaigns, spendMap, viewsMap, clickMap } = await getCampaigns(userId);
 
   // First-time users go through onboarding before seeing an empty dashboard
   if (userId && campaigns.length === 0) {
@@ -172,12 +176,13 @@ export default async function CampaignsPage() {
                   })}
                 </p>
               </Link>
-              {c.status === 'LIVE' && ((spendMap[c.id] ?? 0) > 0 || (clickMap[c.id] ?? 0) > 0) && (
-                <div className="flex items-center gap-4 px-6 pb-4 text-xs text-gray-500">
-                  {(spendMap[c.id] ?? 0) > 0 && <span>${(spendMap[c.id] as number).toFixed(2)} spent</span>}
-                  {(clickMap[c.id] ?? 0) > 0 && <span>{clickMap[c.id]} link clicks</span>}
+              {(c.status === 'LIVE' || c.status === 'PAUSED') && (
+                <div className="flex items-center gap-4 px-6 pb-4 text-xs text-gray-500 border-t border-gray-800 pt-3">
+                  <span>${(spendMap[c.id] ?? 0).toFixed(2)} spent</span>
+                  <span>{(viewsMap[c.id] ?? 0).toLocaleString()} views</span>
+                  <span>{(clickMap[c.id] ?? 0).toLocaleString()} conversions</span>
                   <Link href={`/campaigns/${c.id}/insights`}
-                    className="text-violet-400 hover:text-violet-300 transition ml-auto">
+                    className="text-violet-400 hover:text-violet-300 transition ml-auto shrink-0">
                     View stats →
                   </Link>
                 </div>

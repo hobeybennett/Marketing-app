@@ -278,9 +278,11 @@ model MetaConnection {
   metaUserId     String
   adAccountId    String
   adAccountName  String?
-  pageId         String
-  pageName       String?
-  pixelId        String?
+  pageId              String
+  pageName            String?
+  availableAdAccounts Json?
+  availablePages      Json?
+  pixelId             String?
   pixelName      String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

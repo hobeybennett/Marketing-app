@@ -2,13 +2,20 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+type AdAccountOption = { id: string; name: string; businessId: string | null; businessName: string | null };
+type PageOption = { id: string; name: string; accessToken: string | null };
+
 type Props = {
   connection: {
+    adAccountId: string;
     adAccountName: string | null;
+    pageId: string;
     pageName: string | null;
     tokenExpiresAt: Date | null;
     pixelId: string | null;
     pixelName: string | null;
+    availableAdAccounts: AdAccountOption[] | null;
+    availablePages: PageOption[] | null;
   } | null;
 };
 
@@ -18,6 +25,36 @@ export default function MetaConnectSection({ connection }: Props) {
   const [editingPixel, setEditingPixel] = useState(false);
   const [pixelInput, setPixelInput] = useState('');
   const [savingPixel, setSavingPixel] = useState(false);
+
+  const [selectedAccountId, setSelectedAccountId] = useState(connection?.adAccountId ?? '');
+  const [selectedPageId, setSelectedPageId] = useState(connection?.pageId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const accounts = connection?.availableAdAccounts ?? [];
+  const pages = connection?.availablePages ?? [];
+
+  const hasAccountChoice = accounts.length > 1;
+  const hasPageChoice = pages.length > 1;
+  const selectionChanged =
+    selectedAccountId !== connection?.adAccountId ||
+    selectedPageId !== connection?.pageId;
+
+  async function saveSelection() {
+    setSaving(true);
+    await fetch('/api/auth/meta/connection', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(selectedAccountId !== connection?.adAccountId ? { adAccountId: selectedAccountId } : {}),
+        ...(selectedPageId !== connection?.pageId ? { pageId: selectedPageId } : {}),
+      }),
+    });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    router.refresh();
+  }
 
   async function disconnect() {
     setDisconnecting(true);
@@ -56,15 +93,66 @@ export default function MetaConnectSection({ connection }: Props) {
       </div>
 
       {connection ? (
-        <div className="space-y-2 text-sm text-gray-300">
-          <p><span className="text-gray-500">Ad Account: </span>{connection.adAccountName ?? '—'}</p>
-          <p><span className="text-gray-500">Page: </span>{connection.pageName ?? '—'}</p>
+        <div className="space-y-3 text-sm text-gray-300">
+          {/* Ad Account */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Ad Account</p>
+            {hasAccountChoice ? (
+              <select
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}{a.businessName ? ` · ${a.businessName}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-gray-200">{connection.adAccountName ?? connection.adAccountId}</p>
+            )}
+          </div>
+
+          {/* Facebook Page */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Facebook Page</p>
+            {hasPageChoice ? (
+              <select
+                value={selectedPageId}
+                onChange={(e) => setSelectedPageId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-gray-200">{connection.pageName ?? connection.pageId}</p>
+            )}
+          </div>
+
+          {/* Save selection button — only visible when something changed */}
+          {selectionChanged && (
+            <button
+              onClick={saveSelection}
+              disabled={saving}
+              className="w-full py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save selection'}
+            </button>
+          )}
+          {saved && !selectionChanged && (
+            <p className="text-xs text-green-400">Saved</p>
+          )}
+
           {connection.tokenExpiresAt && (
             <p className="text-xs text-gray-500">
               Token expires {new Date(connection.tokenExpiresAt).toLocaleDateString()}
             </p>
           )}
-          <div className="flex gap-2 pt-2">
+
+          <div className="flex gap-2 pt-1">
             <a href="/api/auth/meta"
               className="btn-primary flex-1 py-2 text-xs">
               Reconnect

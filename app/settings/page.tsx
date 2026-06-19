@@ -12,7 +12,20 @@ export default async function SettingsPage({
   if (!session?.user?.id) redirect('/auth/signin');
 
   const [metaConnection, user] = await Promise.all([
-    prisma.metaConnection.findUnique({ where: { userId: session.user.id } }),
+    prisma.metaConnection.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        adAccountId: true,
+        adAccountName: true,
+        pageId: true,
+        pageName: true,
+        tokenExpiresAt: true,
+        pixelId: true,
+        pixelName: true,
+        availableAdAccounts: true,
+        availablePages: true,
+      },
+    }),
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { campaignCredits: true, subscriptionStatus: true, subscriptionId: true },
@@ -89,7 +102,11 @@ export default async function SettingsPage({
         )}
       </div>
 
-      <MetaConnectSection connection={metaConnection} />
+      <MetaConnectSection connection={metaConnection ? {
+        ...metaConnection,
+        availableAdAccounts: (metaConnection.availableAdAccounts as any) ?? null,
+        availablePages: (metaConnection.availablePages as any) ?? null,
+      } : null} />
     </div>
   );
 }

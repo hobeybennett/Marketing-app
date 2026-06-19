@@ -45,35 +45,53 @@ export async function GET(req: NextRequest) {
     const me = await meRes.json();
     if (me.error) throw new Error(`Meta user lookup failed: ${me.error.message}`);
 
-    // Get first ad account — include business field so we can prefer BM-owned accounts
+    // Fetch all ad accounts with status + business membership
     const adAccountsRes = await fetch(
       `https://graph.facebook.com/v22.0/me/adaccounts?fields=name,account_id,business,account_status&limit=25&access_token=${longToken}`
     );
     const adAccountsData = await adAccountsRes.json();
     if (adAccountsData.error) throw new Error(`Ad account lookup failed: ${adAccountsData.error.message} (code ${adAccountsData.error.code})`);
-    const allAccounts = adAccountsData.data ?? [];
+    const allAccounts: any[] = adAccountsData.data ?? [];
     if (!allAccounts.length) throw new Error('No Meta ad accounts found. Create an ad account at business.facebook.com first.');
-    // Log all accounts so we can diagnose which one is being selected
-    console.log('[meta/callback] Available ad accounts:', JSON.stringify(allAccounts.map((a: any) => ({
-      id: a.account_id, name: a.name, status: a.account_status, businessId: a.business?.id, businessName: a.business?.name
-    })), null, 2));
-    // Filter out closed (101) and disabled (2) accounts
+
+    console.log('[meta/callback] All ad accounts:', JSON.stringify(allAccounts.map((a: any) => ({
+      id: a.account_id, name: a.name, status: a.account_status, businessId: a.business?.id,
+    }))));
+
+    // Filter to active accounts only (status 1), exclude closed (101) / disabled (2)
     const activeAccounts = allAccounts.filter((a: any) => a.account_status === 1);
     if (!activeAccounts.length) throw new Error('No active Meta ad accounts found. All accounts may be closed or disabled.');
-    // Among active accounts, prefer Business Manager-owned ones over personal ad accounts
-    const adAccount = activeAccounts.find((a: any) => a.business?.id) ?? activeAccounts[0];
-    console.log(`[meta/callback] Selected ad account: ${adAccount.account_id} (${adAccount.name}) status=${adAccount.account_status} businessId=${adAccount.business?.id ?? 'none — personal account'}`);
 
+    // Default selection: prefer BM-owned over personal
+    const defaultAccount = activeAccounts.find((a: any) => a.business?.id) ?? activeAccounts[0];
+    console.log(`[meta/callback] Default account: ${defaultAccount.account_id} (${defaultAccount.name}) businessId=${defaultAccount.business?.id ?? 'personal'}`);
 
-    // Get first page — include access_token to get the Page Access Token for ad creatives
+    // Build the stored list of available accounts (no token needed — just metadata)
+    const availableAdAccounts = activeAccounts.map((a: any) => ({
+      id: a.account_id,
+      name: a.name,
+      businessId: a.business?.id ?? null,
+      businessName: a.business?.name ?? null,
+    }));
+
+    // Fetch all pages — include access_token for Page Access Token
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token&limit=10&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token&limit=25&access_token=${longToken}`
     );
     const pagesData = await pagesRes.json();
     if (pagesData.error) throw new Error(`Page lookup failed: ${pagesData.error.message} (code ${pagesData.error.code})`);
-    const page = pagesData.data?.[0];
-    if (!page) throw new Error('No Facebook Pages found. Create a Facebook Page at facebook.com/pages/create first.');
-    const pageAccessToken: string | null = page.access_token ?? null;
+    const allPages: any[] = pagesData.data ?? [];
+    if (!allPages.length) throw new Error('No Facebook Pages found. Create a Facebook Page at facebook.com/pages/create first.');
+
+    const defaultPage = allPages[0];
+    const pageAccessToken: string | null = defaultPage.access_token ?? null;
+
+    // Store pages with their access tokens so the user can switch pages later
+    const availablePages = allPages.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      accessToken: p.access_token ?? null,
+    }));
 
     const expiresAt = expires_in
       ? new Date(Date.now() + expires_in * 1000)
@@ -101,10 +119,12 @@ export async function GET(req: NextRequest) {
         pageAccessToken,
         tokenExpiresAt: expiresAt,
         metaUserId: me.id,
-        adAccountId: adAccount.account_id,
-        adAccountName: adAccount.name,
-        pageId: page.id,
-        pageName: page.name,
+        adAccountId: defaultAccount.account_id,
+        adAccountName: defaultAccount.name,
+        availableAdAccounts,
+        pageId: defaultPage.id,
+        pageName: defaultPage.name,
+        availablePages,
         pixelId,
         pixelName,
       },
@@ -113,10 +133,12 @@ export async function GET(req: NextRequest) {
         pageAccessToken,
         tokenExpiresAt: expiresAt,
         metaUserId: me.id,
-        adAccountId: adAccount.account_id,
-        adAccountName: adAccount.name,
-        pageId: page.id,
-        pageName: page.name,
+        adAccountId: defaultAccount.account_id,
+        adAccountName: defaultAccount.name,
+        availableAdAccounts,
+        pageId: defaultPage.id,
+        pageName: defaultPage.name,
+        availablePages,
         pixelId,
         pixelName,
       },

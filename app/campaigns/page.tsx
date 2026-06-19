@@ -20,27 +20,23 @@ async function getCampaigns(userId: string | null) {
     .filter(c => c.status === 'LIVE' || c.status === 'PAUSED')
     .map(c => c.id);
 
-  let spendMap: Record<string, number> = {};
-  let viewsMap: Record<string, number> = {};
-  let clickMap: Record<string, number> = {};
+  type StatRow = { spend: number; outboundClicks: number; videoViews: number };
+  let statsMap: Record<string, StatRow> = {};
 
   if (activeIds.length > 0) {
     const insightData = await prisma.adInsight.groupBy({
       by: ['campaignId'],
       where: { campaignId: { in: activeIds }, metaAdSetId: null, metaAdId: null },
-      _sum: { spend: true, videoViews: true },
+      _sum: { spend: true, outboundClicks: true, videoViews: true },
     });
-    const clickData = await prisma.smartLinkClick.groupBy({
-      by: ['campaignId'],
-      where: { campaignId: { in: activeIds } },
-      _count: { id: true },
-    });
-    spendMap = Object.fromEntries(insightData.map(s => [s.campaignId, s._sum.spend ?? 0]));
-    viewsMap = Object.fromEntries(insightData.map(s => [s.campaignId, s._sum.videoViews ?? 0]));
-    clickMap = Object.fromEntries(clickData.map(c => [c.campaignId, c._count.id ?? 0]));
+    statsMap = Object.fromEntries(insightData.map(s => [s.campaignId, {
+      spend: s._sum.spend ?? 0,
+      outboundClicks: s._sum.outboundClicks ?? 0,
+      videoViews: s._sum.videoViews ?? 0,
+    }]));
   }
 
-  return { campaigns, spendMap, viewsMap, clickMap };
+  return { campaigns, statsMap };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -70,7 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default async function CampaignsPage() {
   const session = await getServerSession();
   const userId = session?.user?.id ?? null;
-  const { campaigns, spendMap, viewsMap, clickMap } = await getCampaigns(userId);
+  const { campaigns, statsMap } = await getCampaigns(userId);
 
   // First-time users go through onboarding before seeing an empty dashboard
   if (userId && campaigns.length === 0) {
@@ -176,17 +172,38 @@ export default async function CampaignsPage() {
                   })}
                 </p>
               </Link>
-              {(c.status === 'LIVE' || c.status === 'PAUSED') && (
-                <div className="flex items-center gap-4 px-6 pb-4 text-xs text-gray-500 border-t border-gray-800 pt-3">
-                  <span>${(spendMap[c.id] ?? 0).toFixed(2)} spent</span>
-                  <span>{(viewsMap[c.id] ?? 0).toLocaleString()} views</span>
-                  <span>{(clickMap[c.id] ?? 0).toLocaleString()} conversions</span>
-                  <Link href={`/campaigns/${c.id}/insights`}
-                    className="text-violet-400 hover:text-violet-300 transition ml-auto shrink-0">
-                    View stats →
-                  </Link>
-                </div>
-              )}
+              {(c.status === 'LIVE' || c.status === 'PAUSED') && (() => {
+                const s = statsMap[c.id] ?? { spend: 0, outboundClicks: 0, videoViews: 0 };
+                const cpc = s.outboundClicks > 0 ? s.spend / s.outboundClicks : null;
+                return (
+                  <div className="border-t border-gray-800 px-6 pb-5 pt-4">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div>
+                        <p className="text-sm font-600 tabular-nums">
+                          {s.outboundClicks >= 1000
+                            ? `${(s.outboundClicks / 1000).toFixed(1)}k`
+                            : s.outboundClicks.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">Link clicks</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-600 tabular-nums">
+                          {cpc != null ? `$${cpc.toFixed(2)}` : '—'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">Cost per click</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-600 tabular-nums">${s.spend.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Spent</p>
+                      </div>
+                    </div>
+                    <Link href={`/campaigns/${c.id}/insights`}
+                      className="text-xs text-violet-400 hover:text-violet-300 transition">
+                      View full stats →
+                    </Link>
+                  </div>
+                );
+              })()}
               <div className="absolute top-5 right-5">
                 <DeleteCampaignButton campaignId={c.id} />
               </div>

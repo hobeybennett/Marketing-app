@@ -25,6 +25,7 @@ model Campaign {
   userId          String?
   spotifyUrl      String?
   spotifyPlaylistUrl String?
+  soundsLike      String[]
   lastSyncAt      DateTime?
   dailyBudget     Float?
 

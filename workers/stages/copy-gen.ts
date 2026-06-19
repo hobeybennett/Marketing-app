@@ -17,6 +17,7 @@ export async function runCopyGen(campaignId: string) {
       artistName: campaign.artistName,
       songTitle: campaign.songTitle,
       ctaText: creative.ctaText,
+      soundsLike: campaign.soundsLike,
     });
 
     await prisma.adCopy.create({
@@ -37,7 +38,12 @@ async function generateAdCopy(params: {
   artistName: string;
   songTitle: string;
   ctaText: string;
+  soundsLike: string[];
 }): Promise<{ headline: string; primaryText: string; description?: string }> {
+  const soundsLikeLine = params.soundsLike.length > 0
+    ? `Sounds like: ${params.soundsLike.join(', ')}`
+    : '';
+
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
     max_tokens: 256,
@@ -49,6 +55,9 @@ async function generateAdCopy(params: {
 Artist: ${params.artistName}
 Song: ${params.songTitle}
 CTA: ${params.ctaText}
+${soundsLikeLine}
+
+${soundsLikeLine ? `Lead the primaryText with "For fans of ${params.soundsLike.join(' and ')}..." to hook the right listeners.` : ''}
 
 Return ONLY valid JSON:
 {

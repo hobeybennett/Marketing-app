@@ -60,12 +60,16 @@ export async function POST(req: NextRequest) {
       autoLaunch: z.string().optional(),
       spotifyUrl: z.string().url().optional().or(z.literal('')),
       spotifyPlaylistUrl: z.string().url().optional().or(z.literal('')),
+      soundsLike: z.string().optional(),
     });
 
     const parsed = schema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
-    const { artistName, songTitle, autoLaunch, spotifyUrl, spotifyPlaylistUrl } = parsed.data;
+    const { artistName, songTitle, autoLaunch, spotifyUrl, spotifyPlaylistUrl, soundsLike } = parsed.data;
+    const soundsLikeList = soundsLike
+      ? soundsLike.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
 
     const campaignId = uuidv4();
     const uploadDir = process.env.UPLOAD_DIR || '/uploads';
@@ -110,6 +114,7 @@ export async function POST(req: NextRequest) {
         userId: userId ?? undefined,
         spotifyUrl: spotifyUrl || undefined,
         spotifyPlaylistUrl: spotifyPlaylistUrl || undefined,
+        soundsLike: soundsLikeList,
         jobs: {
           create: [
             { stage: 'SEGMENTATION', status: 'PENDING' },

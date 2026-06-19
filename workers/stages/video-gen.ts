@@ -182,8 +182,7 @@ export async function runVideoGen(campaignId: string) {
 
   for (const segment of campaign.segments) {
     const vc = visualConfig ?? {};
-    const ctaText =
-      visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
+    const ctaText = visualConfig?.ctaText || CTA_OPTIONS[0];
     const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : campaign.coverArtUrl;
 

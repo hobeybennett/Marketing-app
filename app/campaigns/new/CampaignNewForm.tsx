@@ -412,6 +412,8 @@ export default function CampaignNewForm() {
   const [clips, setClips] = useState<Clip[]>(initClips(180));
   const [editingName, setEditingName] = useState<number | null>(null);
 
+  const [soundsLike, setSoundsLike] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
@@ -524,6 +526,7 @@ export default function CampaignNewForm() {
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
     if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
     if (spotifyPlaylistUrl.trim()) formData.set('spotifyPlaylistUrl', spotifyPlaylistUrl.trim());
+    if (soundsLike.trim()) formData.set('soundsLike', soundsLike.trim());
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
       if (res.status === 402) { setShowPaywall(true); setLoading(false); return; }
@@ -658,6 +661,26 @@ export default function CampaignNewForm() {
             onChange={(e) => handleAudioChange(e.target.files?.[0] ?? null)}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:cursor-pointer" />
           {audioFile && <p className="text-xs text-gray-400 mt-1.5">{audioFile.name} · {formatTime(audioDuration)}</p>}
+        </div>
+      )}
+
+      {/* ── Sounds like ─────────────────────────────────────────────────── */}
+      {spotify && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Sounds like{' '}
+            <span className="text-gray-600 font-normal text-xs">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={soundsLike}
+            onChange={(e) => setSoundsLike(e.target.value)}
+            placeholder="e.g. Arctic Monkeys, The Strokes, Interpol"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 outline-none text-sm placeholder-gray-600"
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Used in ad copy — &ldquo;For fans of...&rdquo;
+          </p>
         </div>
       )}
 

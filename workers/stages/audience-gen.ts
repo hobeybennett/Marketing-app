@@ -1,39 +1,23 @@
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
 
-const DEFAULT_INTERESTS = ['Music streaming', 'Music fans', 'Spotify', 'Apple Music'];
-
 export async function runAudienceGen(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
   await prisma.audience.deleteMany({ where: { campaignId } });
 
+  const audienceName = campaign.soundsLike.length > 0
+    ? `Fans of ${campaign.soundsLike.slice(0, 2).join(' & ')}`
+    : 'Music Fans';
+
   await prisma.audience.createMany({
     data: [
       {
         campaignId,
-        name: 'Music Fans',
+        name: audienceName,
         type: 'INTEREST',
-        interests: DEFAULT_INTERESTS,
+        interests: campaign.soundsLike.length > 0 ? campaign.soundsLike : ['Music', 'Spotify'],
         dataStatus: 'AVAILABLE',
-      },
-      {
-        campaignId,
-        name: 'Retargeting — Website Visitors',
-        type: 'RETARGETING',
-        interests: [],
-        retargetingSource: 'website_visitors_180d',
-        dataStatus: 'PENDING_DATA',
-        availabilityNote: 'Retargeting audience requires at least 100 landing page visitors. Will activate automatically once traffic builds.',
-      },
-      {
-        campaignId,
-        name: 'Lookalike — Top 1%',
-        type: 'LOOKALIKE',
-        interests: [],
-        lookalikeSeed: 'page_fans',
-        dataStatus: 'PENDING_DATA',
-        availabilityNote: 'Lookalike audience requires at least 100 source audience members. Will activate automatically once retargeting data builds.',
       },
     ],
   });

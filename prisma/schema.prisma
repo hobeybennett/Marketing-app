@@ -26,6 +26,7 @@ model Campaign {
   spotifyUrl      String?
   spotifyPlaylistUrl String?
   lastSyncAt      DateTime?
+  dailyBudget     Float?
 
   jobs                CampaignJob[]
   segments            AudioSegment[]

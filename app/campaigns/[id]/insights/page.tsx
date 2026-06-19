@@ -10,6 +10,13 @@ interface Totals {
   outboundClicks: number;
   avgCtr: number;
   avgCpc: number;
+  costPerConversion: number | null;
+}
+
+interface Budget {
+  daily: number | null;
+  todaySpend: number;
+  remaining: number | null;
 }
 
 interface DailyRow {
@@ -52,6 +59,7 @@ interface CreativeStat {
 
 interface InsightsPayload {
   totals: Totals;
+  budget: Budget;
   daily: DailyRow[];
   adsetBreakdown: AdsetBreakdownRow[];
   smartLinkClicks: SmartLinkClicks;
@@ -79,6 +87,9 @@ function timeSince(dateStr: string | null): string {
 function fmtDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+function fmt$(n: number) { return `$${n.toFixed(2)}`; }
+function fmtK(n: number) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString(); }
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
@@ -118,9 +129,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     setLoading(false);
   }, [params.id]);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   async function handleSync() {
     setSyncing(true);
@@ -158,39 +167,23 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     setTogglingId(null);
   }
 
-  if (loading) {
-    return <div className="text-gray-400 text-center py-20">Loading…</div>;
-  }
+  if (loading) return <div className="text-gray-400 text-center py-20">Loading…</div>;
 
-  const totals = insights?.totals ?? {
-    spend: 0,
-    impressions: 0,
-    videoViews: 0,
-    outboundClicks: 0,
-    avgCtr: 0,
-    avgCpc: 0,
-  };
+  const totals = insights?.totals ?? { spend: 0, impressions: 0, videoViews: 0, outboundClicks: 0, avgCtr: 0, avgCpc: 0, costPerConversion: null };
+  const budget = insights?.budget ?? { daily: null, todaySpend: 0, remaining: null };
   const daily = insights?.daily ?? [];
   const adsetBreakdown = insights?.adsetBreakdown ?? [];
   const smartLink = insights?.smartLinkClicks ?? { total: 0, byPlatform: {} };
   const lastSyncAt = insights?.lastSyncAt ?? null;
   const creativeStats = insights?.creativeStats ?? [];
-
-  const isEmpty =
-    totals.spend === 0 && totals.impressions === 0 && smartLink.total === 0;
-
-  // Daily spend chart helpers
-  const maxSpend = daily.length > 0 ? Math.max(...daily.map(d => d.spend), 0.001) : 0.001;
-
-  // Smart link platform breakdown
-  const platformEntries = Object.entries(smartLink.byPlatform).sort((a, b) => b[1] - a[1]);
-
-  // Creative performance sorted by avgCtr desc
   const sortedCreatives = [...creativeStats].sort((a, b) => b.avgCtr - a.avgCtr);
+  const maxSpend = daily.length > 0 ? Math.max(...daily.map(d => d.spend), 0.001) : 0.001;
+  const platformEntries = Object.entries(smartLink.byPlatform).sort((a, b) => b[1] - a[1]);
+  const hasData = totals.spend > 0 || totals.impressions > 0 || smartLink.total > 0;
 
   return (
     <div className="max-w-2xl mx-auto pb-16">
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
         <Link href={`/campaigns/${params.id}`} className="text-gray-400 hover:text-white text-sm transition">
           ← Back to campaign
@@ -206,108 +199,103 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Title */}
-      <div className="mb-1">
+      <div className="mb-4">
         <h1 className="font-display text-2xl font-700">
           {campaign ? (
-            <>
-              <span className="gradient-text">{campaign.songTitle}</span>
-              {' '}
-              <span className="text-gray-400 text-xl font-400">by {campaign.artistName}</span>
-            </>
-          ) : (
-            'Campaign Performance'
-          )}
+            <><span className="gradient-text">{campaign.songTitle}</span>{' '}
+            <span className="text-gray-400 text-xl font-400">by {campaign.artistName}</span></>
+          ) : 'Campaign Performance'}
         </h1>
-        {lastSyncAt && (
-          <p className="text-xs text-gray-500 mt-1">Last synced {timeSince(lastSyncAt)}</p>
-        )}
+        {lastSyncAt
+          ? <p className="text-xs text-gray-500 mt-1">Last synced {timeSince(lastSyncAt)}</p>
+          : <p className="text-xs text-gray-500 mt-1">Hit "Sync from Meta" to pull the latest data</p>
+        }
       </div>
 
-      {/* Sync error */}
       {syncError && (
-        <div className="mt-4 border border-red-700 bg-red-900/20 rounded-xl px-4 py-3 text-sm text-red-300">
+        <div className="mb-4 border border-red-700 bg-red-900/20 rounded-xl px-4 py-3 text-sm text-red-300">
           {syncError}
         </div>
       )}
 
-      {/* Empty state */}
-      {isEmpty ? (
-        <>
-          <div className="mt-8 bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-500">
-            <p className="text-base font-medium mb-1">No performance data yet.</p>
-            <p className="text-sm">Sync from Meta once your campaign has been running.</p>
-          </div>
+      {/* ── Core stats — always visible ───────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <BigStat label="Spent" value={fmt$(totals.spend)} sub={hasData ? undefined : 'No data yet'} gradient />
+          <BigStat label="Video Views" value={fmtK(totals.videoViews)} />
+          <BigStat label="Conversions" value={fmtK(smartLink.total)} sub="platform clicks" />
+          <BigStat
+            label="Cost / Conv."
+            value={totals.costPerConversion != null ? fmt$(totals.costPerConversion) : '—'}
+          />
+        </div>
 
-          {/* Creative Performance (shown even in empty state if creatives exist) */}
-          {creativeStats.length > 0 && (
-            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <h3 className="font-display font-700 text-base mb-3">Creative Performance</h3>
-              {toggleError && (
-                <div className="mb-3 border border-red-700 bg-red-900/20 rounded-lg px-3 py-2 text-sm text-red-300">
-                  {toggleError}
-                </div>
-              )}
-              <div className="space-y-3">
-                {sortedCreatives.map((creative, sortIdx) => (
-                  <CreativeCard
-                    key={creative.id}
-                    creative={creative}
-                    isTop={sortIdx === 0}
-                    togglingId={togglingId}
-                    onToggle={handleToggle}
-                  />
-                ))}
-              </div>
+        {/* Budget row */}
+        {budget.daily != null ? (
+          <div className="mt-4 pt-4 border-t border-gray-800 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Daily Budget</p>
+              <p className="text-sm font-600">{fmt$(budget.daily)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Spent Today</p>
+              <p className="text-sm font-600">{fmt$(budget.todaySpend)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Remaining</p>
+              <p className={`text-sm font-600 ${(budget.remaining ?? 0) < budget.daily * 0.2 ? 'text-amber-400' : 'text-green-400'}`}>
+                {fmt$(budget.remaining ?? 0)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-gray-600 text-center">
+            Budget data loads after your first sync
+          </p>
+        )}
+      </div>
+
+      {/* ── Secondary stats ───────────────────────────────────────────────── */}
+      {hasData && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <MiniStat label="Impressions" value={fmtK(totals.impressions)} />
+          <MiniStat label="Avg CTR" value={`${totals.avgCtr.toFixed(2)}%`} />
+          <MiniStat label="Avg CPC" value={totals.avgCpc > 0 ? fmt$(totals.avgCpc) : '—'} />
+        </div>
+      )}
+
+      {/* ── Creative Performance ──────────────────────────────────────────── */}
+      {creativeStats.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+          <h3 className="font-display font-700 text-base mb-3">Creative Performance</h3>
+          {toggleError && (
+            <div className="mb-3 border border-red-700 bg-red-900/20 rounded-lg px-3 py-2 text-sm text-red-300">
+              {toggleError}
             </div>
           )}
-        </>
-      ) : (
-        <>
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6">
-            <StatCard label="Total Spend" value={`$${totals.spend.toFixed(2)}`} gradient />
-            <StatCard label="Impressions" value={totals.impressions.toLocaleString()} />
-            <StatCard label="Avg CTR" value={`${totals.avgCtr.toFixed(2)}%`} />
-            <StatCard label="Video Views" value={totals.videoViews.toLocaleString()} />
-            <StatCard label="Link Clicks" value={totals.outboundClicks.toLocaleString()} />
-            <StatCard
-              label="Avg CPC"
-              value={totals.avgCpc > 0 ? `$${totals.avgCpc.toFixed(2)}` : '—'}
-            />
+          <div className="space-y-3">
+            {sortedCreatives.map((creative, sortIdx) => (
+              <CreativeCard
+                key={creative.id}
+                creative={creative}
+                isTop={sortIdx === 0 && creative.hasData}
+                togglingId={togglingId}
+                onToggle={handleToggle}
+              />
+            ))}
           </div>
+        </div>
+      )}
 
-          {/* Creative Performance */}
-          {creativeStats.length > 0 && (
-            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <h3 className="font-display font-700 text-base mb-3">Creative Performance</h3>
-              {toggleError && (
-                <div className="mb-3 border border-red-700 bg-red-900/20 rounded-lg px-3 py-2 text-sm text-red-300">
-                  {toggleError}
-                </div>
-              )}
-              <div className="space-y-3">
-                {sortedCreatives.map((creative, sortIdx) => (
-                  <CreativeCard
-                    key={creative.id}
-                    creative={creative}
-                    isTop={sortIdx === 0}
-                    togglingId={togglingId}
-                    onToggle={handleToggle}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Smart Link card */}
-          <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
+      {hasData && (
+        <>
+          {/* Smart Link */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-display font-700 text-base">Smart Link</h2>
-              <span className="gradient-text text-2xl font-700 tabular-nums">
-                {smartLink.total.toLocaleString()}
-              </span>
+              <span className="gradient-text text-2xl font-700 tabular-nums">{smartLink.total.toLocaleString()}</span>
             </div>
-            <p className="text-xs text-gray-500 mb-4">Total clicks on your smart link</p>
+            <p className="text-xs text-gray-500 mb-4">Platform clicks from your smart link</p>
             {platformEntries.length > 0 ? (
               <div className="space-y-2">
                 {platformEntries.map(([platform, count]) => {
@@ -319,13 +307,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
                         <span>{count} ({pct.toFixed(0)}%)</span>
                       </div>
                       <div className="h-1 rounded-full bg-gray-800">
-                        <div
-                          className="h-1 rounded-full"
-                          style={{
-                            width: `${pct}%`,
-                            background: 'linear-gradient(90deg, #7c3aed, #3b82f6)',
-                          }}
-                        />
+                        <div className="h-1 rounded-full" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }} />
                       </div>
                     </div>
                   );
@@ -338,26 +320,16 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
 
           {/* Daily spend chart */}
           {daily.length > 0 && (
-            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
               <h2 className="font-display font-700 text-base mb-4">Daily Spend</h2>
               <div className="flex items-end gap-1 h-24">
                 {daily.map((d, i) => {
                   const heightPct = maxSpend > 0 ? (d.spend / maxSpend) * 100 : 0;
                   return (
-                    <div
-                      key={i}
-                      className="relative flex-1 group flex flex-col justify-end h-full"
-                    >
-                      <div
-                        className="rounded-t w-full"
-                        style={{
-                          height: `${Math.max(heightPct, 2)}%`,
-                          background: 'linear-gradient(180deg, #7c3aed, #3b82f6)',
-                        }}
-                      />
-                      {/* Tooltip */}
+                    <div key={i} className="relative flex-1 group flex flex-col justify-end h-full">
+                      <div className="rounded-t w-full" style={{ height: `${Math.max(heightPct, 2)}%`, background: 'linear-gradient(180deg, #7c3aed, #3b82f6)' }} />
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap bg-gray-800 border border-gray-700 text-xs text-gray-200 px-2 py-1 rounded">
-                        {fmtDate(d.date)}: ${d.spend.toFixed(2)}
+                        {fmtDate(d.date)}: {fmt$(d.spend)}
                       </div>
                     </div>
                   );
@@ -374,26 +346,19 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
 
           {/* Audience breakdown */}
           {adsetBreakdown.length > 0 && (
-            <div className="mt-4 bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <h2 className="font-display font-700 text-base mb-3">Audience Breakdown</h2>
               <div className="space-y-2">
                 {adsetBreakdown.map(row => (
-                  <div
-                    key={row.metaAdSetId}
-                    className="bg-gray-800 rounded-lg px-3 py-2.5 flex items-center justify-between"
-                  >
+                  <div key={row.metaAdSetId} className="bg-gray-800 rounded-lg px-3 py-2.5 flex items-center justify-between">
                     <div>
-                      <span className="text-sm font-medium">
-                        {row.audienceName ?? row.metaAdSetId.slice(-8)}
-                      </span>
+                      <span className="text-sm font-medium">{row.audienceName ?? row.metaAdSetId.slice(-8)}</span>
                       {row.audienceType && (
-                        <span className="ml-2 text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded-full">
-                          {row.audienceType}
-                        </span>
+                        <span className="ml-2 text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded-full">{row.audienceType}</span>
                       )}
                     </div>
                     <div className="text-right text-xs tabular-nums text-gray-400 shrink-0 ml-4">
-                      <span className="mr-3">${row.spend.toFixed(2)}</span>
+                      <span className="mr-3">{fmt$(row.spend)}</span>
                       <span className="text-blue-400">{row.avgCtr.toFixed(2)}%</span>
                     </div>
                   </div>
@@ -403,6 +368,25 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function BigStat({ label, value, sub, gradient }: { label: string; value: string; sub?: string; gradient?: boolean }) {
+  return (
+    <div className="text-center">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className={`text-2xl font-700 tabular-nums leading-tight ${gradient ? 'gradient-text' : ''}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+      <p className="text-xs text-gray-500 mb-1">{label}</p>
+      <p className="text-base font-600 tabular-nums">{value}</p>
     </div>
   );
 }
@@ -418,7 +402,6 @@ function CreativeCard({ creative, isTop, togglingId, onToggle }: CreativeCardPro
   const isToggling = togglingId === creative.id;
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col sm:flex-row">
-      {/* Video thumbnail */}
       <video
         src={videoApiUrl(creative.fileUrl)}
         poster={thumbApiUrl(creative.fileUrl)}
@@ -427,79 +410,49 @@ function CreativeCard({ creative, isTop, togglingId, onToggle }: CreativeCardPro
         preload="none"
         className="w-full sm:w-20 h-20 object-cover shrink-0 bg-gray-800"
       />
-      {/* Content */}
       <div className="p-3 flex-1">
-        {/* Top row: clip label + badges */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">Clip {creative.index + 1}</span>
           {isTop && (
-            <span className="bg-violet-900/50 text-violet-300 border border-violet-700/50 text-xs px-2 py-0.5 rounded-full">
-              Top
-            </span>
+            <span className="bg-violet-900/50 text-violet-300 border border-violet-700/50 text-xs px-2 py-0.5 rounded-full">Top</span>
           )}
           {creative.adStatus === 'ACTIVE' ? (
-            <span className="bg-green-900/50 text-green-300 border border-green-700/50 text-xs px-2 py-0.5 rounded-full">
-              Active
-            </span>
+            <span className="bg-green-900/50 text-green-300 border border-green-700/50 text-xs px-2 py-0.5 rounded-full">Active</span>
           ) : (
-            <span className="bg-gray-700 text-gray-400 text-xs px-2 py-0.5 rounded-full">
-              Paused
-            </span>
+            <span className="bg-gray-700 text-gray-400 text-xs px-2 py-0.5 rounded-full">Paused</span>
           )}
         </div>
 
-        {/* Time range */}
         {creative.startSec !== null && creative.endSec !== null && (
-          <p className="text-xs text-gray-500 mt-0.5">
-            {creative.startSec.toFixed(0)}s – {creative.endSec.toFixed(0)}s
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">{creative.startSec.toFixed(0)}s – {creative.endSec.toFixed(0)}s</p>
         )}
 
-        {/* Stats row */}
         <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
           {creative.hasData ? (
             <>
               <span>CTR <span className="text-blue-400 tabular-nums">{creative.avgCtr.toFixed(2)}%</span></span>
-              <span>Spend <span className="tabular-nums">${creative.totalSpend.toFixed(2)}</span></span>
-              <span>Views <span className="tabular-nums">{creative.totalVideoViews.toLocaleString()}</span></span>
+              <span>Spend <span className="tabular-nums">{fmt$(creative.totalSpend)}</span></span>
+              <span>Views <span className="tabular-nums">{fmtK(creative.totalVideoViews)}</span></span>
             </>
           ) : (
             <span className="text-gray-500">No data yet</span>
           )}
         </div>
 
-        {/* Bottom row: pause/resume button */}
         <div className="flex justify-end mt-2">
           {creative.adStatus === 'ACTIVE' ? (
-            <button
-              type="button"
-              onClick={() => onToggle(creative.id, creative.adStatus)}
-              disabled={isToggling}
-              className="text-xs px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition disabled:opacity-50"
-            >
+            <button type="button" onClick={() => onToggle(creative.id, creative.adStatus)} disabled={isToggling}
+              className="text-xs px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition disabled:opacity-50">
               {isToggling ? '…' : 'Pause'}
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => onToggle(creative.id, creative.adStatus)}
-              disabled={isToggling}
-              className="text-xs px-3 py-1 rounded-lg bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 border border-violet-700/50 transition disabled:opacity-50"
-            >
+            <button type="button" onClick={() => onToggle(creative.id, creative.adStatus)} disabled={isToggling}
+              className="text-xs px-3 py-1 rounded-lg bg-violet-900/50 hover:bg-violet-800/50 text-violet-300 border border-violet-700/50 transition disabled:opacity-50">
               {isToggling ? '…' : 'Resume'}
             </button>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, gradient }: { label: string; value: string; gradient?: boolean }) {
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-xl font-700 tabular-nums ${gradient ? 'gradient-text' : ''}`}>{value}</p>
     </div>
   );
 }

@@ -71,6 +71,8 @@ interface CampaignBasic {
   id: string;
   songTitle: string;
   artistName: string;
+  status: string;
+  metaCampaignId: string | null;
 }
 
 function timeSince(dateStr: string | null): string {
@@ -115,6 +117,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [iRes, cRes] = await Promise.all([
@@ -124,7 +127,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     if (iRes.ok) setInsights(await iRes.json());
     if (cRes.ok) {
       const c = await cRes.json();
-      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName });
+      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName, status: c.status, metaCampaignId: c.metaCampaignId ?? null });
     }
     setLoading(false);
   }, [params.id]);
@@ -171,6 +174,17 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     setTogglingId(null);
   }
 
+  async function handleCampaignAction(action: string) {
+    setActionLoading(true);
+    await fetch(`/api/campaigns/${params.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    await fetchAll();
+    setActionLoading(false);
+  }
+
   if (loading) return <div className="text-gray-400 text-center py-20">Loading…</div>;
 
   const totals = insights?.totals ?? { spend: 0, impressions: 0, videoViews: 0, outboundClicks: 0, avgCtr: 0, avgCpc: 0, costPerConversion: null };
@@ -189,8 +203,8 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     <div className="max-w-2xl mx-auto pb-16">
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-2">
-        <Link href={`/campaigns/${params.id}`} className="text-gray-400 hover:text-white text-sm transition">
-          ← Back to campaign
+        <Link href="/campaigns" className="text-gray-400 hover:text-white text-sm transition">
+          ← Campaigns
         </Link>
         <button
           type="button"
@@ -198,23 +212,73 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           disabled={syncing}
           className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
         >
-          {syncing ? 'Syncing…' : 'Sync from Meta'}
+          {syncing ? 'Syncing…' : 'Sync'}
         </button>
       </div>
 
-      {/* Title */}
+      {/* Title + controls */}
       <div className="mb-4">
-        <h1 className="font-display text-2xl font-700">
-          {campaign ? (
-            <><span className="gradient-text">{campaign.songTitle}</span>{' '}
-            <span className="text-gray-400 text-xl font-400">by {campaign.artistName}</span></>
-          ) : 'Campaign Performance'}
-        </h1>
-        {lastSyncAt
-          ? <p className="text-xs text-gray-500 mt-1">Last synced {timeSince(lastSyncAt)}</p>
-          : <p className="text-xs text-gray-500 mt-1">Hit "Sync from Meta" to pull the latest data</p>
-        }
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-700">
+              {campaign ? (
+                <><span className="gradient-text">{campaign.songTitle}</span><br />
+                <span className="text-gray-400 text-base font-400">{campaign.artistName}</span></>
+              ) : 'Campaign Performance'}
+            </h1>
+            {lastSyncAt
+              ? <p className="text-xs text-gray-500 mt-1">Synced {timeSince(lastSyncAt)}</p>
+              : <p className="text-xs text-gray-500 mt-1">Syncing…</p>
+            }
+          </div>
+
+          {/* Pause / Resume */}
+          <div className="shrink-0 mt-1">
+            {campaign?.status === 'LIVE' && (
+              <button
+                onClick={() => handleCampaignAction('pause')}
+                disabled={actionLoading}
+                className="text-sm border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white px-4 py-1.5 rounded-lg transition disabled:opacity-50"
+              >
+                {actionLoading ? '…' : '⏸ Pause'}
+              </button>
+            )}
+            {campaign?.status === 'PAUSED' && (
+              <button
+                onClick={() => handleCampaignAction('resume')}
+                disabled={actionLoading}
+                className="text-sm bg-violet-600 hover:bg-violet-500 text-white px-4 py-1.5 rounded-lg transition disabled:opacity-50"
+              >
+                {actionLoading ? '…' : '▶ Resume'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status badge */}
+        {campaign?.status === 'PAUSED' && (
+          <span className="inline-block mt-2 text-xs bg-gray-800 text-gray-400 border border-gray-700 px-2.5 py-1 rounded-full">
+            ⏸ Paused — ads not delivering
+          </span>
+        )}
       </div>
+
+      {/* Smart link (shown for live/paused campaigns) */}
+      {(campaign?.status === 'LIVE' || campaign?.status === 'PAUSED') && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-gray-500 mb-0.5">Smart link</p>
+            <code className="text-xs text-green-400 truncate block">/go/{params.id}</code>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/go/${params.id}`)}
+            className="text-xs text-gray-400 hover:text-white border border-gray-700 px-3 py-1.5 rounded-lg transition shrink-0"
+          >
+            Copy
+          </button>
+        </div>
+      )}
 
       {syncError && (
         <div className="mb-4 border border-red-700 bg-red-900/20 rounded-xl px-4 py-3 text-sm text-red-300">

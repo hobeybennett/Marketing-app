@@ -151,7 +151,7 @@ export default async function CampaignsPage() {
         <div className="space-y-4">
           {campaigns.map((c) => (
             <div key={c.id} className="relative bg-gray-900 border border-gray-800 rounded-xl card-hover transition">
-              <Link href={`/campaigns/${c.id}`} className="block px-6 pt-6 pb-4 pr-14">
+              <Link href={(c.status === 'LIVE' || c.status === 'PAUSED') ? `/campaigns/${c.id}/insights` : `/campaigns/${c.id}`} className="block px-6 pt-6 pb-4 pr-14">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-display text-lg font-700">{c.songTitle}</p>

@@ -298,6 +298,19 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           />
         </div>
 
+        {/* Top creative */}
+        {(() => {
+          const top = sortedCreatives.find(c => c.hasData);
+          return top ? (
+            <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between text-xs">
+              <span className="text-gray-500">Top creative</span>
+              <span className="font-medium text-violet-300">
+                Clip {top.index + 1} &mdash; {top.avgCtr.toFixed(2)}% CTR · {fmtK(top.totalOutboundClicks)} clicks
+              </span>
+            </div>
+          ) : null;
+        })()}
+
         {/* Budget row */}
         {budget.daily != null ? (
           <div className="mt-4 pt-4 border-t border-gray-800 grid grid-cols-3 gap-3 text-center">
@@ -495,17 +508,34 @@ function CreativeCard({ creative, isTop, togglingId, onToggle }: CreativeCardPro
           <p className="text-xs text-gray-500 mt-0.5">{creative.startSec.toFixed(0)}s – {creative.endSec.toFixed(0)}s</p>
         )}
 
-        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-          {creative.hasData ? (
-            <>
-              <span>CTR <span className="text-blue-400 tabular-nums">{creative.avgCtr.toFixed(2)}%</span></span>
-              <span>Spend <span className="tabular-nums">{fmt$(creative.totalSpend)}</span></span>
-              <span>Views <span className="tabular-nums">{fmtK(creative.totalVideoViews)}</span></span>
-            </>
-          ) : (
-            <span className="text-gray-500">No data yet</span>
-          )}
-        </div>
+        {creative.hasData ? (
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2 mt-2 text-xs">
+            <div>
+              <p className="text-gray-500">Link Clicks</p>
+              <p className="tabular-nums font-medium text-white">{fmtK(creative.totalOutboundClicks)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Cost / Click</p>
+              <p className="tabular-nums font-medium text-white">
+                {creative.totalOutboundClicks > 0 ? fmt$(creative.totalSpend / creative.totalOutboundClicks) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500">CTR</p>
+              <p className="tabular-nums font-medium text-blue-400">{creative.avgCtr.toFixed(2)}%</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Video Views</p>
+              <p className="tabular-nums font-medium text-white">{fmtK(creative.totalVideoViews)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Spend</p>
+              <p className="tabular-nums font-medium text-white">{fmt$(creative.totalSpend)}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 mt-2">No data yet</p>
+        )}
 
         <div className="flex justify-end mt-2">
           {creative.adStatus === 'ACTIVE' ? (

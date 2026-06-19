@@ -57,9 +57,12 @@ export async function GET(req: NextRequest) {
     console.log('[meta/callback] Available ad accounts:', JSON.stringify(allAccounts.map((a: any) => ({
       id: a.account_id, name: a.name, status: a.account_status, businessId: a.business?.id, businessName: a.business?.name
     })), null, 2));
-    // Prefer Business Manager-owned accounts over personal ad accounts
-    const adAccount = allAccounts.find((a: any) => a.business?.id) ?? allAccounts[0];
-    console.log(`[meta/callback] Selected ad account: ${adAccount.account_id} (${adAccount.name}) businessId=${adAccount.business?.id ?? 'none — personal account'}`);
+    // Filter out closed (101) and disabled (2) accounts
+    const activeAccounts = allAccounts.filter((a: any) => a.account_status === 1);
+    if (!activeAccounts.length) throw new Error('No active Meta ad accounts found. All accounts may be closed or disabled.');
+    // Among active accounts, prefer Business Manager-owned ones over personal ad accounts
+    const adAccount = activeAccounts.find((a: any) => a.business?.id) ?? activeAccounts[0];
+    console.log(`[meta/callback] Selected ad account: ${adAccount.account_id} (${adAccount.name}) status=${adAccount.account_status} businessId=${adAccount.business?.id ?? 'none — personal account'}`);
 
 
     // Get first page — include access_token to get the Page Access Token for ad creatives

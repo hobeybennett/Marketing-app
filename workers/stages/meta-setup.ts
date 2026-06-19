@@ -76,6 +76,8 @@ export async function runMetaSetup(campaignId: string) {
 
   // Create one AdCreative per video creative
   const adCreativeIds = new Map<string, string>(); // creativeId -> metaAdCreativeId
+  const hasPageToken = !!(metaConn?.pageAccessToken);
+  console.log(`[meta-setup] Creating adcreatives for ${campaign.creatives.length} creatives. pageId=${pageId} hasPageToken=${hasPageToken}`);
   for (const creative of campaign.creatives) {
     const copy = creative.adCopies[0];
     if (!copy) continue;
@@ -89,7 +91,6 @@ export async function runMetaSetup(campaignId: string) {
         video_data: {
           video_id: videoId,
           image_hash: coverImageHash,
-          title: copy.headline,
           message: copy.primaryText,
           call_to_action: {
             type: 'LEARN_MORE',
@@ -195,8 +196,11 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
 
   if (!res.ok || json?.error) {
     const e = json?.error;
+    // Log full error details to help diagnose Meta API issues
+    console.error(`[meta-setup] API error on ${endpoint}:`, JSON.stringify(e ?? json, null, 2));
     const msg = e?.error_user_msg || e?.message || JSON.stringify(json);
-    throw new Error(`Meta API error on ${endpoint}: ${msg}`);
+    const detail = e ? ` (code=${e.code} subcode=${e.error_subcode} type=${e.type})` : '';
+    throw new Error(`Meta API error on ${endpoint}: ${msg}${detail}`);
   }
 
   return json;

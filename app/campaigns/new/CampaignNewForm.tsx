@@ -386,7 +386,6 @@ export default function CampaignNewForm() {
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
   const [spotify, setSpotify] = useState<SpotifyData | null>(null);
-  const [saveSpotifyUrl, setSaveSpotifyUrl] = useState(true);
   const [spotifyPlaylistUrl, setSpotifyPlaylistUrl] = useState('');
 
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -530,7 +529,7 @@ export default function CampaignNewForm() {
     if (promoteType === 'playlist') {
       formData.set('spotifyPlaylistUrl', spotifyUrl.trim());
     } else {
-      if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
+      if (spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
       if (spotifyPlaylistUrl.trim()) formData.set('spotifyPlaylistUrl', spotifyPlaylistUrl.trim());
     }
     if (soundsLike.trim()) formData.set('soundsLike', soundsLike.trim());
@@ -645,14 +644,6 @@ export default function CampaignNewForm() {
             </div>
             <span className="ml-auto text-green-400 text-xs">Found</span>
           </div>
-        )}
-        {spotify && promoteType === 'track' && (
-          <label className="flex items-center gap-2 mt-3 cursor-pointer">
-            <input type="checkbox" checked={saveSpotifyUrl}
-              onChange={(e) => setSaveSpotifyUrl(e.target.checked)}
-              className="w-4 h-4 accent-green-500" />
-            <span className="text-xs text-gray-400">Add Spotify link to smart link page</span>
-          </label>
         )}
         {spotify && promoteType === 'track' && (
           <div className="mt-4 pt-4 border-t border-gray-800">

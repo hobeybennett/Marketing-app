@@ -48,15 +48,21 @@ function findFont(candidates: string[]): string {
   return candidates[candidates.length - 1];
 }
 
+// Bundled fonts (checked into assets/fonts/ for consistent rendering)
+const ASSETS_FONTS = path.join(__dirname, '../../assets/fonts');
+
 const FONT_HEADING = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-ExtraBold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
 ]);
 const FONT_BODY = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-Bold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
 ]);
 const FONT_BODY_BOLD = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-Bold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
 ]);

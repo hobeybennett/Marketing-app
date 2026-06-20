@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -6,12 +7,50 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
-  const userId = searchParams.get('state');
+  const stateParam = searchParams.get('state');
   const error = searchParams.get('error');
 
-  if (error || !code || !userId) {
+  if (error || !code || !stateParam) {
     return NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/settings?meta_error=${error ?? 'missing_code'}`
+    );
+  }
+
+  // Verify HMAC-signed state to prevent CSRF
+  let userId: string;
+  try {
+    const dotIdx = stateParam.lastIndexOf('.');
+    if (dotIdx === -1) throw new Error('malformed state');
+    const payload = stateParam.slice(0, dotIdx);
+    const receivedSig = stateParam.slice(dotIdx + 1);
+
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!parsed.userId || !parsed.nonce || !parsed.ts) throw new Error('malformed state payload');
+
+    // Reject states older than 10 minutes
+    if (Date.now() - parsed.ts > 10 * 60 * 1000) throw new Error('state expired');
+
+    const expectedSig = crypto
+      .createHmac('sha256', process.env.NEXTAUTH_SECRET!)
+      .update(`${parsed.userId}:${parsed.nonce}:${parsed.ts}`)
+      .digest('hex');
+
+    if (!crypto.timingSafeEqual(Buffer.from(receivedSig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+      throw new Error('state signature mismatch');
+    }
+
+    userId = parsed.userId;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'invalid_state';
+    console.error('[meta/callback] CSRF state verification failed:', msg);
+    return NextResponse.redirect(
+      `${process.env.NEXTAUTH_URL}/settings?meta_error=${encodeURIComponent('Invalid OAuth state — please try connecting again')}`
+    );
+  }
+
+  if (!userId) {
+    return NextResponse.redirect(
+      `${process.env.NEXTAUTH_URL}/settings?meta_error=missing_user`
     );
   }
 

@@ -41,6 +41,9 @@ export async function runMetaSetup(campaignId: string) {
 
   if (!adAccountId) throw new Error('No Meta ad account configured — connect Meta in Settings');
   if (!pageId) throw new Error('No Facebook Page configured — connect Meta in Settings');
+  if (!pageToken) {
+    throw new Error('No Facebook Page Access Token — reconnect Meta in Settings to grant page permissions');
+  }
 
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;
@@ -94,7 +97,7 @@ export async function runMetaSetup(campaignId: string) {
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;
 
-    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken!, {
+    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken, {
       name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
       object_story_spec: {
         page_id: pageId,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -9,12 +10,24 @@ export async function GET() {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
+  const userId = session.user.id;
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const ts = Date.now();
+
+  // Build a tamper-evident state: base64url-encoded payload + HMAC signature
+  const payload = Buffer.from(JSON.stringify({ userId, nonce, ts })).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', process.env.NEXTAUTH_SECRET!)
+    .update(`${userId}:${nonce}:${ts}`)
+    .digest('hex');
+  const state = `${payload}.${sig}`;
+
   const params = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     redirect_uri: `${process.env.NEXTAUTH_URL}/api/auth/meta/callback`,
     scope: 'ads_management,ads_read,pages_show_list,pages_manage_ads,pages_read_engagement',
     response_type: 'code',
-    state: session.user.id, // pass userId so callback knows who connected
+    state,
   });
 
   return NextResponse.redirect(

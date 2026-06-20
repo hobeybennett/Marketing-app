@@ -9,6 +9,8 @@ import { getServerSession } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getServerSession();
+
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {
@@ -23,6 +25,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
+  if (campaign.userId && session?.user?.id !== campaign.userId) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   const { user, ...rest } = campaign;
   return NextResponse.json({
     ...rest,
@@ -32,8 +38,19 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getServerSession();
   const body = await req.json();
   const { action } = body;
+
+  // Verify ownership before allowing any mutation
+  const campaignOwnerCheck = await prisma.campaign.findUnique({
+    where: { id: params.id },
+    select: { userId: true },
+  });
+  if (!campaignOwnerCheck) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (campaignOwnerCheck.userId && session?.user?.id !== campaignOwnerCheck.userId) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
 
   if (action === 'select-copy') {
     const { copyId } = body;

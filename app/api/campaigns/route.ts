@@ -12,7 +12,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {
+  const session = await getServerSession();
+  if (!session?.user?.id) {
+    return NextResponse.json([], { status: 200 });
+  }
   const campaigns = await prisma.campaign.findMany({
+    where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
   });
@@ -24,6 +29,9 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession();
     const userId = session?.user?.id ?? null;
 
+    // Check credit availability early (before expensive work), but do NOT decrement yet.
+    // We will decrement only after the campaign is successfully created and queued.
+    let shouldDeductCredit = false;
     if (userId) {
       const userCampaignCount = await prisma.campaign.count({
         where: { userId, status: { not: 'FAILED' } },
@@ -38,10 +46,7 @@ export async function POST(req: NextRequest) {
           if (!user || user.campaignCredits <= 0) {
             return NextResponse.json({ error: 'payment_required' }, { status: 402 });
           }
-          await prisma.user.update({
-            where: { id: userId },
-            data: { campaignCredits: { decrement: 1 } },
-          });
+          shouldDeductCredit = true;
         }
       }
     }
@@ -132,6 +137,15 @@ export async function POST(req: NextRequest) {
     });
 
     await dispatchStage(campaignId, 'SEGMENTATION');
+
+    // Decrement credit only after all file writes, DB creation, and queue dispatch succeed
+    if (shouldDeductCredit && userId) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { campaignCredits: { decrement: 1 } },
+      });
+    }
+
     return NextResponse.json(campaign, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Internal server error';

@@ -30,15 +30,15 @@ export async function POST(req: NextRequest) {
   const userId = session.metadata?.userId;
   if (!userId) return NextResponse.json({ error: 'no userId in metadata' }, { status: 400 });
 
-  const existing = await prisma.stripeEvent.findUnique({ where: { id: session.id } });
-  if (existing) {
-    return NextResponse.json({ credited: false, reason: 'already processed' });
+  try {
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
+      prisma.stripeEvent.create({ data: { id: session.id, userId } }),
+    ]);
+  } catch (e: any) {
+    if (e?.code === 'P2002') return NextResponse.json({ credited: false, reason: 'already processed' });
+    throw e;
   }
-
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
-    prisma.stripeEvent.create({ data: { id: session.id, userId } }),
-  ]);
 
   return NextResponse.json({ credited: true });
 }

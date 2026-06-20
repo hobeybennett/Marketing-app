@@ -199,9 +199,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 async function metaStatusUpdate(objectId: string, token: string, status: string) {
-  const res = await fetch(`https://graph.facebook.com/v22.0/${objectId}?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/${objectId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ status }),
   });
   if (!res.ok) {

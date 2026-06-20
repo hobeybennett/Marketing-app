@@ -170,8 +170,9 @@ async function uploadImageToMeta(filePath: string, token: string, adAccountId: s
   const form = new FormData();
   form.append('source', new Blob([fileBuffer], { type: 'image/jpeg' }), path.basename(filePath));
 
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages`, {
     method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   if (!res.ok) throw new Error(`Meta image upload failed: ${await res.text()}`);
@@ -188,8 +189,9 @@ async function uploadVideoToMeta(filePath: string, token: string, adAccountId: s
   form.append('title', title);
   form.append('source', new Blob([fileBuffer], { type: 'video/mp4' }), path.basename(filePath));
 
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos`, {
     method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   if (!res.ok) throw new Error(`Meta video upload failed: ${await res.text()}`);
@@ -200,9 +202,9 @@ async function uploadVideoToMeta(filePath: string, token: string, adAccountId: s
 }
 
 async function metaPost(endpoint: string, token: string, body: Record<string, unknown>) {
-  const res = await fetch(`${META_API}${endpoint}?access_token=${token}`, {
+  const res = await fetch(`${META_API}${endpoint}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
 

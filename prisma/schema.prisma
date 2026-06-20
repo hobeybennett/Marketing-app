@@ -111,14 +111,15 @@ model VideoCreative {
 model AdCopy {
   id          String   @id @default(uuid())
   campaignId  String
-  creativeId  String
+  creativeId  String?
+  isSelected  Boolean  @default(false)
   headline    String
   primaryText String
   description String?
   createdAt   DateTime @default(now())
 
-  campaign Campaign      @relation(fields: [campaignId], references: [id])
-  creative VideoCreative @relation(fields: [creativeId], references: [id])
+  campaign Campaign       @relation(fields: [campaignId], references: [id])
+  creative VideoCreative? @relation(fields: [creativeId], references: [id])
 }
 
 model Audience {

@@ -15,6 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       jobs: true,
       segments: { orderBy: { index: 'asc' } },
       creatives: { include: { adCopies: true } },
+      adCopies: { where: { creativeId: null }, orderBy: { createdAt: 'asc' } },
       audiences: true,
       user: { select: { metaConnection: { select: { id: true, adAccountId: true } } } },
     },
@@ -31,7 +32,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const { action } = await req.json();
+  const body = await req.json();
+  const { action } = body;
+
+  if (action === 'select-copy') {
+    const { copyId } = body;
+    if (!copyId) return NextResponse.json({ error: 'copyId required' }, { status: 400 });
+    await prisma.adCopy.updateMany({ where: { campaignId: params.id, creativeId: null }, data: { isSelected: false } });
+    await prisma.adCopy.update({ where: { id: copyId }, data: { isSelected: true } });
+    return NextResponse.json({ ok: true });
+  }
 
   if (action === 'continue') {
     const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });

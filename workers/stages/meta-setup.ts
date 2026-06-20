@@ -9,6 +9,7 @@ export async function runMetaSetup(campaignId: string) {
     where: { id: campaignId },
     include: {
       creatives: { include: { adCopies: true } },
+      adCopies: true,
       audiences: true,
       user: { include: { metaConnection: true } },
     },
@@ -74,12 +75,21 @@ export async function runMetaSetup(campaignId: string) {
   // Upload cover art once for use as video thumbnail across all creatives
   const coverImageHash = await uploadImageToMeta(campaign.coverArtUrl, token, adAccountId);
 
+  // Resolve the ad copy to use across all creatives.
+  // New campaigns: campaign-level copies with isSelected flag.
+  // Legacy campaigns: per-creative copies as fallback.
+  const campaignCopies = (campaign as any).adCopies as Array<{ isSelected: boolean; primaryText: string; creativeId: string | null }> | undefined;
+  const selectedCopy = campaignCopies?.find(c => c.isSelected && c.creativeId === null)
+    ?? campaignCopies?.find(c => c.creativeId === null)
+    ?? null;
+
   // Create one AdCreative per video creative
   const adCreativeIds = new Map<string, string>(); // creativeId -> metaAdCreativeId
   const hasPageToken = !!(metaConn?.pageAccessToken);
   console.log(`[meta-setup] Creating adcreatives for ${campaign.creatives.length} creatives. pageId=${pageId} hasPageToken=${hasPageToken}`);
   for (const creative of campaign.creatives) {
-    const copy = creative.adCopies[0];
+    // Use campaign-level selected copy; fall back to per-creative copy for legacy campaigns
+    const copy = selectedCopy ?? creative.adCopies[0];
     if (!copy) continue;
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;

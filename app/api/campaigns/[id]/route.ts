@@ -16,14 +16,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       segments: { orderBy: { index: 'asc' } },
       creatives: { include: { adCopies: true } },
       audiences: true,
-      user: { select: { metaConnection: { select: { id: true } } } },
+      user: { select: { metaConnection: { select: { id: true, adAccountId: true } } } },
     },
   });
 
   if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   const { user, ...rest } = campaign;
-  return NextResponse.json({ ...rest, hasMetaConnection: !!user?.metaConnection });
+  return NextResponse.json({
+    ...rest,
+    hasMetaConnection: !!user?.metaConnection,
+    adAccountId: user?.metaConnection?.adAccountId ?? null,
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

@@ -231,16 +231,9 @@ const SPOTIFY_MARKETS = [
 ];
 
 function buildTargeting(audience: { type: string; interests: string[] }) {
-  const base: Record<string, unknown> = {
+  return {
     geo_locations: { countries: SPOTIFY_MARKETS },
     age_min: 18,
     age_max: 65,
   };
-  if (audience.type === 'INTEREST') {
-    // Use Advantage+ audience — Meta's ML optimises delivery without explicit interest IDs
-    base.targeting_automation = { advantage_audience: 1 };
-  } else {
-    console.warn(`[meta-setup] Audience type ${audience.type} uses broad targeting`);
-  }
-  return base;
 }

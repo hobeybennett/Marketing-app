@@ -73,6 +73,7 @@ interface CampaignBasic {
   artistName: string;
   status: string;
   metaCampaignId: string | null;
+  adAccountId: string | null;
 }
 
 function timeSince(dateStr: string | null): string {
@@ -127,7 +128,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     if (iRes.ok) setInsights(await iRes.json());
     if (cRes.ok) {
       const c = await cRes.json();
-      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName, status: c.status, metaCampaignId: c.metaCampaignId ?? null });
+      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName, status: c.status, metaCampaignId: c.metaCampaignId ?? null, adAccountId: c.adAccountId ?? null });
     }
     setLoading(false);
   }, [params.id]);
@@ -206,14 +207,26 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
         <Link href="/campaigns" className="text-gray-400 hover:text-white text-sm transition">
           Campaigns
         </Link>
-        <button
-          type="button"
-          onClick={handleSync}
-          disabled={syncing}
-          className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
-        >
-          {syncing ? 'Syncing…' : 'Sync'}
-        </button>
+        <div className="flex items-center gap-3">
+          {campaign?.metaCampaignId && campaign?.adAccountId && (
+            <a
+              href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${campaign.adAccountId}&selected_campaign_ids=${campaign.metaCampaignId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-500 hover:text-gray-300 transition"
+            >
+              Ads Manager
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {syncing ? 'Syncing…' : 'Sync'}
+          </button>
+        </div>
       </div>
 
       {/* Title + controls */}

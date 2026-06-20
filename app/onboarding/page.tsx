@@ -1,12 +1,19 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OnboardingPage() {
   const session = await getServerSession();
   if (!session?.user) redirect('/auth/signin');
+
+  const metaConnection = session.user.id
+    ? await prisma.metaConnection.findUnique({ where: { userId: session.user.id }, select: { id: true, adAccountName: true } })
+    : null;
+
+  const hasMetaConnection = !!metaConnection;
 
   return (
     <div className="max-w-xl mx-auto pb-20 px-1">
@@ -157,21 +164,59 @@ export default async function OnboardingPage() {
         </div>
       </div>
 
-      {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <div className="ob-rise ob-d6 text-center">
-        <Link
-          href="/campaigns/new"
-          className="btn-primary inline-flex items-center gap-2.5 px-8 py-4 text-base font-semibold rounded-xl"
-        >
-          Create my first campaign
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-          </svg>
-        </Link>
-        <p className="text-xs text-gray-600 mt-3 font-body">
-          No credit card required for your first campaign
-        </p>
+      {/* ── Steps ───────────────────────────────────────────────────── */}
+      <div className="ob-rise ob-d6 space-y-3 mb-2">
+        {/* Step 1 — Meta */}
+        <div className={`rounded-2xl border p-5 transition ${hasMetaConnection ? 'border-green-800/50 bg-green-950/20' : 'border-gray-700 bg-gray-900'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${hasMetaConnection ? 'bg-green-900/50 text-green-300' : 'bg-gray-800 text-gray-400'}`}>
+                {hasMetaConnection ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                ) : '1'}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Connect Meta Ads</p>
+                {hasMetaConnection
+                  ? <p className="text-xs text-green-400 mt-0.5">{metaConnection?.adAccountName ?? 'Connected'}</p>
+                  : <p className="text-xs text-gray-500 mt-0.5">Required to run ads on Facebook &amp; Instagram</p>
+                }
+              </div>
+            </div>
+            {!hasMetaConnection && (
+              <a href="/api/auth/meta"
+                className="shrink-0 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition">
+                Connect
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Step 2 — Campaign */}
+        <div className={`rounded-2xl border p-5 transition ${hasMetaConnection ? 'border-gray-700 bg-gray-900' : 'border-gray-800 bg-gray-900/40 opacity-60'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-full bg-gray-800 text-gray-400 flex items-center justify-center text-xs font-bold shrink-0">2</div>
+              <div>
+                <p className="text-sm font-semibold text-white">Create your first campaign</p>
+                <p className="text-xs text-gray-500 mt-0.5">Paste a Spotify link and upload your track</p>
+              </div>
+            </div>
+            {hasMetaConnection && (
+              <Link href="/campaigns/new"
+                className="shrink-0 btn-primary text-xs px-4 py-2">
+                Start
+              </Link>
+            )}
+          </div>
+        </div>
       </div>
+
+      <p className="text-xs text-gray-600 text-center mt-4">
+        No credit card required for your first campaign
+      </p>
     </div>
   );
 }

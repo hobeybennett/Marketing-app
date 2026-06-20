@@ -114,7 +114,7 @@ export default async function CampaignsPage() {
               Connect your Meta account to run campaigns on Facebook &amp; Instagram.
             </p>
           </div>
-          <a href="/api/auth/meta"
+          <a href="/connect-meta"
             className="shrink-0 text-xs font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
             Connect Meta
           </a>

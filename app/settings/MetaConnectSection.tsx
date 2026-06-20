@@ -222,10 +222,16 @@ export default function MetaConnectSection({ connection }: Props) {
           </div>
         </div>
       ) : (
-        <a href="/api/auth/meta"
-          className="btn-primary block w-full py-2.5 text-sm">
-          Connect Meta Account
-        </a>
+        <div className="space-y-2">
+          <a href="/connect-meta"
+            className="btn-primary block w-full py-2.5 text-sm text-center">
+            Connect Meta Account
+          </a>
+          <a href="/api/auth/meta"
+            className="block w-full py-2 text-xs text-center text-gray-500 hover:text-gray-300 transition">
+            Already set up? Connect directly
+          </a>
+        </div>
       )}
     </div>
   );

@@ -186,9 +186,9 @@ export default async function OnboardingPage() {
               </div>
             </div>
             {!hasMetaConnection && (
-              <a href="/api/auth/meta"
+              <a href="/connect-meta"
                 className="shrink-0 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition">
-                Connect
+                Set up
               </a>
             )}
           </div>

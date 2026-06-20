@@ -2,6 +2,7 @@ import { getServerSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import MetaConnectSection from './MetaConnectSection';
+import SubscriptionSyncButton from './SubscriptionSyncButton';
 
 export default async function SettingsPage({
   searchParams,
@@ -85,19 +86,25 @@ export default async function SettingsPage({
               Manage subscription
             </a>
             <p className="text-xs text-gray-600 mt-2">Update card, view invoices, cancel — all in one place.</p>
+            <SubscriptionSyncButton />
           </>
         ) : (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-300">
-                {user?.campaignCredits ?? 0} campaign credit{(user?.campaignCredits ?? 0) !== 1 ? 's' : ''}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">First campaign is free · $5 per additional credit</p>
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-300">
+                  {user?.campaignCredits ?? 0} campaign credit{(user?.campaignCredits ?? 0) !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">First campaign is free · $5 per additional credit</p>
+              </div>
+              <a href="/api/checkout/pro"
+                className="text-sm text-violet-400 hover:text-violet-300 transition font-medium whitespace-nowrap ml-4">
+                Go Pro $9.99/mo
+              </a>
             </div>
-            <a href="/api/checkout/pro"
-              className="text-sm text-violet-400 hover:text-violet-300 transition font-medium whitespace-nowrap ml-4">
-              Go Pro $9.99/mo
-            </a>
+            {user?.subscriptionId && (
+              <SubscriptionSyncButton />
+            )}
           </div>
         )}
       </div>

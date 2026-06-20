@@ -50,11 +50,25 @@ export async function POST(req: NextRequest) {
     });
     if (!trackRes.ok) return NextResponse.json({ error: 'Track not found' }, { status: 404 });
     const track = await trackRes.json();
+
+    let genres: string[] = [];
+    const artistId = track.artists[0]?.id;
+    if (artistId) {
+      const artistRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (artistRes.ok) {
+        const artist = await artistRes.json();
+        genres = artist.genres ?? [];
+      }
+    }
+
     return NextResponse.json({
       artistName: track.artists.map((a: { name: string }) => a.name).join(', '),
       songTitle: track.name,
       coverArtUrl: track.album.images[0]?.url ?? null,
       type: 'track',
+      genres,
     });
   } else {
     const playlistRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}`, {

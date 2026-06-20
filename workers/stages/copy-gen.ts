@@ -14,6 +14,7 @@ export async function runCopyGen(campaignId: string) {
   const variants = await generateAdCopyVariants({
     artistName: campaign.artistName,
     songTitle: campaign.songTitle,
+    genre: (campaign as any).genre as string ?? '',
     soundsLike: campaign.soundsLike,
     promoteType: campaign.promoteType ?? 'track',
   });
@@ -40,6 +41,7 @@ type CopyVariant = { headline: string; primaryText: string; description?: string
 async function generateAdCopyVariants(params: {
   artistName: string;
   songTitle: string;
+  genre: string;
   soundsLike: string[];
   promoteType: string;
 }): Promise<CopyVariant[]> {
@@ -47,6 +49,7 @@ async function generateAdCopyVariants(params: {
   const soundsLikeLine = params.soundsLike.length > 0
     ? `Sounds like: ${params.soundsLike.join(', ')}`
     : '';
+  const genreLine = params.genre ? `Genre: ${params.genre}` : '';
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
@@ -58,6 +61,7 @@ async function generateAdCopyVariants(params: {
 
 ${isPlaylist ? 'Curator' : 'Artist'}: ${params.artistName}
 ${isPlaylist ? 'Playlist' : 'Song'}: ${params.songTitle}
+${genreLine}
 ${soundsLikeLine}
 
 ${soundsLikeLine ? `Each variant should lead the primaryText with "For fans of ${params.soundsLike.join(' and ')}..." to hook the right listeners.` : ''}

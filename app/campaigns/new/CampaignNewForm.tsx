@@ -115,25 +115,25 @@ function generateTestWav(durationSecs = 180): Blob {
 // ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, songTitle, ctaText, genre,
+  bgMode, bgPreview, coverArtUrl, ctaText, genre,
   blurAmount, bgAnimation, cta, animKey,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  songTitle: string; ctaText: string; genre: string;
+  ctaText: string; genre: string;
   blurAmount: number; bgAnimation: BgAnimation;
   cta: TextLayerStyle; animKey: number;
 }) {
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
 
-  // Mirrors video-gen.ts GENRE_* layout constants (scaled to %)
-  const ART_PCT        = 680 / 1080;
-  const ART_X_PCT      = 200 / 1080;
-  const ART_Y_PCT      = 180 / 1080;
-  const TOP_BAND_H_PCT = 170 / 1080;
-  const ART_BOTTOM_PCT = (180 + 680) / 1080;
+  // Mirrors video-gen.ts ART_* layout constants (scaled to %)
+  const ART_PCT   = 860 / 1080; // 79.6%
+  const ART_X_PCT = 110 / 1080; // 10.2%
+  const ART_Y_PCT = 110 / 1080;
+  const TEXT_PAD_PCT = 72 / 1080;
 
-  const hookText = genre.trim() ? `Do you like ${genre}?` : (songTitle || 'Your song title');
+  // Hook: genre question when available, else CTA text (never the song title)
+  const hookText = genre.trim() ? `Do you like ${genre}?` : ctaText;
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
@@ -142,6 +142,8 @@ function VideoPreview({
         @keyframes promohit-zoom-out { 0% { transform: scale(1.4);  } 100% { transform: scale(1.05); } }
         @keyframes promohit-pan      { 0%,100% { transform: scale(1.15) translateX(-6%); } 50% { transform: scale(1.15) translateX(6%); } }
         @keyframes promohit-pulse    { 0%,100% { transform: scale(1.05); } 50% { transform: scale(1.12); } }
+        @keyframes ph-fadein         { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes ph-fadein-delay   { 0%,40% { opacity: 0; } 100% { opacity: 1; } }
       `}</style>
 
       {/* Blurred background */}
@@ -167,52 +169,57 @@ function VideoPreview({
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
       )}
 
-      {/* Cover art — centred in frame */}
-      {coverArtUrl && (
-        <div style={{
-          position: 'absolute',
-          top: `${ART_Y_PCT * 100}%`,
-          left: `${ART_X_PCT * 100}%`,
-          width: `${ART_PCT * 100}%`,
-          height: `${ART_PCT * 100}%`,
-        }}>
+      {/* Cover art — large, centred */}
+      <div style={{
+        position: 'absolute',
+        top: `${ART_Y_PCT * 100}%`,
+        left: `${ART_X_PCT * 100}%`,
+        width: `${ART_PCT * 100}%`,
+        height: `${ART_PCT * 100}%`,
+      }}>
+        {coverArtUrl && (
           <img key={`art-${animKey}`} src={coverArtUrl} alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        {!coverArtUrl && (
+          <div style={{ width: '100%', height: '100%', background: '#1f2937' }} />
+        )}
+
+        {/* Dark overlay on art for text legibility */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.52)',
+        }} />
+
+        {/* Hook text — top of art, fades in */}
+        <div style={{
+          position: 'absolute', top: `${TEXT_PAD_PCT / ART_PCT * 100}%`,
+          left: '7%', right: '7%',
+          animation: `ph-fadein 0.5s ease forwards`,
+        }}>
+          <p style={{
+            color: '#FFFFFF', fontWeight: 800,
+            fontSize: 'clamp(10px, 4.2vw, 28px)',
+            fontFamily: FONT_FAMILY_CSS['sans'],
+            textAlign: 'center', margin: 0, lineHeight: 1.2,
+            textShadow: '0 2px 8px rgba(0,0,0,0.9)',
+          }}>{hookText}</p>
         </div>
-      )}
 
-      {/* Dark top band — hook text */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0,
-        height: `${TOP_BAND_H_PCT * 100}%`,
-        background: 'rgba(0,0,0,0.75)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '0 4%',
-      }}>
-        <p style={{
-          color: '#FFFFFF', fontWeight: 800,
-          fontSize: 'clamp(9px, 3.8vw, 26px)',
-          fontFamily: FONT_FAMILY_CSS['sans'],
-          textAlign: 'center', margin: 0, lineHeight: 1.15,
-          textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-        }}>{hookText}</p>
-      </div>
-
-      {/* Dark bottom band — CTA */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        top: `${ART_BOTTOM_PCT * 100}%`,
-        background: 'rgba(0,0,0,0.70)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '0 4%',
-      }}>
-        <p style={{
-          color: cta.fontColor ?? '#FFFFFF', fontWeight: 700,
-          fontSize: 'clamp(9px, 3.2vw, 22px)',
-          fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
-          textAlign: 'center', margin: 0, letterSpacing: '0.05em',
-          textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-        }}>{ctaText}</p>
+        {/* CTA text — bottom of art, fades in with delay */}
+        <div style={{
+          position: 'absolute', bottom: `${TEXT_PAD_PCT / ART_PCT * 100}%`,
+          left: '7%', right: '7%',
+          animation: `ph-fadein-delay 0.8s ease forwards`,
+        }}>
+          <p style={{
+            color: cta.fontColor ?? '#FFFFFF', fontWeight: 700,
+            fontSize: 'clamp(9px, 3.4vw, 22px)',
+            fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
+            textAlign: 'center', margin: 0, letterSpacing: '0.06em',
+            textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+          }}>{ctaText}</p>
+        </div>
       </div>
     </div>
   );
@@ -702,7 +709,7 @@ export default function CampaignNewForm() {
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
-              songTitle={songTitle} ctaText={activeCta} genre={genre}
+              ctaText={activeCta} genre={genre}
               blurAmount={blurAmount} bgAnimation={bgAnimation} cta={ctaStyle}
               animKey={animKey}
             />

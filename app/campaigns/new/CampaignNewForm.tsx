@@ -115,59 +115,36 @@ function generateTestWav(durationSecs = 180): Blob {
 // ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, artistName, songTitle, ctaText, genre,
-  blurAmount, bgAnimation, textAnimation, heading, subheading, cta, animKey,
+  bgMode, bgPreview, coverArtUrl, songTitle, ctaText, genre,
+  blurAmount, bgAnimation, cta, animKey,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  artistName: string; songTitle: string; ctaText: string; genre: string;
-  blurAmount: number; bgAnimation: BgAnimation; textAnimation: TextAnimation;
-  heading: TextLayerStyle; subheading: TextLayerStyle; cta: TextLayerStyle;
-  animKey: number;
+  songTitle: string; ctaText: string; genre: string;
+  blurAmount: number; bgAnimation: BgAnimation;
+  cta: TextLayerStyle; animKey: number;
 }) {
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
-  const useGenreLayout = !!genre.trim();
 
-  // Genre layout: hook text top, art middle, CTA bottom
-  // Mirrors video-gen.ts GENRE_* constants scaled to preview
-  const G_ART_PCT  = 680 / 1080; // 62.96%
-  const G_ART_X_PCT = 200 / 1080; // x offset
-  const G_ART_Y_PCT = 180 / 1080; // 16.67%
-  const G_TOP_BAND_H_PCT = 170 / 1080; // 15.74%
-  const G_ART_BOTTOM_PCT = (180 + 680) / 1080; // 79.63%
+  // Mirrors video-gen.ts GENRE_* layout constants (scaled to %)
+  const ART_PCT        = 680 / 1080;
+  const ART_X_PCT      = 200 / 1080;
+  const ART_Y_PCT      = 180 / 1080;
+  const TOP_BAND_H_PCT = 170 / 1080;
+  const ART_BOTTOM_PCT = (180 + 680) / 1080;
 
-  // Classic layout: art at top, text below
-  const ART_PCT        = 760 / 1080;
-  const ART_Y_PCT      = 52  / 1080;
-  const ART_BOTTOM_PCT = (52 + 760) / 1080;
-  const textTopPct     = ART_BOTTOM_PCT + 22 / 1080;
+  const hookText = genre.trim() ? `Do you like ${genre}?` : (songTitle || 'Your song title');
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
       <style>{`
-        @keyframes promohit-zoom-in {
-          0% { transform: scale(1.05); } 100% { transform: scale(1.4); }
-        }
-        @keyframes promohit-zoom-out {
-          0% { transform: scale(1.4); } 100% { transform: scale(1.05); }
-        }
-        @keyframes promohit-pan {
-          0%, 100% { transform: scale(1.15) translateX(-6%); }
-          50%       { transform: scale(1.15) translateX(6%); }
-        }
-        @keyframes promohit-pulse {
-          0%, 100% { transform: scale(1.05); } 50% { transform: scale(1.12); }
-        }
-        @keyframes promohit-fade-in {
-          from { opacity: 0; } to { opacity: 1; }
-        }
-        @keyframes promohit-slide-up {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes promohit-zoom-in  { 0% { transform: scale(1.05); } 100% { transform: scale(1.4); } }
+        @keyframes promohit-zoom-out { 0% { transform: scale(1.4);  } 100% { transform: scale(1.05); } }
+        @keyframes promohit-pan      { 0%,100% { transform: scale(1.15) translateX(-6%); } 50% { transform: scale(1.15) translateX(6%); } }
+        @keyframes promohit-pulse    { 0%,100% { transform: scale(1.05); } 50% { transform: scale(1.12); } }
       `}</style>
 
-      {/* Background layer: blurred */}
+      {/* Blurred background */}
       {bgSrc && !isUploadedVideo && (
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
           <img key={animKey} src={bgSrc} alt="" style={{
@@ -190,131 +167,53 @@ function VideoPreview({
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
       )}
 
-      {useGenreLayout ? (
-        <>
-          {/* Genre layout: art in middle */}
-          {coverArtUrl && (
-            <div style={{
-              position: 'absolute',
-              top: `${G_ART_Y_PCT * 100}%`,
-              left: `${G_ART_X_PCT * 100}%`,
-              width: `${G_ART_PCT * 100}%`,
-              height: `${G_ART_PCT * 100}%`,
-            }}>
-              <img key={`art-${animKey}`} src={coverArtUrl} alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
-          )}
-          {/* Dark top band */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0,
-            height: `${G_TOP_BAND_H_PCT * 100}%`,
-            background: 'rgba(0,0,0,0.75)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 4%',
-          }}>
-            <p style={{
-              color: '#FFFFFF', fontWeight: 700,
-              fontSize: 'clamp(10px, 3.8vw, 26px)',
-              fontFamily: FONT_FAMILY_CSS['sans'],
-              textAlign: 'center', margin: 0, lineHeight: 1.2,
-              textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-            }}>{`Do you like ${genre}?`}</p>
-          </div>
-          {/* Dark bottom band with CTA */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            top: `${G_ART_BOTTOM_PCT * 100}%`,
-            background: 'rgba(0,0,0,0.70)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 4%',
-          }}>
-            <p style={{
-              color: cta.fontColor ?? '#FFFFFF', fontWeight: 700,
-              fontSize: 'clamp(10px, 3.2vw, 22px)',
-              fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
-              textAlign: 'center', margin: 0, letterSpacing: '0.05em',
-              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-            }}>{ctaText}</p>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Classic layout: art at top, text below */}
-          {coverArtUrl && (
-            <div style={{
-              position: 'absolute',
-              top: `${ART_Y_PCT * 100}%`,
-              left: `${((1 - ART_PCT) / 2) * 100}%`,
-              width: `${ART_PCT * 100}%`,
-              height: `${ART_PCT * 100}%`,
-            }}>
-              <img
-                key={`art-${animKey}`}
-                src={coverArtUrl}
-                alt=""
-                style={{
-                  width: '100%', height: '100%', objectFit: 'cover',
-                  animation: TEXT_ANIM_CSS[textAnimation] || undefined,
-                }}
-              />
-            </div>
-          )}
-
-          {/* Dark vignette over text area */}
-          <div style={{
-            position: 'absolute',
-            top: `${(ART_BOTTOM_PCT - 0.01) * 100}%`,
-            left: 0, right: 0, bottom: 0,
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 20%, rgba(0,0,0,0.80) 100%)',
-          }} />
-
-          {/* Text block below art */}
-          <div style={{
-            position: 'absolute',
-            top: `${textTopPct * 100}%`,
-            left: 0, right: 0, bottom: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-            padding: '0 5%',
-            animation: TEXT_ANIM_CSS[textAnimation] || undefined,
-          }}>
-            <p style={{
-              color: heading.fontColor ?? '#FFFFFF',
-              fontWeight: 700,
-              fontSize: FONT_SIZE_PX[heading.fontSize] * 0.88,
-              fontFamily: FONT_FAMILY_CSS[heading.fontFamily],
-              lineHeight: 1.15,
-              margin: 0,
-              textAlign: 'center',
-              textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-            }}>{songTitle || 'Song Title'}</p>
-
-            <p style={{
-              color: subheading.fontColor ?? '#E0E0E0',
-              fontWeight: 400,
-              fontSize: FONT_SIZE_PX[subheading.fontSize] * 0.88,
-              fontFamily: FONT_FAMILY_CSS[subheading.fontFamily],
-              lineHeight: 1.2,
-              margin: '5px 0 0',
-              opacity: 0.92,
-              textAlign: 'center',
-              textShadow: '0 1px 6px rgba(0,0,0,0.8)',
-            }}>{artistName || 'Artist Name'}</p>
-
-            <p style={{
-              color: cta.fontColor ?? '#FFFFFF',
-              fontWeight: 700,
-              fontSize: FONT_SIZE_PX[cta.fontSize] * 0.72,
-              fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
-              lineHeight: 1.2,
-              margin: '7px 0 0',
-              textAlign: 'center',
-              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-              letterSpacing: '0.05em',
-            }}>{ctaText}</p>
-          </div>
-        </>
+      {/* Cover art — centred in frame */}
+      {coverArtUrl && (
+        <div style={{
+          position: 'absolute',
+          top: `${ART_Y_PCT * 100}%`,
+          left: `${ART_X_PCT * 100}%`,
+          width: `${ART_PCT * 100}%`,
+          height: `${ART_PCT * 100}%`,
+        }}>
+          <img key={`art-${animKey}`} src={coverArtUrl} alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
       )}
+
+      {/* Dark top band — hook text */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0,
+        height: `${TOP_BAND_H_PCT * 100}%`,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '0 4%',
+      }}>
+        <p style={{
+          color: '#FFFFFF', fontWeight: 800,
+          fontSize: 'clamp(9px, 3.8vw, 26px)',
+          fontFamily: FONT_FAMILY_CSS['sans'],
+          textAlign: 'center', margin: 0, lineHeight: 1.15,
+          textShadow: '0 2px 8px rgba(0,0,0,0.9)',
+        }}>{hookText}</p>
+      </div>
+
+      {/* Dark bottom band — CTA */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        top: `${ART_BOTTOM_PCT * 100}%`,
+        background: 'rgba(0,0,0,0.70)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '0 4%',
+      }}>
+        <p style={{
+          color: cta.fontColor ?? '#FFFFFF', fontWeight: 700,
+          fontSize: 'clamp(9px, 3.2vw, 22px)',
+          fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
+          textAlign: 'center', margin: 0, letterSpacing: '0.05em',
+          textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+        }}>{ctaText}</p>
+      </div>
     </div>
   );
 }
@@ -803,9 +702,8 @@ export default function CampaignNewForm() {
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
-              artistName={artistName} songTitle={songTitle} ctaText={activeCta} genre={genre}
-              blurAmount={blurAmount} bgAnimation={bgAnimation} textAnimation={textAnimation}
-              heading={headingStyle} subheading={subheadingStyle} cta={ctaStyle}
+              songTitle={songTitle} ctaText={activeCta} genre={genre}
+              blurAmount={blurAmount} bgAnimation={bgAnimation} cta={ctaStyle}
               animKey={animKey}
             />
           </div>

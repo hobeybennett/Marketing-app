@@ -127,49 +127,13 @@ function VideoPreview({
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
 
-  type Item = { key: string; hAlign: HAlign; node: React.ReactNode };
-  const groups: Record<VAlign, Item[]> = { top: [], center: [], bottom: [] };
+  // Art overlay dimensions — mirrors video-gen.ts layout
+  // Frame preview is ~480px wide; art is 760/1080 = 70.4% of frame
+  const ART_PCT   = 760 / 1080;
+  const ART_Y_PCT = 52  / 1080;
+  const ART_BOTTOM_PCT = (52 + 760) / 1080; // 0.752
 
-  groups[heading.vAlign].push({
-    key: 'heading', hAlign: heading.hAlign,
-    node: (
-      <p style={{
-        color: heading.fontColor, fontWeight: heading.fontBold ? 700 : 400,
-        fontSize: FONT_SIZE_PX[heading.fontSize], fontFamily: FONT_FAMILY_CSS[heading.fontFamily],
-        lineHeight: 1.2, margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.6)',
-      }}>{songTitle || 'Song Title'}</p>
-    ),
-  });
-
-  groups[subheading.vAlign].push({
-    key: 'subheading', hAlign: subheading.hAlign,
-    node: (
-      <p style={{
-        color: subheading.fontColor, fontWeight: subheading.fontBold ? 700 : 400,
-        fontSize: FONT_SIZE_PX[subheading.fontSize], fontFamily: FONT_FAMILY_CSS[subheading.fontFamily],
-        lineHeight: 1.2, margin: '4px 0 0', opacity: 0.85,
-        textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-      }}>{artistName || 'Artist Name'}</p>
-    ),
-  });
-
-  groups[cta.vAlign].push({
-    key: 'cta', hAlign: cta.hAlign,
-    node: (
-      <div style={{ display: 'inline-block', marginTop: 8 }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255,255,255,0.3)', borderRadius: 999, padding: '4px 14px',
-        }}>
-          <p style={{
-            color: cta.fontColor, fontWeight: cta.fontBold ? 700 : 600,
-            fontSize: FONT_SIZE_PX[cta.fontSize], fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
-            margin: 0,
-          }}>{ctaText}</p>
-        </div>
-      </div>
-    ),
-  });
+  const textTopPct = ART_BOTTOM_PCT + 22 / 1080; // ~0.772
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
@@ -196,6 +160,7 @@ function VideoPreview({
         }
       `}</style>
 
+      {/* Background layer: blurred */}
       {bgSrc && !isUploadedVideo && (
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
           <img key={animKey} src={bgSrc} alt="" style={{
@@ -218,27 +183,79 @@ function VideoPreview({
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
       )}
 
+      {/* Art overlay: sharp cover art, centered horizontally, upper portion */}
+      {coverArtUrl && (
+        <div style={{
+          position: 'absolute',
+          top: `${ART_Y_PCT * 100}%`,
+          left: `${((1 - ART_PCT) / 2) * 100}%`,
+          width: `${ART_PCT * 100}%`,
+          height: `${ART_PCT * 100}%`,
+        }}>
+          <img
+            key={`art-${animKey}`}
+            src={coverArtUrl}
+            alt=""
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+              animation: TEXT_ANIM_CSS[textAnimation] || undefined,
+            }}
+          />
+        </div>
+      )}
+
+      {/* Dark vignette over text area */}
       <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, transparent 28%, transparent 68%, rgba(0,0,0,0.55) 100%)',
+        position: 'absolute',
+        top: `${(ART_BOTTOM_PCT - 0.01) * 100}%`,
+        left: 0, right: 0, bottom: 0,
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.65) 20%, rgba(0,0,0,0.80) 100%)',
       }} />
 
-      {(['top', 'center', 'bottom'] as VAlign[]).map(vAlign => {
-        const items = groups[vAlign];
-        if (items.length === 0) return null;
-        return (
-          <div key={`${vAlign}-${animKey}`} style={{
-            ...VPOS_STYLE[vAlign],
-            animation: TEXT_ANIM_CSS[textAnimation] || undefined,
-          }}>
-            {items.map(item => (
-              <div key={item.key} style={HALIGN_STYLE[item.hAlign]}>
-                {item.node}
-              </div>
-            ))}
-          </div>
-        );
-      })}
+      {/* Text block below art */}
+      <div style={{
+        position: 'absolute',
+        top: `${textTopPct * 100}%`,
+        left: 0, right: 0, bottom: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+        padding: '0 5%',
+        animation: TEXT_ANIM_CSS[textAnimation] || undefined,
+      }}>
+        <p style={{
+          color: heading.fontColor ?? '#FFFFFF',
+          fontWeight: 700,
+          fontSize: FONT_SIZE_PX[heading.fontSize] * 0.88,
+          fontFamily: FONT_FAMILY_CSS[heading.fontFamily],
+          lineHeight: 1.15,
+          margin: 0,
+          textAlign: 'center',
+          textShadow: '0 2px 8px rgba(0,0,0,0.9)',
+        }}>{songTitle || 'Song Title'}</p>
+
+        <p style={{
+          color: subheading.fontColor ?? '#E0E0E0',
+          fontWeight: 400,
+          fontSize: FONT_SIZE_PX[subheading.fontSize] * 0.88,
+          fontFamily: FONT_FAMILY_CSS[subheading.fontFamily],
+          lineHeight: 1.2,
+          margin: '5px 0 0',
+          opacity: 0.92,
+          textAlign: 'center',
+          textShadow: '0 1px 6px rgba(0,0,0,0.8)',
+        }}>{artistName || 'Artist Name'}</p>
+
+        <p style={{
+          color: cta.fontColor ?? '#FFFFFF',
+          fontWeight: 700,
+          fontSize: FONT_SIZE_PX[cta.fontSize] * 0.72,
+          fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
+          lineHeight: 1.2,
+          margin: '7px 0 0',
+          textAlign: 'center',
+          textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+          letterSpacing: '0.05em',
+        }}>{ctaText}</p>
+      </div>
     </div>
   );
 }

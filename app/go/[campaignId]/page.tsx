@@ -22,6 +22,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
       coverArtUrl: true,
       spotifyUrl: true,
       spotifyPlaylistUrl: true,
+      promoteType: true,
       user: {
         select: {
           metaConnection: { select: { pixelId: true } }
@@ -36,6 +37,8 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
   const utmMedium = String(searchParams.utm_medium ?? '');
   const utmCampaign = String(searchParams.utm_campaign ?? '');
   const utmContent = String(searchParams.utm_content ?? '');
+
+  const isPlaylist = campaign.promoteType === 'playlist';
 
   const coverSrc = campaign.coverArtUrl?.startsWith('http')
     ? campaign.coverArtUrl
@@ -102,34 +105,48 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
         {/* Streaming buttons */}
         <div className="space-y-3">
-          {campaign.spotifyUrl && (
-            <SpotifyButton
-              href={buildClickUrl('spotify')}
-              songTitle={campaign.songTitle}
-              artistName={campaign.artistName}
-            />
+          {isPlaylist ? (
+            campaign.spotifyPlaylistUrl && (
+              <SpotifyPlaylistButton
+                href={buildClickUrl('spotify_playlist')}
+                destination={campaign.spotifyPlaylistUrl}
+                songTitle={campaign.songTitle}
+                artistName={campaign.artistName}
+                primary
+              />
+            )
+          ) : (
+            <>
+              {campaign.spotifyUrl && (
+                <SpotifyButton
+                  href={buildClickUrl('spotify')}
+                  songTitle={campaign.songTitle}
+                  artistName={campaign.artistName}
+                />
+              )}
+
+              {campaign.spotifyPlaylistUrl && (
+                <SpotifyPlaylistButton
+                  href={buildClickUrl('spotify_playlist')}
+                  destination={campaign.spotifyPlaylistUrl}
+                  songTitle={campaign.songTitle}
+                  artistName={campaign.artistName}
+                />
+              )}
+
+              <AppleMusicButton
+                href={buildClickUrl('apple_music')}
+                songTitle={campaign.songTitle}
+                artistName={campaign.artistName}
+              />
+
+              <YouTubeMusicButton
+                href={buildClickUrl('youtube_music')}
+                songTitle={campaign.songTitle}
+                artistName={campaign.artistName}
+              />
+            </>
           )}
-
-          {campaign.spotifyPlaylistUrl && (
-            <SpotifyPlaylistButton
-              href={buildClickUrl('spotify_playlist')}
-              destination={campaign.spotifyPlaylistUrl}
-              songTitle={campaign.songTitle}
-              artistName={campaign.artistName}
-            />
-          )}
-
-          <AppleMusicButton
-            href={buildClickUrl('apple_music')}
-            songTitle={campaign.songTitle}
-            artistName={campaign.artistName}
-          />
-
-          <YouTubeMusicButton
-            href={buildClickUrl('youtube_music')}
-            songTitle={campaign.songTitle}
-            artistName={campaign.artistName}
-          />
         </div>
 
         <p className="text-center text-xs text-gray-600 mt-8 tracking-widest uppercase">Powered by Promohit</p>

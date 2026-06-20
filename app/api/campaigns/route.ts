@@ -61,12 +61,13 @@ export async function POST(req: NextRequest) {
       spotifyUrl: z.string().url().optional().or(z.literal('')),
       spotifyPlaylistUrl: z.string().url().optional().or(z.literal('')),
       soundsLike: z.string().optional(),
+      promoteType: z.enum(['track', 'playlist']).optional().default('track'),
     });
 
     const parsed = schema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
-    const { artistName, songTitle, autoLaunch, spotifyUrl, spotifyPlaylistUrl, soundsLike } = parsed.data;
+    const { artistName, songTitle, autoLaunch, spotifyUrl, spotifyPlaylistUrl, soundsLike, promoteType } = parsed.data;
     const soundsLikeList = soundsLike
       ? soundsLike.split(',').map(s => s.trim()).filter(Boolean)
       : [];
@@ -115,6 +116,7 @@ export async function POST(req: NextRequest) {
         spotifyUrl: spotifyUrl || undefined,
         spotifyPlaylistUrl: spotifyPlaylistUrl || undefined,
         soundsLike: soundsLikeList,
+        promoteType,
         jobs: {
           create: [
             { stage: 'SEGMENTATION', status: 'PENDING' },

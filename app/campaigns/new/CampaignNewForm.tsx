@@ -26,7 +26,7 @@ type TextLayerStyle = {
   fontBold: boolean;
 };
 
-type SpotifyData = { artistName: string; songTitle: string; coverArtUrl: string | null };
+type SpotifyData = { artistName: string; songTitle: string; coverArtUrl: string | null; type?: 'track' | 'playlist' };
 type Clip = { name: string; startSec: number };
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -381,6 +381,7 @@ export default function CampaignNewForm() {
   const [mode, setMode] = useState<Mode>('quick');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  const [promoteType, setPromoteType] = useState<'track' | 'playlist'>('track');
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [spotifyError, setSpotifyError] = useState('');
@@ -467,6 +468,7 @@ export default function CampaignNewForm() {
       setSpotify(data);
       setArtistName(data.artistName);
       setSongTitle(data.songTitle);
+      if (data.type) setPromoteType(data.type);
     } catch (err) {
       setSpotifyError(err instanceof Error ? err.message : 'Something went wrong');
     } finally { setSpotifyLoading(false); }
@@ -524,8 +526,13 @@ export default function CampaignNewForm() {
     formData.set('clips', JSON.stringify(clips));
     formData.set('visualConfig', JSON.stringify(visualConfig));
     if (bgMode === 'upload' && bgFile) formData.set('background', bgFile);
-    if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
-    if (spotifyPlaylistUrl.trim()) formData.set('spotifyPlaylistUrl', spotifyPlaylistUrl.trim());
+    formData.set('promoteType', promoteType);
+    if (promoteType === 'playlist') {
+      formData.set('spotifyPlaylistUrl', spotifyUrl.trim());
+    } else {
+      if (saveSpotifyUrl && spotifyUrl.trim()) formData.set('spotifyUrl', spotifyUrl.trim());
+      if (spotifyPlaylistUrl.trim()) formData.set('spotifyPlaylistUrl', spotifyPlaylistUrl.trim());
+    }
     if (soundsLike.trim()) formData.set('soundsLike', soundsLike.trim());
     try {
       const res = await fetch('/api/campaigns', { method: 'POST', body: formData });
@@ -600,12 +607,27 @@ export default function CampaignNewForm() {
 
       {/* ── Spotify ─────────────────────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
-        <p className="text-sm font-medium text-gray-300 mb-3">Paste your Spotify link</p>
+        {/* Promote type toggle */}
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-medium text-gray-300">What are you promoting?</p>
+          <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+            <button type="button"
+              onClick={() => { setPromoteType('track'); setSpotify(null); setSpotifyUrl(''); setSpotifyError(''); }}
+              className={`px-3 py-1.5 font-medium transition ${promoteType === 'track' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              Song
+            </button>
+            <button type="button"
+              onClick={() => { setPromoteType('playlist'); setSpotify(null); setSpotifyUrl(''); setSpotifyError(''); }}
+              className={`px-3 py-1.5 font-medium border-l border-gray-700 transition ${promoteType === 'playlist' ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+              Playlist
+            </button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <input type="url" value={spotifyUrl}
             onChange={(e) => setSpotifyUrl(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), lookupSpotify())}
-            placeholder="https://open.spotify.com/track/..."
+            placeholder={promoteType === 'track' ? 'https://open.spotify.com/track/...' : 'https://open.spotify.com/playlist/...'}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-green-500 outline-none text-sm" />
           <button type="button" onClick={() => lookupSpotify()}
             disabled={spotifyLoading || !spotifyUrl.trim()}
@@ -624,7 +646,7 @@ export default function CampaignNewForm() {
             <span className="ml-auto text-green-400 text-xs">Found</span>
           </div>
         )}
-        {spotify && (
+        {spotify && promoteType === 'track' && (
           <label className="flex items-center gap-2 mt-3 cursor-pointer">
             <input type="checkbox" checked={saveSpotifyUrl}
               onChange={(e) => setSaveSpotifyUrl(e.target.checked)}
@@ -632,7 +654,7 @@ export default function CampaignNewForm() {
             <span className="text-xs text-gray-400">Add Spotify link to smart link page</span>
           </label>
         )}
-        {spotify && (
+        {spotify && promoteType === 'track' && (
           <div className="mt-4 pt-4 border-t border-gray-800">
             <label className="block text-xs font-medium text-gray-400 mb-1.5">
               Spotify playlist link{' '}

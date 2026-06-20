@@ -18,6 +18,7 @@ export async function runCopyGen(campaignId: string) {
       songTitle: campaign.songTitle,
       ctaText: creative.ctaText,
       soundsLike: campaign.soundsLike,
+      promoteType: campaign.promoteType ?? 'track',
     });
 
     await prisma.adCopy.create({
@@ -39,7 +40,9 @@ async function generateAdCopy(params: {
   songTitle: string;
   ctaText: string;
   soundsLike: string[];
+  promoteType: string;
 }): Promise<{ headline: string; primaryText: string; description?: string }> {
+  const isPlaylist = params.promoteType === 'playlist';
   const soundsLikeLine = params.soundsLike.length > 0
     ? `Sounds like: ${params.soundsLike.join(', ')}`
     : '';
@@ -50,10 +53,10 @@ async function generateAdCopy(params: {
     messages: [
       {
         role: 'user',
-        content: `You are an expert music marketing copywriter. Generate Facebook/Instagram ad copy for this song.
+        content: `You are an expert music marketing copywriter. Generate Facebook/Instagram ad copy for this ${isPlaylist ? 'playlist' : 'song'}.
 
-Artist: ${params.artistName}
-Song: ${params.songTitle}
+${isPlaylist ? 'Curator' : 'Artist'}: ${params.artistName}
+${isPlaylist ? 'Playlist' : 'Song'}: ${params.songTitle}
 CTA: ${params.ctaText}
 ${soundsLikeLine}
 

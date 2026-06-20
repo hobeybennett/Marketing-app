@@ -26,6 +26,7 @@ model Campaign {
   spotifyUrl      String?
   spotifyPlaylistUrl String?
   soundsLike      String[]
+  promoteType     String         @default("track")
   lastSyncAt      DateTime?
   dailyBudget     Float?
 

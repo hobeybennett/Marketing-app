@@ -480,6 +480,25 @@ function ReadyToLaunch({ campaign, params, handleAction, actionLoading, router }
         </div>
       )}
 
+      {/* Budget summary */}
+      {(() => {
+        const budgetUsd = (campaign.visualConfig as any)?.dailyBudgetUsd ?? 10;
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold">Daily ad spend</p>
+                <p className="text-xs text-gray-500 mt-0.5">${budgetUsd}/day per audience · 3 audiences</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-white">${budgetUsd * 3}<span className="text-sm font-normal text-gray-400">/day</span></p>
+                <p className="text-xs text-gray-600">total maximum</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <button
         onClick={() => handleAction('launch')}
         disabled={actionLoading || !selectedCopyId || !hasMetaConnection}

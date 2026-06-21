@@ -41,6 +41,9 @@ export async function runMetaSetup(campaignId: string) {
 
   if (!adAccountId) throw new Error('No Meta ad account configured — connect Meta in Settings');
   if (!pageId) throw new Error('No Facebook Page configured — connect Meta in Settings');
+  if (!pageToken) {
+    throw new Error('No Facebook Page Access Token — reconnect Meta in Settings to grant page permissions');
+  }
 
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;
@@ -94,7 +97,7 @@ export async function runMetaSetup(campaignId: string) {
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;
 
-    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken!, {
+    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken, {
       name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
       object_story_spec: {
         page_id: pageId,
@@ -132,7 +135,7 @@ export async function runMetaSetup(campaignId: string) {
       optimization_goal: 'LINK_CLICKS',
       bid_amount: 200,
       bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
-      daily_budget: 1000,
+      daily_budget: ((campaign.visualConfig as any)?.dailyBudgetUsd ?? 10) * 100,
       targeting: buildTargeting(audience),
       status: 'PAUSED',
     });
@@ -167,8 +170,9 @@ async function uploadImageToMeta(filePath: string, token: string, adAccountId: s
   const form = new FormData();
   form.append('source', new Blob([fileBuffer], { type: 'image/jpeg' }), path.basename(filePath));
 
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages`, {
     method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   if (!res.ok) throw new Error(`Meta image upload failed: ${await res.text()}`);
@@ -185,8 +189,9 @@ async function uploadVideoToMeta(filePath: string, token: string, adAccountId: s
   form.append('title', title);
   form.append('source', new Blob([fileBuffer], { type: 'video/mp4' }), path.basename(filePath));
 
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos?access_token=${token}`, {
+  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos`, {
     method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   if (!res.ok) throw new Error(`Meta video upload failed: ${await res.text()}`);
@@ -197,9 +202,9 @@ async function uploadVideoToMeta(filePath: string, token: string, adAccountId: s
 }
 
 async function metaPost(endpoint: string, token: string, body: Record<string, unknown>) {
-  const res = await fetch(`${META_API}${endpoint}?access_token=${token}`, {
+  const res = await fetch(`${META_API}${endpoint}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
 

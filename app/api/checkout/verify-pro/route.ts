@@ -31,32 +31,32 @@ export async function POST(req: NextRequest) {
   const userId = session.metadata?.userId;
   if (!userId) return NextResponse.json({ error: 'no userId in metadata' }, { status: 400 });
 
-  const existing = await prisma.stripeEvent.findUnique({ where: { id: session.id } });
-  if (existing) {
-    return NextResponse.json({ activated: false, reason: 'already processed' });
-  }
-
   const subscription = session.subscription as Stripe.Subscription | null;
   const subscriptionId = typeof subscription === 'string' ? subscription : subscription?.id;
-  const subscriptionStatus = subscription && typeof subscription !== 'string'
+  const subscriptionStatus = (subscription && typeof subscription !== 'string')
     ? subscription.status
     : 'active';
 
   const stripeCustomerId = typeof session.customer === 'string'
     ? session.customer
-    : session.customer?.id ?? undefined;
+    : (session.customer as any)?.id ?? undefined;
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        subscriptionStatus: subscriptionStatus ?? 'active',
-        subscriptionId: subscriptionId ?? undefined,
-        stripeCustomerId: stripeCustomerId ?? undefined,
-      },
-    }),
-    prisma.stripeEvent.create({ data: { id: session.id, userId } }),
-  ]);
+  // Always update subscription status — idempotent for 'active'.
+  // Use optimistic create for StripeEvent to prevent double-processing on concurrent calls.
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      subscriptionStatus: subscriptionStatus ?? 'active',
+      subscriptionId: subscriptionId ?? undefined,
+      stripeCustomerId: stripeCustomerId ?? undefined,
+    },
+  });
 
-  return NextResponse.json({ activated: true });
+  try {
+    await prisma.stripeEvent.create({ data: { id: session.id, userId } });
+  } catch (e: any) {
+    if (e?.code !== 'P2002') throw e; // P2002 = already recorded, that's fine
+  }
+
+  return NextResponse.json({ activated: true, subscriptionStatus: subscriptionStatus ?? 'active' });
 }

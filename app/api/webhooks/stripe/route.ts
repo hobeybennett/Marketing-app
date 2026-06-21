@@ -33,12 +33,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (session.mode === 'payment' && session.payment_status === 'paid') {
-      const existing = await prisma.stripeEvent.findUnique({ where: { id: session.id } });
-      if (!existing) {
+      try {
         await prisma.$transaction([
           prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
           prisma.stripeEvent.create({ data: { id: session.id, userId } }),
         ]);
+      } catch (e: any) {
+        if (e?.code !== 'P2002') throw e; // P2002 = unique constraint — already processed
       }
     }
 

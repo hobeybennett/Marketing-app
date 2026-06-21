@@ -31,14 +31,6 @@ interface VisualConfig {
 const W = 1080;
 const H = 1080;
 
-// Art overlay: fills most of the frame, positioned at top
-const ART_SIZE = 760;
-const ART_X_OFFSET = Math.round((W - ART_SIZE) / 2); // 160
-const ART_Y = 52;
-const ART_BOTTOM = ART_Y + ART_SIZE; // 812
-
-// Text block sits below the art overlay
-const TEXT_TOP = ART_BOTTOM + 22;
 
 // Discover the best available font file for a role
 function findFont(candidates: string[]): string {
@@ -48,22 +40,29 @@ function findFont(candidates: string[]): string {
   return candidates[candidates.length - 1];
 }
 
+// Bundled fonts (checked into assets/fonts/ for consistent rendering)
+const ASSETS_FONTS = path.join(__dirname, '../../assets/fonts');
+
 const FONT_HEADING = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-ExtraBold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
 ]);
 const FONT_BODY = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-Bold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
 ]);
 const FONT_BODY_BOLD = findFont([
+  path.join(ASSETS_FONTS, 'Montserrat-Bold.ttf'),
   '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
 ]);
 
 // Base font sizes for 1080×1080
 const BASE_SIZES: Record<string, number> = { sm: 44, md: 58, lg: 78 };
-const MAX_TEXT_W = 920;
+// Max text width within the art card (860px wide, 80px padding each side)
+const MAX_TEXT_W = 700;
 
 function dynamicFontSize(text: string, base: number, min = 32): number {
   const est = text.length * base * 0.58;
@@ -124,6 +123,7 @@ export async function runVideoGen(campaignId: string) {
       ctaText,
       artistName: campaign.artistName,
       songTitle: campaign.songTitle,
+      genre: (campaign as any).genre as string | undefined,
       visualConfig,
     });
 
@@ -151,6 +151,13 @@ export async function runVideoGen(campaignId: string) {
   }
 }
 
+// Layout: large cover art centered on blurred bg, text overlaid on art
+const ART_SIZE = 860;
+const ART_X = Math.round((W - ART_SIZE) / 2); // 110
+const ART_Y = 110;
+const ART_BOTTOM = ART_Y + ART_SIZE; // 970
+const TEXT_PAD = 72; // px from art edge to text baseline
+
 function generateVideo(opts: {
   bgSrc: string;
   coverArtPath: string;
@@ -159,57 +166,39 @@ function generateVideo(opts: {
   ctaText: string;
   artistName: string;
   songTitle: string;
+  genre?: string;
   visualConfig: VisualConfig | null;
 }): Promise<void> {
-  const { bgSrc, coverArtPath, audio, output, ctaText, artistName, songTitle, visualConfig } = opts;
+  const { bgSrc, coverArtPath, audio, output, ctaText, genre, visualConfig } = opts;
 
   const vc = visualConfig ?? {};
-  const headingStyle    = vc.heading    ?? {};
-  const subheadingStyle = vc.subheading ?? {};
-  const ctaStyle        = vc.cta        ?? {};
-
-  const headFontSize = dynamicFontSize(songTitle,  BASE_SIZES[headingStyle.fontSize    ?? 'lg']);
-  const subFontSize  = dynamicFontSize(artistName, BASE_SIZES[subheadingStyle.fontSize ?? 'md']);
-  const ctaFontSize  = Math.round(BASE_SIZES[ctaStyle.fontSize ?? 'sm'] * 0.82);
-
-  const headFont = resolveFont({ ...headingStyle,    fontBold: headingStyle.fontBold    ?? true  });
-  const subFont  = resolveFont({ ...subheadingStyle, fontBold: subheadingStyle.fontBold ?? false });
-  const ctaFont  = resolveFont({ ...ctaStyle,        fontBold: ctaStyle.fontBold        ?? true  });
-
-  const headColor = toFFColor(headingStyle.fontColor    ?? '#FFFFFF');
-  const subColor  = toFFColor(subheadingStyle.fontColor ?? '#E0E0E0', '0.92');
-  const ctaColor  = toFFColor(ctaStyle.fontColor        ?? '#FFFFFF');
-
-  // Y positions: title → artist → CTA, stacked below the art overlay
-  const headY = TEXT_TOP;
-  const subY  = headY + Math.round(headFontSize * 1.15) + 10;
-  const ctaY  = subY  + Math.round(subFontSize  * 1.15) + 14;
-
   const bgBlur = vc.blurAmount ?? 18;
 
-  // Dark vignette covering text area for legibility
-  const vignetteStart = ART_BOTTOM - 10;
+  // Hook: genre question when available, CTA text otherwise (never the song title)
+  const hookText = genre ? `Do you like ${genre}?` : ctaText;
+  const hookFontSize = dynamicFontSize(hookText, BASE_SIZES['lg']);
+  const hookY = ART_Y + TEXT_PAD;
 
-  // filter_complex: two looped image inputs + audio
-  // [0:v] = background (blurred, fills frame)
-  // [1:v] = cover art overlay (sharp, positioned in upper portion)
-  // [2:a] = audio track
+  const ctaStyle = vc.cta ?? {};
+  const ctaFontSize = dynamicFontSize(ctaText, Math.round(BASE_SIZES[ctaStyle.fontSize ?? 'md'] * 0.88));
+  const ctaFont = resolveFont({ ...ctaStyle, fontBold: ctaStyle.fontBold ?? true });
+  const ctaColor = toFFColor(ctaStyle.fontColor ?? '#FFFFFF');
+  const ctaY = ART_BOTTOM - TEXT_PAD - ctaFontSize;
+
+  // Fade-in: hook appears at t=0, CTA fades in after 0.4s
+  const hookAlpha = `alpha='if(lt(t,0.5),t/0.5,1)'`;
+  const ctaAlpha  = `alpha='if(lt(t,0.4),0,if(lt(t,0.8),(t-0.4)/0.4,1))'`;
+
   const fc = [
-    // Background: scale to fill, blur
     `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}${bgBlur > 0 ? `,boxblur=${bgBlur}:1` : ''}[bg]`,
-    // Art overlay: scale to fit, pad with black (maintains aspect ratio)
     `[1:v]scale=${ART_SIZE}:${ART_SIZE}:force_original_aspect_ratio=decrease,pad=${ART_SIZE}:${ART_SIZE}:(ow-iw)/2:(oh-ih)/2:black[art]`,
-    // Composite: art overlay centered horizontally at ART_Y
-    `[bg][art]overlay=${ART_X_OFFSET}:${ART_Y}[c0]`,
-    // Dark band over text area — gradient approximated with layered drawbox
-    `[c0]drawbox=x=0:y=${vignetteStart}:w=iw:h=${H - vignetteStart}:color=black@0.55:t=fill[c1]`,
-    `[c1]drawbox=x=0:y=${vignetteStart + 60}:w=iw:h=${H - vignetteStart - 60}:color=black@0.25:t=fill[c2]`,
-    // Song title — bold, large, strong shadow
-    `[c2]drawtext=fontfile='${headFont}':text='${esc(songTitle)}':fontsize=${headFontSize}:fontcolor=${headColor}:x=(w-text_w)/2:y=${headY}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true[c3]`,
-    // Artist name — lighter weight, smaller
-    `[c3]drawtext=fontfile='${subFont}':text='${esc(artistName)}':fontsize=${subFontSize}:fontcolor=${subColor}:x=(w-text_w)/2:y=${subY}:shadowcolor=black@0.8:shadowx=2:shadowy=2:fix_bounds=true[c4]`,
-    // CTA — bold, slightly brighter
-    `[c4]drawtext=fontfile='${ctaFont}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${ctaY}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true[vout]`,
+    `[bg][art]overlay=${ART_X}:${ART_Y}[c0]`,
+    // Unified dark overlay on the entire art card for text legibility
+    `[c0]drawbox=x=${ART_X}:y=${ART_Y}:w=${ART_SIZE}:h=${ART_SIZE}:color=black@0.52:t=fill[c1]`,
+    // Hook text — fades in from start
+    `[c1]drawtext=fontfile='${FONT_HEADING}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${hookY}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${hookAlpha}[c2]`,
+    // CTA text — fades in with short delay
+    `[c2]drawtext=fontfile='${ctaFont}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${ctaY}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${ctaAlpha}[vout]`,
   ].join(';');
 
   return new Promise((resolve, reject) => {

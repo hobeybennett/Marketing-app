@@ -397,6 +397,8 @@ export default function CampaignNewForm() {
   const [soundsLike, setSoundsLike] = useState('');
   const [genre, setGenre] = useState('');
 
+  const [dailyBudget, setDailyBudget] = useState(10);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
@@ -500,6 +502,7 @@ export default function CampaignNewForm() {
     const visualConfig = {
       bgMode, blurAmount, bgAnimation, textAnimation, ctaText: activeCta,
       heading: headingStyle, subheading: subheadingStyle, cta: ctaStyle,
+      dailyBudgetUsd: dailyBudget,
     };
     const formData = new FormData();
     formData.set('artistName', artistName);
@@ -937,6 +940,31 @@ export default function CampaignNewForm() {
               </div>
             </>
           )}
+
+          {/* Daily budget */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold">Daily ad budget</p>
+                <p className="text-xs text-gray-500 mt-0.5">Per audience · 3 audiences = up to ${dailyBudget * 3}/day total</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button"
+                  onClick={() => setDailyBudget(b => Math.max(5, b - 5))}
+                  className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 flex items-center justify-center text-base leading-none transition">−</button>
+                <span className="text-white font-semibold tabular-nums w-12 text-center">${dailyBudget}/day</span>
+                <button type="button"
+                  onClick={() => setDailyBudget(b => Math.min(50, b + 5))}
+                  className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 flex items-center justify-center text-base leading-none transition">+</button>
+              </div>
+            </div>
+            <input type="range" min={5} max={50} step={5} value={dailyBudget}
+              onChange={(e) => setDailyBudget(Number(e.target.value))}
+              className="w-full accent-violet-500 h-1.5 cursor-pointer" />
+            <div className="flex justify-between text-xs text-gray-700 mt-1">
+              <span>$5/day</span><span>$50/day</span>
+            </div>
+          </div>
 
           {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 

@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ credited: false, reason: 'not paid' });
   }
 
-  const userId = session.metadata?.userId;
-  if (!userId) return NextResponse.json({ error: 'no userId in metadata' }, { status: 400 });
+  const userId = session.metadata?.userId ?? session.client_reference_id;
+  if (!userId) return NextResponse.json({ error: 'no userId in session' }, { status: 400 });
 
   try {
     await prisma.$transaction([

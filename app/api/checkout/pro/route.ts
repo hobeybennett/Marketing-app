@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+const PRO_PAYMENT_LINK = 'https://buy.stripe.com/4gMbJ23LQ4Uu35vbDx28802';
+
 export async function GET(req: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const session = await getServerSession();
   if (!session?.user?.id) {
     return NextResponse.redirect(new URL('/api/auth/signin', req.url));
   }
 
-  const appUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { stripeCustomerId: true, email: true, subscriptionStatus: true },
+    select: { subscriptionStatus: true, email: true },
   });
 
   // Already subscribed — send to manage portal instead
@@ -23,27 +22,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings', req.url));
   }
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    customer: user?.stripeCustomerId ?? undefined,
-    customer_email: !user?.stripeCustomerId ? (user?.email ?? undefined) : undefined,
-    payment_method_types: ['card'],
-    line_items: [{
-      price_data: {
-        currency: 'aud',
-        product_data: {
-          name: 'Promohit Pro',
-          description: 'Unlimited campaigns every month',
-        },
-        unit_amount: 999,
-        recurring: { interval: 'month' },
-      },
-      quantity: 1,
-    }],
-    mode: 'subscription',
-    success_url: `${appUrl}/campaigns?payment=pro_success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/campaigns?payment=cancelled`,
-    metadata: { userId: session.user.id },
-  });
+  const url = new URL(PRO_PAYMENT_LINK);
+  url.searchParams.set('client_reference_id', session.user.id);
+  if (user?.email) url.searchParams.set('prefilled_email', user.email);
 
-  return NextResponse.redirect(checkoutSession.url!);
+  return NextResponse.redirect(url.toString());
 }

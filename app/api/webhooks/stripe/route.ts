@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   // ── One-time payment or subscription checkout completed ──────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    const userId = session.metadata?.userId;
+    const userId = session.metadata?.userId ?? session.client_reference_id ?? null;
     if (!userId) return NextResponse.json({ received: true });
 
     // Store Stripe customer ID for future checkouts

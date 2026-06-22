@@ -1,12 +1,42 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth';
 
+export const metadata: Metadata = {
+  title: 'Promohit — Automated Music Promotion on Facebook & Instagram',
+  description: 'Paste your Spotify link, upload your audio, and we build and run your Meta ad campaign automatically. AI-written copy, 5 video creatives, smart targeting. First campaign free.',
+  alternates: { canonical: '/' },
+};
+
 export default async function Home() {
   const session = await getServerSession();
   if (session?.user?.id) redirect('/campaigns');
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Promohit',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    description: 'Automated music promotion platform. Paste your Spotify link, upload your audio, and we build and run your Meta ad campaign automatically.',
+    offers: [
+      { '@type': 'Offer', price: '0', priceCurrency: 'AUD', name: 'First campaign free' },
+      { '@type': 'Offer', price: '2.99', priceCurrency: 'AUD', name: 'Single campaign credit' },
+      { '@type': 'Offer', price: '9.99', priceCurrency: 'AUD', priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' }, name: 'Promohit Pro' },
+    ],
+    featureList: [
+      '5 video ad creatives generated automatically',
+      'AI-written ad copy',
+      '3 targeted Meta audiences',
+      'Facebook and Instagram ads',
+      'Real-time performance dashboard',
+      'Smart link page for fans',
+    ],
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <style>{`
         @keyframes ring-expand {
           0%   { transform: scale(1);   opacity: 0.55; }

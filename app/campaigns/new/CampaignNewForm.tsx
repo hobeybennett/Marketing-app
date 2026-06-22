@@ -539,16 +539,27 @@ export default function CampaignNewForm() {
       {/* Paywall modal */}
       {showPaywall && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full text-center">
-            <h2 className="font-display text-xl font-700 mb-2">Unlock Another Campaign</h2>
-            <p className="text-sm text-gray-400 mb-5">
-              Each additional campaign is a one-time payment of $4.99.
-            </p>
-            <a href="/api/checkout" className="btn-primary block w-full px-6 py-3 text-lg mb-3">
-              Get Campaign Credit — $4.99
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 max-w-sm w-full">
+            <h2 className="font-display text-xl font-700 mb-1 text-center">Get more campaigns</h2>
+            <p className="text-sm text-gray-400 mb-6 text-center">You&apos;ve used your free campaign.</p>
+
+            <a href="/api/checkout/pro"
+              className="block w-full mb-3 rounded-xl border border-violet-600 bg-violet-900/30 hover:bg-violet-900/50 transition p-4 text-center">
+              <span className="text-xs font-bold uppercase tracking-widest text-violet-400">Most popular</span>
+              <p className="font-display font-700 text-lg text-white mt-0.5">Promohit Pro</p>
+              <p className="text-2xl font-bold text-violet-300 my-1">$9.99<span className="text-sm font-normal text-gray-400">/month</span></p>
+              <p className="text-sm text-gray-400">Unlimited campaigns, cancel anytime</p>
             </a>
+
+            <a href="/api/checkout"
+              className="block w-full mb-4 rounded-xl border border-gray-700 bg-gray-800/50 hover:bg-gray-800 transition p-4 text-center">
+              <p className="font-semibold text-white">Single Campaign Credit</p>
+              <p className="text-xl font-bold text-gray-200 my-1">$5.00</p>
+              <p className="text-sm text-gray-500">One campaign, no subscription</p>
+            </a>
+
             <button type="button" onClick={() => setShowPaywall(false)}
-              className="text-sm text-gray-500 hover:text-gray-300 transition">
+              className="w-full text-sm text-gray-500 hover:text-gray-300 transition text-center">
               Cancel
             </button>
           </div>

@@ -6,8 +6,39 @@ import SessionProvider from '@/components/SessionProvider';
 import UserNav from '@/components/UserNav';
 
 export const metadata: Metadata = {
-  title: 'Promohit',
-  description: 'Automated music promotion platform',
+  metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://promohit.app'),
+  title: {
+    default: 'Promohit — Automated Music Promotion on Facebook & Instagram',
+    template: '%s | Promohit',
+  },
+  description: 'Promohit turns your track into 5 video ads and launches them on Facebook and Instagram automatically. AI-written copy, smart targeting, real results. First campaign free.',
+  keywords: [
+    'music promotion', 'music marketing', 'Facebook ads for musicians',
+    'Instagram ads for artists', 'promote music online', 'automated music advertising',
+    'Meta ads music', 'indie artist promotion', 'music campaign', 'Spotify promotion',
+  ],
+  authors: [{ name: 'Promohit' }],
+  creator: 'Promohit',
+  openGraph: {
+    type: 'website',
+    locale: 'en_AU',
+    url: '/',
+    siteName: 'Promohit',
+    title: 'Promohit — Automated Music Promotion on Facebook & Instagram',
+    description: 'Turn your track into 5 video ads and launch them on Facebook & Instagram automatically. AI copy, smart targeting, first campaign free.',
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Promohit — Automated Music Promotion' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Promohit — Automated Music Promotion',
+    description: 'Turn your track into 5 video ads and launch them on Facebook & Instagram automatically.',
+    images: ['/og-image.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
+  },
   icons: {
     icon: '/icon.svg',
     apple: '/icon.svg',

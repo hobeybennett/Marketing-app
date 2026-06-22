@@ -24,12 +24,12 @@ export async function GET(req: NextRequest) {
     payment_method_types: ['card'],
     line_items: [{
       price_data: {
-        currency: 'usd',
+        currency: 'aud',
         product_data: {
           name: 'Promohit Campaign Credit',
           description: 'Launch one Meta ad campaign for your music',
         },
-        unit_amount: 500,
+        unit_amount: 299,
       },
       quantity: 1,
     }],

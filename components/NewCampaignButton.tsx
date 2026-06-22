@@ -46,7 +46,7 @@ export default function NewCampaignButton({
                 <span className="text-xs font-bold uppercase tracking-widest text-violet-400">Most popular</span>
               </div>
               <p className="font-display font-700 text-lg text-white">Promohit Pro</p>
-              <p className="text-2xl font-bold text-violet-300 my-1">$9.99<span className="text-sm font-normal text-gray-400">/month</span></p>
+              <p className="text-2xl font-bold text-violet-300 my-1">$9.99 AUD<span className="text-sm font-normal text-gray-400">/month</span></p>
               <p className="text-sm text-gray-400">Unlimited campaigns, cancel anytime</p>
             </a>
 
@@ -54,7 +54,7 @@ export default function NewCampaignButton({
             <a href="/api/checkout"
               className="block w-full mb-4 rounded-xl border border-gray-700 bg-gray-800/50 hover:bg-gray-800 transition p-4 text-center">
               <p className="font-semibold text-white">Single Campaign Credit</p>
-              <p className="text-xl font-bold text-gray-200 my-1">$5.00</p>
+              <p className="text-xl font-bold text-gray-200 my-1">$2.99 AUD</p>
               <p className="text-sm text-gray-500">One campaign, no subscription</p>
             </a>
 

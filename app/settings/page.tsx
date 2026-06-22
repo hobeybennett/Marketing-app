@@ -79,7 +79,7 @@ export default async function SettingsPage({
         </div>
         {isPro ? (
           <>
-            <p className="text-sm text-gray-300 mb-1">Promohit Pro · $9.99/month</p>
+            <p className="text-sm text-gray-300 mb-1">Promohit Pro · $9.99 AUD/month</p>
             <p className="text-xs text-gray-500 mb-4">Unlimited campaigns, renews monthly</p>
             <a href="/api/billing-portal"
               className="inline-flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 px-4 py-2 rounded-lg text-gray-300 transition">
@@ -95,11 +95,11 @@ export default async function SettingsPage({
                 <p className="text-sm text-gray-300">
                   {user?.campaignCredits ?? 0} campaign credit{(user?.campaignCredits ?? 0) !== 1 ? 's' : ''}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">First campaign is free · $5 per additional credit</p>
+                <p className="text-xs text-gray-500 mt-0.5">First campaign is free · $2.99 AUD per additional credit</p>
               </div>
               <a href="/api/checkout/pro"
                 className="text-sm text-violet-400 hover:text-violet-300 transition font-medium whitespace-nowrap ml-4">
-                Go Pro $9.99/mo
+                Go Pro $9.99 AUD/mo
               </a>
             </div>
             {user?.subscriptionId && (

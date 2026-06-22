@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     payment_method_types: ['card'],
     line_items: [{
       price_data: {
-        currency: 'usd',
+        currency: 'aud',
         product_data: {
           name: 'Promohit Pro',
           description: 'Unlimited campaigns every month',

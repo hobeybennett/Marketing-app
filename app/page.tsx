@@ -229,7 +229,7 @@ export default async function Home() {
               ))}
               <li className="flex gap-2.5 text-gray-500">
                 <span className="mt-px">+</span>
-                $5 per additional campaign
+                $2.99 AUD per additional campaign
               </li>
             </ul>
             <Link href="/campaigns/new" className="btn-primary w-full text-sm py-2.5">
@@ -253,7 +253,7 @@ export default async function Home() {
             </div>
             <p className="font-display text-xl font-700 mb-1 mt-2">Pro</p>
             <div className="text-4xl font-bold mb-1">
-              $9.99<span className="text-base font-normal text-gray-400">/mo</span>
+              $9.99 AUD<span className="text-base font-normal text-gray-400">/mo</span>
             </div>
             <p className="text-sm text-gray-500 mb-8">Unlimited campaigns. Cancel anytime.</p>
             <ul className="space-y-2.5 text-sm text-gray-300 mb-8 flex-1">

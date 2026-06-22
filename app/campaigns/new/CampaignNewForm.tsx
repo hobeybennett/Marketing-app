@@ -16,6 +16,18 @@ type BgAnimation = 'none' | 'zoom-in' | 'zoom-out' | 'slow-pan' | 'pulse';
 type TextAnimation = 'none' | 'fade-in' | 'slide-up';
 type TextLayer = 'heading' | 'subheading' | 'cta';
 type Mode = 'quick' | 'custom';
+type ArtMode = 'art' | 'texture';
+
+const TEXTURES = [
+  { id: 'midnight',    label: 'Midnight',     gradient: 'linear-gradient(135deg,#080820,#1a1560)' },
+  { id: 'deep-violet', label: 'Deep Violet',  gradient: 'linear-gradient(135deg,#120818,#3b0d6b)' },
+  { id: 'crimson',     label: 'Crimson',       gradient: 'linear-gradient(135deg,#1a0808,#4a0d1a)' },
+  { id: 'forest',      label: 'Forest',        gradient: 'linear-gradient(135deg,#081208,#0d3318)' },
+  { id: 'steel',       label: 'Steel',         gradient: 'linear-gradient(135deg,#080f1a,#0d1f33)' },
+  { id: 'noir',        label: 'Noir',          gradient: 'linear-gradient(135deg,#080808,#1c1c1c)' },
+  { id: 'golden',      label: 'Golden Hour',   gradient: 'linear-gradient(135deg,#1a1008,#3d2510)' },
+  { id: 'rose',        label: 'Rose Dark',     gradient: 'linear-gradient(135deg,#1a0810,#3d1028)' },
+] as const;
 
 type TextLayerStyle = {
   vAlign: VAlign;
@@ -115,25 +127,33 @@ function generateTestWav(durationSecs = 180): Blob {
 // ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, ctaText, genre,
-  blurAmount, bgAnimation, cta, animKey,
+  bgMode, bgPreview, coverArtUrl, ctaText, genre, artistName,
+  blurAmount, bgAnimation, cta, animKey, artMode, textureId,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  ctaText: string; genre: string;
+  ctaText: string; genre: string; artistName: string;
   blurAmount: number; bgAnimation: BgAnimation;
   cta: TextLayerStyle; animKey: number;
+  artMode: ArtMode; textureId: string;
 }) {
+  const isTexture = artMode === 'texture';
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
 
-  // Mirrors video-gen.ts ART_* layout constants (scaled to %)
-  const ART_PCT   = 860 / 1080; // 79.6%
-  const ART_X_PCT = 110 / 1080; // 10.2%
+  // ART layout constants (scaled to %)
+  const ART_PCT   = 860 / 1080;
+  const ART_X_PCT = 110 / 1080;
   const ART_Y_PCT = 110 / 1080;
   const TEXT_PAD_PCT = 72 / 1080;
 
-  // Hook: genre question when available, else CTA text (never the song title)
-  const hookText = genre.trim() ? `Do you like ${genre}?` : ctaText;
+  // Hook: genre → artist name → null (never duplicate the CTA)
+  const hookText = genre.trim()
+    ? `Do you like ${genre}?`
+    : artistName.trim()
+    ? `Do you like ${artistName}?`
+    : null;
+
+  const selectedTexture = TEXTURES.find(t => t.id === textureId) ?? TEXTURES[0];
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
@@ -146,81 +166,82 @@ function VideoPreview({
         @keyframes ph-fadein-delay   { 0%,40% { opacity: 0; } 100% { opacity: 1; } }
       `}</style>
 
-      {/* Blurred background */}
-      {bgSrc && !isUploadedVideo && (
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-          <img key={animKey} src={bgSrc} alt="" style={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            filter: `blur(${blurAmount}px)`,
-            transform: bgAnimation === 'none' ? 'scale(1.1)' : undefined,
-            animation: BG_ANIM_CSS[bgAnimation] || undefined,
-            willChange: 'transform',
-          }} />
-        </div>
+      {/* ── Texture mode ── */}
+      {isTexture && (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: selectedTexture.gradient }} />
+          {/* vignette */}
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.6) 100%)' }} />
+          {/* hook */}
+          {hookText && (
+            <div style={{ position: 'absolute', top: '18%', left: '8%', right: '8%', animation: 'ph-fadein 0.5s ease forwards' }}>
+              <p style={{ color: '#fff', fontWeight: 800, fontSize: 'clamp(11px,4.8vw,32px)', textAlign: 'center', margin: 0, lineHeight: 1.2, textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{hookText}</p>
+            </div>
+          )}
+          {/* cover art small thumbnail, centred */}
+          {coverArtUrl && (
+            <div style={{ position: 'absolute', top: '32%', left: '50%', transform: 'translateX(-50%)', width: '36%', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+              <img src={coverArtUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          )}
+          {/* CTA */}
+          <div style={{ position: 'absolute', bottom: '14%', left: '8%', right: '8%', animation: 'ph-fadein-delay 0.8s ease forwards' }}>
+            <p style={{ color: cta.fontColor ?? '#fff', fontWeight: 700, fontSize: 'clamp(9px,3.6vw,24px)', textAlign: 'center', margin: 0, letterSpacing: '0.08em', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>{ctaText}</p>
+          </div>
+        </>
       )}
-      {isUploadedVideo && bgPreview && (
-        <video key={animKey} src={bgPreview} style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-          filter: blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
-          animation: BG_ANIM_CSS[bgAnimation] || undefined,
-        }} autoPlay muted loop playsInline />
+
+      {/* ── Art foreground mode ── */}
+      {!isTexture && (
+        <>
+          {bgSrc && !isUploadedVideo && (
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+              <img key={animKey} src={bgSrc} alt="" style={{
+                width: '100%', height: '100%', objectFit: 'cover',
+                filter: `blur(${blurAmount}px)`,
+                transform: bgAnimation === 'none' ? 'scale(1.1)' : undefined,
+                animation: BG_ANIM_CSS[bgAnimation] || undefined,
+                willChange: 'transform',
+              }} />
+            </div>
+          )}
+          {isUploadedVideo && bgPreview && (
+            <video key={animKey} src={bgPreview} style={{
+              position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+              filter: blurAmount > 0 ? `blur(${blurAmount}px)` : undefined,
+              animation: BG_ANIM_CSS[bgAnimation] || undefined,
+            }} autoPlay muted loop playsInline />
+          )}
+          {!bgSrc && (
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)' }} />
+          )}
+
+          {/* Cover art — large, centred */}
+          <div style={{
+            position: 'absolute',
+            top: `${ART_Y_PCT * 100}%`, left: `${ART_X_PCT * 100}%`,
+            width: `${ART_PCT * 100}%`, height: `${ART_PCT * 100}%`,
+          }}>
+            {coverArtUrl
+              ? <img key={`art-${animKey}`} src={coverArtUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <div style={{ width: '100%', height: '100%', background: '#1f2937' }} />
+            }
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,0.65) 0%,rgba(0,0,0,0.28) 40%,rgba(0,0,0,0.28) 60%,rgba(0,0,0,0.65) 100%)' }} />
+
+            {/* Hook — top of art */}
+            {hookText && (
+              <div style={{ position: 'absolute', top: `${TEXT_PAD_PCT / ART_PCT * 100}%`, left: '7%', right: '7%', animation: 'ph-fadein 0.5s ease forwards' }}>
+                <p style={{ color: '#fff', fontWeight: 800, fontSize: 'clamp(10px,4.2vw,28px)', fontFamily: FONT_FAMILY_CSS['sans'], textAlign: 'center', margin: 0, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>{hookText}</p>
+              </div>
+            )}
+
+            {/* CTA — bottom of art */}
+            <div style={{ position: 'absolute', bottom: `${TEXT_PAD_PCT / ART_PCT * 100}%`, left: '7%', right: '7%', animation: 'ph-fadein-delay 0.8s ease forwards' }}>
+              <p style={{ color: cta.fontColor ?? '#fff', fontWeight: 700, fontSize: 'clamp(9px,3.4vw,22px)', fontFamily: FONT_FAMILY_CSS[cta.fontFamily], textAlign: 'center', margin: 0, letterSpacing: '0.06em', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>{ctaText}</p>
+            </div>
+          </div>
+        </>
       )}
-      {!bgSrc && (
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }} />
-      )}
-
-      {/* Cover art — large, centred */}
-      <div style={{
-        position: 'absolute',
-        top: `${ART_Y_PCT * 100}%`,
-        left: `${ART_X_PCT * 100}%`,
-        width: `${ART_PCT * 100}%`,
-        height: `${ART_PCT * 100}%`,
-      }}>
-        {coverArtUrl && (
-          <img key={`art-${animKey}`} src={coverArtUrl} alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        )}
-        {!coverArtUrl && (
-          <div style={{ width: '100%', height: '100%', background: '#1f2937' }} />
-        )}
-
-        {/* Dark overlay on art for text legibility */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'rgba(0,0,0,0.52)',
-        }} />
-
-        {/* Hook text — top of art, fades in */}
-        <div style={{
-          position: 'absolute', top: `${TEXT_PAD_PCT / ART_PCT * 100}%`,
-          left: '7%', right: '7%',
-          animation: `ph-fadein 0.5s ease forwards`,
-        }}>
-          <p style={{
-            color: '#FFFFFF', fontWeight: 800,
-            fontSize: 'clamp(10px, 4.2vw, 28px)',
-            fontFamily: FONT_FAMILY_CSS['sans'],
-            textAlign: 'center', margin: 0, lineHeight: 1.2,
-            textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-          }}>{hookText}</p>
-        </div>
-
-        {/* CTA text — bottom of art, fades in with delay */}
-        <div style={{
-          position: 'absolute', bottom: `${TEXT_PAD_PCT / ART_PCT * 100}%`,
-          left: '7%', right: '7%',
-          animation: `ph-fadein-delay 0.8s ease forwards`,
-        }}>
-          <p style={{
-            color: cta.fontColor ?? '#FFFFFF', fontWeight: 700,
-            fontSize: 'clamp(9px, 3.4vw, 22px)',
-            fontFamily: FONT_FAMILY_CSS[cta.fontFamily],
-            textAlign: 'center', margin: 0, letterSpacing: '0.06em',
-            textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-          }}>{ctaText}</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -398,6 +419,8 @@ export default function CampaignNewForm() {
   const [genre, setGenre] = useState('');
 
   const [dailyBudget, setDailyBudget] = useState(10);
+  const [artMode, setArtMode] = useState<ArtMode>('art');
+  const [backgroundTexture, setBackgroundTexture] = useState('midnight');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -427,6 +450,8 @@ export default function CampaignNewForm() {
     setHeadingStyle(DEFAULT_HEADING); setSubheadingStyle(DEFAULT_SUBHEADING); setCtaStyle(DEFAULT_CTA);
     setClips(initClips(dur));
     setExpanded(new Set());
+    setArtMode('art');
+    setBackgroundTexture('midnight');
     replayAnim();
   }
 
@@ -503,6 +528,8 @@ export default function CampaignNewForm() {
       bgMode, blurAmount, bgAnimation, textAnimation, ctaText: activeCta,
       heading: headingStyle, subheading: subheadingStyle, cta: ctaStyle,
       dailyBudgetUsd: dailyBudget,
+      artMode,
+      backgroundTexture: artMode === 'texture' ? backgroundTexture : undefined,
     };
     const formData = new FormData();
     formData.set('artistName', artistName);
@@ -723,15 +750,47 @@ export default function CampaignNewForm() {
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
-              ctaText={activeCta} genre={genre}
+              ctaText={activeCta} genre={genre} artistName={artistName}
               blurAmount={blurAmount} bgAnimation={bgAnimation} cta={ctaStyle}
-              animKey={animKey}
+              animKey={animKey} artMode={artMode} textureId={backgroundTexture}
             />
           </div>
           <button type="button" onClick={replayAnim}
-            className="w-full text-xs text-gray-500 hover:text-gray-300 py-2 mb-4 transition">
+            className="w-full text-xs text-gray-500 hover:text-gray-300 py-2 mb-3 transition">
             Replay animation
           </button>
+
+          {/* ── Art mode toggle + texture picker ────────────────────────── */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Visual style</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button type="button"
+                onClick={() => { setArtMode('art'); replayAnim(); }}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition ${artMode === 'art' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                Album Art
+              </button>
+              <button type="button"
+                onClick={() => { setArtMode('texture'); replayAnim(); }}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition ${artMode === 'texture' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                Texture
+              </button>
+            </div>
+            {artMode === 'texture' && (
+              <div className="grid grid-cols-4 gap-2">
+                {TEXTURES.map(t => (
+                  <button key={t.id} type="button"
+                    onClick={() => { setBackgroundTexture(t.id); replayAnim(); }}
+                    title={t.label}
+                    className={`relative rounded-lg overflow-hidden border-2 transition ${backgroundTexture === t.id ? 'border-violet-400' : 'border-transparent hover:border-gray-500'}`}
+                    style={{ aspectRatio: '1', background: t.gradient }}>
+                    <span className="absolute bottom-0 left-0 right-0 text-center text-white text-[9px] font-semibold py-1 bg-gradient-to-t from-black/70 to-transparent">
+                      {t.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* ── Quick Launch summary ────────────────────────────────────── */}
           {mode === 'quick' && (

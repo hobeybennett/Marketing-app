@@ -135,7 +135,7 @@ export async function runMetaSetup(campaignId: string) {
       optimization_goal: 'LINK_CLICKS',
       bid_amount: 200,
       bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
-      daily_budget: ((campaign.visualConfig as any)?.dailyBudgetUsd ?? 10) * 100,
+      daily_budget: Math.round(((campaign.visualConfig as any)?.dailyBudgetUsd ?? 10) / 3 * 100),
       targeting: buildTargeting(audience),
       status: 'PAUSED',
     });

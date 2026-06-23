@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -16,7 +17,7 @@ type BgAnimation = 'none' | 'zoom-in' | 'zoom-out' | 'slow-pan' | 'pulse';
 type TextAnimation = 'none' | 'fade-in' | 'slide-up';
 type TextLayer = 'heading' | 'subheading' | 'cta';
 type Mode = 'quick' | 'custom';
-type ArtMode = 'art' | 'texture';
+type ArtMode = 'art' | 'color' | 'pattern';
 
 const TEXTURES = [
   { id: 'midnight',    label: 'Midnight',     gradient: 'linear-gradient(135deg,#080820,#1a1560)' },
@@ -27,6 +28,17 @@ const TEXTURES = [
   { id: 'noir',        label: 'Noir',          gradient: 'linear-gradient(135deg,#080808,#1c1c1c)' },
   { id: 'golden',      label: 'Golden Hour',   gradient: 'linear-gradient(135deg,#1a1008,#3d2510)' },
   { id: 'rose',        label: 'Rose Dark',     gradient: 'linear-gradient(135deg,#1a0810,#3d1028)' },
+] as const;
+
+const PATTERNS = [
+  { id: 'lines',      label: 'Lines',      bg: '#08080d', style: { backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,.15) 0,rgba(255,255,255,.15) 1.5px,transparent 0,transparent 100%)', backgroundSize: '15px 15px' } },
+  { id: 'crosshatch', label: 'Crosshatch', bg: '#080808', style: { backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,.10) 0,rgba(255,255,255,.10) 1px,transparent 0,transparent 100%),repeating-linear-gradient(-45deg,rgba(255,255,255,.10) 0,rgba(255,255,255,.10) 1px,transparent 0,transparent 100%)', backgroundSize: '18px 18px' } },
+  { id: 'dots',       label: 'Dots',       bg: '#09101a', style: { backgroundImage: 'radial-gradient(rgba(255,255,255,.22) 2px,transparent 2px)', backgroundSize: '20px 20px' } },
+  { id: 'waves',      label: 'Waves',      bg: '#080e0e', style: { backgroundImage: 'repeating-linear-gradient(0deg,rgba(255,255,255,.11) 0,rgba(255,255,255,.11) 1px,transparent 0,transparent 24px)', backgroundSize: '100% 24px' } },
+  { id: 'stars',      label: 'Stars',      bg: '#050510', style: { backgroundImage: 'radial-gradient(rgba(255,255,255,.32) 1.5px,transparent 1.5px),radial-gradient(rgba(255,255,255,.14) 1px,transparent 1px)', backgroundSize: '32px 32px,16px 16px', backgroundPosition: '0 0,8px 8px' } },
+  { id: 'grain',      label: 'Grain',      bg: '#090909', style: { backgroundImage: 'radial-gradient(rgba(255,255,255,.12) 0.5px,transparent 0.5px)', backgroundSize: '4px 4px' } },
+  { id: 'scratched',  label: 'Scratched',  bg: '#08080c', style: { backgroundImage: 'repeating-linear-gradient(90deg,rgba(255,255,255,.08) 0,rgba(255,255,255,.08) 1px,transparent 0,transparent 9px)', backgroundSize: '9px 100%' } },
+  { id: 'mesh',       label: 'Mesh',       bg: '#0e0a14', style: { backgroundImage: 'linear-gradient(rgba(255,255,255,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.10) 1px,transparent 1px)', backgroundSize: '22px 22px' } },
 ] as const;
 
 type TextLayerStyle = {
@@ -127,33 +139,31 @@ function generateTestWav(durationSecs = 180): Blob {
 // ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, ctaText, genre, artistName,
-  blurAmount, bgAnimation, cta, animKey, artMode, textureId,
+  bgMode, bgPreview, coverArtUrl, ctaText, hookText, artistName,
+  blurAmount, bgAnimation, cta, animKey, artMode, textureId, patternId, showAlbumArt,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  ctaText: string; genre: string; artistName: string;
+  ctaText: string; hookText: string; artistName: string;
   blurAmount: number; bgAnimation: BgAnimation;
   cta: TextLayerStyle; animKey: number;
-  artMode: ArtMode; textureId: string;
+  artMode: ArtMode; textureId: string; patternId: string; showAlbumArt: boolean;
 }) {
-  const isTexture = artMode === 'texture';
+  const isOverlay = artMode !== 'art';
   const bgSrc = bgMode === 'generate' ? coverArtUrl : bgPreview;
   const isUploadedVideo = bgMode === 'upload' && !!bgPreview?.startsWith('blob');
 
-  // ART layout constants (scaled to %)
   const ART_PCT   = 860 / 1080;
   const ART_X_PCT = 110 / 1080;
   const ART_Y_PCT = 110 / 1080;
   const TEXT_PAD_PCT = 72 / 1080;
 
-  // Hook: genre → artist name → null (never duplicate the CTA)
-  const hookText = genre.trim()
-    ? `Do you like ${genre}?`
-    : artistName.trim()
-    ? `Do you like ${artistName}?`
-    : null;
-
   const selectedTexture = TEXTURES.find(t => t.id === textureId) ?? TEXTURES[0];
+  const selectedPattern = PATTERNS.find(p => p.id === patternId) ?? PATTERNS[0];
+
+  // Background style for overlay modes
+  const overlayBgStyle: React.CSSProperties = artMode === 'color'
+    ? { background: selectedTexture.gradient }
+    : { background: selectedPattern.bg, ...selectedPattern.style };
 
   return (
     <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-900 select-none">
@@ -166,33 +176,37 @@ function VideoPreview({
         @keyframes ph-fadein-delay   { 0%,40% { opacity: 0; } 100% { opacity: 1; } }
       `}</style>
 
-      {/* ── Texture mode ── */}
-      {isTexture && (
+      {/* ── Overlay mode (colour or pattern) ── */}
+      {isOverlay && (
         <>
-          <div style={{ position: 'absolute', inset: 0, background: selectedTexture.gradient }} />
+          <div style={{ position: 'absolute', inset: 0, ...overlayBgStyle }} />
           {/* vignette */}
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.6) 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center,transparent 38%,rgba(0,0,0,0.65) 100%)' }} />
           {/* hook */}
           {hookText && (
-            <div style={{ position: 'absolute', top: '18%', left: '8%', right: '8%', animation: 'ph-fadein 0.5s ease forwards' }}>
-              <p style={{ color: '#fff', fontWeight: 800, fontSize: 'clamp(11px,4.8vw,32px)', textAlign: 'center', margin: 0, lineHeight: 1.2, textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>{hookText}</p>
+            <div style={{ position: 'absolute', top: '14%', left: '8%', right: '8%', animation: 'ph-fadein 0.5s ease forwards' }}>
+              <p style={{ color: '#fff', fontWeight: 800, fontSize: 'clamp(11px,4.8vw,32px)', textAlign: 'center', margin: 0, lineHeight: 1.2, textShadow: '0 2px 14px rgba(0,0,0,0.95)' }}>{hookText}</p>
             </div>
           )}
-          {/* cover art small thumbnail, centred */}
-          {coverArtUrl && (
-            <div style={{ position: 'absolute', top: '32%', left: '50%', transform: 'translateX(-50%)', width: '36%', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+          {/* Album art thumbnail OR artist name text */}
+          {showAlbumArt && coverArtUrl ? (
+            <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)', width: '36%', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', animation: 'ph-fadein 0.6s ease forwards' }}>
               <img src={coverArtUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          ) : !showAlbumArt && artistName && (
+            <div style={{ position: 'absolute', top: '50%', left: '8%', right: '8%', transform: 'translateY(-50%)', animation: 'ph-fadein 0.7s ease forwards' }}>
+              <p style={{ color: '#fff', fontWeight: 700, fontSize: 'clamp(12px,5.5vw,36px)', textAlign: 'center', margin: 0, lineHeight: 1.2, textShadow: '0 2px 14px rgba(0,0,0,0.95)', letterSpacing: '-0.01em' }}>{artistName}</p>
             </div>
           )}
           {/* CTA */}
-          <div style={{ position: 'absolute', bottom: '14%', left: '8%', right: '8%', animation: 'ph-fadein-delay 0.8s ease forwards' }}>
+          <div style={{ position: 'absolute', bottom: '12%', left: '8%', right: '8%', animation: 'ph-fadein-delay 0.8s ease forwards' }}>
             <p style={{ color: cta.fontColor ?? '#fff', fontWeight: 700, fontSize: 'clamp(9px,3.6vw,24px)', textAlign: 'center', margin: 0, letterSpacing: '0.08em', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>{ctaText}</p>
           </div>
         </>
       )}
 
       {/* ── Art foreground mode ── */}
-      {!isTexture && (
+      {!isOverlay && (
         <>
           {bgSrc && !isUploadedVideo && (
             <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
@@ -378,6 +392,8 @@ function TextLayerEditor({ style, onChange }: {
 
 export default function CampaignNewForm() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.email === 'hobeybennett@gmail.com';
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
@@ -417,10 +433,13 @@ export default function CampaignNewForm() {
 
   const [soundsLike, setSoundsLike] = useState('');
   const [genre, setGenre] = useState('');
+  const [hookText, setHookText] = useState('Wanna hear something great?');
 
   const [dailyBudget, setDailyBudget] = useState(10);
   const [artMode, setArtMode] = useState<ArtMode>('art');
   const [backgroundTexture, setBackgroundTexture] = useState('midnight');
+  const [backgroundPattern, setBackgroundPattern] = useState('lines');
+  const [showAlbumArt, setShowAlbumArt] = useState(true);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -452,6 +471,9 @@ export default function CampaignNewForm() {
     setExpanded(new Set());
     setArtMode('art');
     setBackgroundTexture('midnight');
+    setBackgroundPattern('lines');
+    setShowAlbumArt(true);
+    setHookText('Wanna hear something great?');
     replayAnim();
   }
 
@@ -529,7 +551,10 @@ export default function CampaignNewForm() {
       heading: headingStyle, subheading: subheadingStyle, cta: ctaStyle,
       dailyBudgetUsd: dailyBudget,
       artMode,
-      backgroundTexture: artMode === 'texture' ? backgroundTexture : undefined,
+      backgroundTexture: artMode === 'color' ? backgroundTexture : undefined,
+      backgroundPattern: artMode === 'pattern' ? backgroundPattern : undefined,
+      showAlbumArt: artMode !== 'art' ? showAlbumArt : undefined,
+      hookText: hookText.trim() || undefined,
     };
     const formData = new FormData();
     formData.set('artistName', artistName);
@@ -596,10 +621,12 @@ export default function CampaignNewForm() {
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-4">
         <h1 className="font-display text-2xl font-700">New Campaign</h1>
-        <button type="button" onClick={useTestData}
-          className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
-          Use test data
-        </button>
+        {isAdmin && (
+          <button type="button" onClick={useTestData}
+            className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
+            Use test data
+          </button>
+        )}
       </div>
 
       {/* ── Mode picker ─────────────────────────────────────────────────── */}
@@ -750,9 +777,10 @@ export default function CampaignNewForm() {
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
-              ctaText={activeCta} genre={genre} artistName={artistName}
+              ctaText={activeCta} hookText={hookText} artistName={artistName}
               blurAmount={blurAmount} bgAnimation={bgAnimation} cta={ctaStyle}
               animKey={animKey} artMode={artMode} textureId={backgroundTexture}
+              patternId={backgroundPattern} showAlbumArt={showAlbumArt}
             />
           </div>
           <button type="button" onClick={replayAnim}
@@ -760,34 +788,64 @@ export default function CampaignNewForm() {
             Replay animation
           </button>
 
-          {/* ── Art mode toggle + texture picker ────────────────────────── */}
+          {/* ── Visual style ─────────────────────────────────────────────── */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Visual style</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <button type="button"
-                onClick={() => { setArtMode('art'); replayAnim(); }}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition ${artMode === 'art' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                Album Art
-              </button>
-              <button type="button"
-                onClick={() => { setArtMode('texture'); replayAnim(); }}
-                className={`py-2.5 rounded-lg text-sm font-medium border transition ${artMode === 'texture' ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                Texture
-              </button>
+
+            {/* 3-way mode picker */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {(['art', 'color', 'pattern'] as ArtMode[]).map(m => (
+                <button key={m} type="button"
+                  onClick={() => { setArtMode(m); replayAnim(); }}
+                  className={`py-2 rounded-lg text-sm font-medium border transition ${artMode === m ? 'bg-violet-600 border-violet-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                  {m === 'art' ? 'Album Art' : m === 'color' ? 'Colour' : 'Pattern'}
+                </button>
+              ))}
             </div>
-            {artMode === 'texture' && (
-              <div className="grid grid-cols-4 gap-2">
+
+            {/* Colour swatches */}
+            {artMode === 'color' && (
+              <div className="grid grid-cols-4 gap-2 mb-3">
                 {TEXTURES.map(t => (
                   <button key={t.id} type="button"
                     onClick={() => { setBackgroundTexture(t.id); replayAnim(); }}
                     title={t.label}
                     className={`relative rounded-lg overflow-hidden border-2 transition ${backgroundTexture === t.id ? 'border-violet-400' : 'border-transparent hover:border-gray-500'}`}
                     style={{ aspectRatio: '1', background: t.gradient }}>
-                    <span className="absolute bottom-0 left-0 right-0 text-center text-white text-[9px] font-semibold py-1 bg-gradient-to-t from-black/70 to-transparent">
-                      {t.label}
-                    </span>
+                    <span className="absolute bottom-0 left-0 right-0 text-center text-white text-[9px] font-semibold py-1 bg-gradient-to-t from-black/70 to-transparent">{t.label}</span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* Pattern swatches */}
+            {artMode === 'pattern' && (
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {PATTERNS.map(p => (
+                  <button key={p.id} type="button"
+                    onClick={() => { setBackgroundPattern(p.id); replayAnim(); }}
+                    title={p.label}
+                    className={`relative rounded-lg overflow-hidden border-2 transition ${backgroundPattern === p.id ? 'border-violet-400' : 'border-transparent hover:border-gray-500'}`}
+                    style={{ aspectRatio: '1', background: p.bg, ...p.style }}>
+                    <span className="absolute bottom-0 left-0 right-0 text-center text-white text-[9px] font-semibold py-1 bg-gradient-to-t from-black/60 to-transparent">{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Album art thumbnail toggle (colour + pattern modes) */}
+            {artMode !== 'art' && (
+              <div className="flex items-center justify-between pt-3 border-t border-gray-800">
+                <div>
+                  <p className="text-xs text-gray-300 font-medium">Show album art</p>
+                  <p className="text-[10px] text-gray-600 mt-0.5">Off = colour/pattern + text only</p>
+                </div>
+                <button type="button"
+                  onClick={() => { setShowAlbumArt(v => !v); replayAnim(); }}
+                  className={`w-10 h-5.5 rounded-full transition-colors relative flex-shrink-0 ${showAlbumArt ? 'bg-violet-600' : 'bg-gray-700'}`}
+                  style={{ width: 40, height: 22 }}>
+                  <div className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-all duration-200 ${showAlbumArt ? 'left-[20px]' : 'left-[3px]'}`} />
+                </button>
               </div>
             )}
           </div>
@@ -907,63 +965,32 @@ export default function CampaignNewForm() {
 
               {/* Text */}
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
-                <SectionHeader
-                  title="Text"
-                  expanded={expanded.has('text')}
-                  onRecommend={() => {
-                    setCtaText('Listen Now'); setCustomCta('');
-                    setHeadingStyle(DEFAULT_HEADING); setSubheadingStyle(DEFAULT_SUBHEADING); setCtaStyle(DEFAULT_CTA);
-                    closeSection('text');
-                  }}
-                  onCustomise={() => openSection('text')}
-                />
-                {!expanded.has('text') ? (
-                  <p className="text-xs text-gray-500">Song title + artist · White · &quot;Listen Now&quot; CTA</p>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Artist</label>
-                        <input value={artistName} onChange={(e) => setArtistName(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Title</label>
-                        <input value={songTitle} onChange={(e) => setSongTitle(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Call to action</p>
-                      <div className="flex flex-wrap gap-2">
-                        {CTA_OPTIONS.map(opt => (
-                          <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
-                        ))}
-                        <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
-                      </div>
-                      {ctaText === 'custom' && (
-                        <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
-                          placeholder="Enter CTA…"
-                          className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      )}
-                    </div>
-
-                    <div className="border-t border-gray-800 pt-4">
-                      <p className="text-xs text-gray-500 mb-2">Style</p>
-                      <div className="grid grid-cols-3 gap-2 mb-4">
-                        {(['heading', 'subheading', 'cta'] as TextLayer[]).map(layer => (
-                          <button key={layer} type="button" onClick={() => setSelectedLayer(layer)}
-                            className={`py-2 rounded-lg text-xs font-medium border transition
-                              ${selectedLayer === layer ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                            {layer === 'heading' ? 'Heading' : layer === 'subheading' ? 'Subheading' : 'CTA'}
-                          </button>
-                        ))}
-                      </div>
-                      <TextLayerEditor style={currentLayerStyle} onChange={(patch) => updateLayer(selectedLayer, patch)} />
-                    </div>
+                <p className="text-sm font-semibold mb-3">Text</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Top text</label>
+                    <input
+                      value={hookText}
+                      onChange={(e) => setHookText(e.target.value)}
+                      placeholder="Wanna hear something great?"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500 placeholder-gray-600"
+                    />
                   </div>
-                )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Call to action</p>
+                    <div className="flex flex-wrap gap-2">
+                      {CTA_OPTIONS.map(opt => (
+                        <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
+                      ))}
+                      <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
+                    </div>
+                    {ctaText === 'custom' && (
+                      <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
+                        placeholder="Enter CTA…"
+                        className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" />
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Clips */}
@@ -1016,23 +1043,23 @@ export default function CampaignNewForm() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-sm font-semibold">Daily ad budget</p>
-                <p className="text-xs text-gray-500 mt-0.5">Per audience · 3 audiences = up to ${dailyBudget * 3}/day total</p>
+                <p className="text-xs text-gray-500 mt-0.5">Total per day across all 3 audiences</p>
               </div>
               <div className="flex items-center gap-2">
                 <button type="button"
                   onClick={() => setDailyBudget(b => Math.max(5, b - 5))}
                   className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 flex items-center justify-center text-base leading-none transition">−</button>
-                <span className="text-white font-semibold tabular-nums w-12 text-center">${dailyBudget}/day</span>
+                <span className="text-white font-semibold tabular-nums w-16 text-center">${dailyBudget}/day</span>
                 <button type="button"
-                  onClick={() => setDailyBudget(b => Math.min(50, b + 5))}
+                  onClick={() => setDailyBudget(b => Math.min(150, b + 5))}
                   className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 flex items-center justify-center text-base leading-none transition">+</button>
               </div>
             </div>
-            <input type="range" min={5} max={50} step={5} value={dailyBudget}
+            <input type="range" min={5} max={150} step={5} value={dailyBudget}
               onChange={(e) => setDailyBudget(Number(e.target.value))}
               className="w-full accent-violet-500 h-1.5 cursor-pointer" />
             <div className="flex justify-between text-xs text-gray-700 mt-1">
-              <span>$5/day</span><span>$50/day</span>
+              <span>$5/day</span><span>$150/day</span>
             </div>
           </div>
 

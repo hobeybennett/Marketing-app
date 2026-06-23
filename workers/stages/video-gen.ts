@@ -26,8 +26,11 @@ interface VisualConfig {
   subheading?: ElementStyle;
   cta?: ElementStyle;
   dailyBudgetUsd?: number;
-  artMode?: 'art' | 'texture';
+  hookText?: string;
+  artMode?: 'art' | 'color' | 'texture' | 'pattern';
   backgroundTexture?: string;
+  backgroundPattern?: string;
+  showAlbumArt?: boolean;
 }
 
 const W = 1080;
@@ -265,18 +268,18 @@ function generateTextureVideo(opts: {
   ctaText: string;
   genre?: string;
   artistName?: string;
+  showAlbumArt: boolean;
   visualConfig: VisualConfig | null;
   presetIndex: number;
 }): Promise<void> {
-  const { texturePath, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
+  const { texturePath, coverArtPath, audio, output, ctaText, genre, artistName, showAlbumArt, visualConfig, presetIndex } = opts;
   const vc = visualConfig ?? {};
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  const hookText = genre ? `Do you like ${genre}?`
-    : artistName ? `Do you like ${artistName}?`
-    : ctaText;
+  const hookText = vc.hookText?.trim()
+    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : null);
 
-  const hookFontSize = dynamicFontSize(hookText, 76);
+  const hookFontSize = hookText ? dynamicFontSize(hookText, 76) : 76;
   const ctaFontSize = dynamicFontSize(ctaText, 54);
   const ctaStyle = vc.cta ?? {};
   const ctaColor = toFFColor(ctaStyle.fontColor ?? '#FFFFFF');
@@ -284,43 +287,71 @@ function generateTextureVideo(opts: {
   const THUMB = 390;
   const THUMB_X = Math.round((W - THUMB) / 2);
   const THUMB_Y = 325;
-  const HOOK_Y = 155;
+  const HOOK_Y = 145;
   const CTA_Y = THUMB_Y + THUMB + 55;
 
-  const fc = [
-    `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,zoompan=z='min(1+0.00012*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
-    `[bg]drawbox=x=0:y=0:w=${W}:h=${THUMB_Y - 30}:color=black@0.55:t=fill[c0]`,
-    `[c0]drawbox=x=0:y=${THUMB_Y + THUMB + 30}:w=${W}:h=${H}:color=black@0.55:t=fill[c1]`,
-    `[1:v]scale=${THUMB}:${THUMB}:force_original_aspect_ratio=decrease,pad=${THUMB}:${THUMB}:(ow-iw)/2:(oh-ih)/2:black[art]`,
-    `[c1][art]overlay=${THUMB_X}:${THUMB_Y}[c2]`,
-    `[c2]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c3]`,
-    `[c3]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
-  ].join(';');
+  const bgFilter = `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,zoompan=z='min(1+0.00012*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`;
 
-  return new Promise((resolve, reject) => {
-    ffmpeg()
-      .input(texturePath).inputOptions(['-stream_loop', '-1'])
-      .input(coverArtPath).inputOptions(['-stream_loop', '-1'])
-      .input(audio)
-      .outputOptions([
-        '-filter_complex', fc,
-        '-map', '[vout]',
-        '-map', '2:a',
-        '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '20',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-shortest',
-        '-pix_fmt', 'yuv420p',
-        '-r', '30',
-        '-movflags', '+faststart',
-      ])
-      .output(output)
-      .on('end', () => resolve())
-      .on('error', reject)
-      .run();
-  });
+  if (showAlbumArt) {
+    // Layout: bg + dark bands + thumbnail + hook + CTA (3 inputs)
+    const filters = [
+      bgFilter,
+      `[bg]drawbox=x=0:y=0:w=${W}:h=${THUMB_Y - 30}:color=black@0.55:t=fill[c0]`,
+      `[c0]drawbox=x=0:y=${THUMB_Y + THUMB + 30}:w=${W}:h=${H}:color=black@0.55:t=fill[c1]`,
+      `[1:v]scale=${THUMB}:${THUMB}:force_original_aspect_ratio=decrease,pad=${THUMB}:${THUMB}:(ow-iw)/2:(oh-ih)/2:black[art]`,
+      `[c1][art]overlay=${THUMB_X}:${THUMB_Y}[c2]`,
+    ];
+    if (hookText) {
+      filters.push(`[c2]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c3]`);
+    } else {
+      filters.push(`[c2]copy[c3]`);
+    }
+    filters.push(`[c3]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(texturePath).inputOptions(['-stream_loop', '-1'])
+        .input(coverArtPath).inputOptions(['-stream_loop', '-1'])
+        .input(audio)
+        .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k',
+          '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
+        .output(output).on('end', () => resolve()).on('error', reject).run();
+    });
+  } else {
+    // No art — bg + dark overlay top+bottom + hook + artist name center + CTA (2 inputs)
+    const artistFontSize = dynamicFontSize(artistName ?? 'Artist', 92);
+    const CENTER_Y = Math.round(H / 2 - artistFontSize / 2);
+    const HOOK_Y2 = 155;
+    const CTA_Y2 = H - 190;
+
+    const filters = [
+      bgFilter,
+      `[bg]drawbox=x=0:y=0:w=${W}:h=220:color=black@0.50:t=fill[c0]`,
+      `[c0]drawbox=x=0:y=${H - 220}:w=${W}:h=220:color=black@0.50:t=fill[c1]`,
+    ];
+    if (hookText) {
+      filters.push(`[c1]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${HOOK_Y2}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c2]`);
+    } else {
+      filters.push(`[c1]copy[c2]`);
+    }
+    if (artistName) {
+      filters.push(`[c2]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(artistName)}':fontsize=${artistFontSize}:fontcolor=0xFFFFFF@0.95:x=(w-text_w)/2:y=${CENTER_Y}:shadowcolor=black@0.9:shadowx=4:shadowy=4:fix_bounds=true[c3]`);
+    } else {
+      filters.push(`[c2]copy[c3]`);
+    }
+    filters.push(`[c3]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${CTA_Y2}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(texturePath).inputOptions(['-stream_loop', '-1'])
+        .input(audio)
+        .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k',
+          '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
+        .output(output).on('end', () => resolve()).on('error', reject).run();
+    });
+  }
 }
 
 function generateVideo(opts: {
@@ -337,22 +368,29 @@ function generateVideo(opts: {
   const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
   const vc = visualConfig ?? {};
 
-  if (vc.artMode === 'texture') {
-    const textureId = vc.backgroundTexture ?? 'midnight';
-    const texturePath = path.join(ASSETS_DIR, 'textures', `${textureId}.png`);
-    const fallback = path.join(ASSETS_DIR, 'textures', 'midnight.png');
+  const isOverlayMode = vc.artMode === 'color' || vc.artMode === 'texture' || vc.artMode === 'pattern';
+  if (isOverlayMode) {
+    let bgPath: string;
+    if (vc.artMode === 'pattern') {
+      const id = vc.backgroundPattern ?? 'lines';
+      const p = path.join(ASSETS_DIR, 'patterns', `${id}.png`);
+      bgPath = fs.existsSync(p) ? p : path.join(ASSETS_DIR, 'patterns', 'lines.png');
+    } else {
+      const id = vc.backgroundTexture ?? 'midnight';
+      const p = path.join(ASSETS_DIR, 'textures', `${id}.png`);
+      bgPath = fs.existsSync(p) ? p : path.join(ASSETS_DIR, 'textures', 'midnight.png');
+    }
+    const showAlbumArt = vc.showAlbumArt !== false;
     return generateTextureVideo({
-      texturePath: fs.existsSync(texturePath) ? texturePath : fallback,
-      coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex,
+      texturePath: bgPath, coverArtPath, audio, output, ctaText, genre, artistName, showAlbumArt, visualConfig, presetIndex,
     });
   }
 
   const blur = vc.blurAmount ?? 18;
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  const hookText = genre ? `Do you like ${genre}?`
-    : artistName ? `Do you like ${artistName}?`
-    : null;
+  const hookText = vc.hookText?.trim()
+    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : null);
   const hookFontSize = hookText ? dynamicFontSize(hookText, 72) : 72;
   const hookY = ART_Y + TEXT_PAD;
 

@@ -282,23 +282,18 @@ function generateTextureVideo(opts: {
   const ctaColor = toFFColor(ctaStyle.fontColor ?? '#FFFFFF');
 
   const THUMB = 390;
-  const THUMB_X = Math.round((W - THUMB) / 2); // 345
+  const THUMB_X = Math.round((W - THUMB) / 2);
   const THUMB_Y = 325;
   const HOOK_Y = 155;
   const CTA_Y = THUMB_Y + THUMB + 55;
 
   const fc = [
-    // Texture background — subtle slow zoom
     `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,zoompan=z='min(1+0.00012*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
-    // Dark overlay bands at top and bottom to aid text legibility
     `[bg]drawbox=x=0:y=0:w=${W}:h=${THUMB_Y - 30}:color=black@0.55:t=fill[c0]`,
     `[c0]drawbox=x=0:y=${THUMB_Y + THUMB + 30}:w=${W}:h=${H}:color=black@0.55:t=fill[c1]`,
-    // Cover art thumbnail centred
     `[1:v]scale=${THUMB}:${THUMB}:force_original_aspect_ratio=decrease,pad=${THUMB}:${THUMB}:(ow-iw)/2:(oh-ih)/2:black[art]`,
     `[c1][art]overlay=${THUMB_X}:${THUMB_Y}[c2]`,
-    // Hook text
     `[c2]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c3]`,
-    // CTA text
     `[c3]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
   ].join(';');
 
@@ -342,7 +337,6 @@ function generateVideo(opts: {
   const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
   const vc = visualConfig ?? {};
 
-  // Texture mode — use a solid gradient PNG as background
   if (vc.artMode === 'texture') {
     const textureId = vc.backgroundTexture ?? 'midnight';
     const texturePath = path.join(ASSETS_DIR, 'textures', `${textureId}.png`);
@@ -354,10 +348,8 @@ function generateVideo(opts: {
   }
 
   const blur = vc.blurAmount ?? 18;
-
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  // Hook: genre → artist name → null (no duplicate of CTA)
   const hookText = genre ? `Do you like ${genre}?`
     : artistName ? `Do you like ${artistName}?`
     : null;
@@ -372,23 +364,17 @@ function generateVideo(opts: {
   const hookYExpr = preset.hookYExpr(hookY);
   const ctaYExpr  = preset.ctaYExpr(ctaY);
 
-  // Background animation filter — defined by preset
   const bgSection = preset.bgFilter(blur);
-
-  // All presets output [bg] as the final node
   const needsBgInput = !bgSection.includes('[bg]') ? `${bgSection}[bg]` : bgSection;
 
   const overlayAndTextFilters = [
-    // Cover art — large, centred
     `[1:v]scale=${ART_SIZE}:${ART_SIZE}:force_original_aspect_ratio=decrease,pad=${ART_SIZE}:${ART_SIZE}:(ow-iw)/2:(oh-ih)/2:black[art]`,
     `[bg][art]overlay=${ART_X}:${ART_Y}[c0]`,
-    // Gradient-style dark overlay
     `[c0]drawbox=x=${ART_X}:y=${ART_Y}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c1]`,
     `[c1]drawbox=x=${ART_X}:y=${ART_BOTTOM - 160}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c2]`,
     `[c2]drawbox=x=${ART_X}:y=${ART_Y + 160}:w=${ART_SIZE}:h=${ART_SIZE - 320}:color=black@0.30:t=fill[c3]`,
   ];
 
-  // Hook text (only when we have a non-duplicate line)
   if (hookText) {
     overlayAndTextFilters.push(
       `[c3]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y='${hookYExpr}':shadowcolor=black@0.85:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c4]`,
@@ -397,7 +383,6 @@ function generateVideo(opts: {
     overlayAndTextFilters.push(`[c3]copy[c4]`);
   }
 
-  // CTA text
   overlayAndTextFilters.push(
     `[c4]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y='${ctaYExpr}':shadowcolor=black@0.85:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
   );

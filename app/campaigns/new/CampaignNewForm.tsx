@@ -139,11 +139,11 @@ function generateTestWav(durationSecs = 180): Blob {
 // ── VideoPreview ───────────────────────────────────────────────────────────
 
 function VideoPreview({
-  bgMode, bgPreview, coverArtUrl, ctaText, genre, artistName,
+  bgMode, bgPreview, coverArtUrl, ctaText, hookText, artistName,
   blurAmount, bgAnimation, cta, animKey, artMode, textureId, patternId, showAlbumArt,
 }: {
   bgMode: BgMode; bgPreview: string | null; coverArtUrl: string | null;
-  ctaText: string; genre: string; artistName: string;
+  ctaText: string; hookText: string; artistName: string;
   blurAmount: number; bgAnimation: BgAnimation;
   cta: TextLayerStyle; animKey: number;
   artMode: ArtMode; textureId: string; patternId: string; showAlbumArt: boolean;
@@ -156,12 +156,6 @@ function VideoPreview({
   const ART_X_PCT = 110 / 1080;
   const ART_Y_PCT = 110 / 1080;
   const TEXT_PAD_PCT = 72 / 1080;
-
-  const hookText = genre.trim()
-    ? `Do you like ${genre}?`
-    : artistName.trim()
-    ? `Do you like ${artistName}?`
-    : null;
 
   const selectedTexture = TEXTURES.find(t => t.id === textureId) ?? TEXTURES[0];
   const selectedPattern = PATTERNS.find(p => p.id === patternId) ?? PATTERNS[0];
@@ -439,6 +433,7 @@ export default function CampaignNewForm() {
 
   const [soundsLike, setSoundsLike] = useState('');
   const [genre, setGenre] = useState('');
+  const [hookText, setHookText] = useState('Wanna hear something great?');
 
   const [dailyBudget, setDailyBudget] = useState(10);
   const [artMode, setArtMode] = useState<ArtMode>('art');
@@ -478,6 +473,7 @@ export default function CampaignNewForm() {
     setBackgroundTexture('midnight');
     setBackgroundPattern('lines');
     setShowAlbumArt(true);
+    setHookText('Wanna hear something great?');
     replayAnim();
   }
 
@@ -558,6 +554,7 @@ export default function CampaignNewForm() {
       backgroundTexture: artMode === 'color' ? backgroundTexture : undefined,
       backgroundPattern: artMode === 'pattern' ? backgroundPattern : undefined,
       showAlbumArt: artMode !== 'art' ? showAlbumArt : undefined,
+      hookText: hookText.trim() || undefined,
     };
     const formData = new FormData();
     formData.set('artistName', artistName);
@@ -780,7 +777,7 @@ export default function CampaignNewForm() {
           <div className="mb-1">
             <VideoPreview
               bgMode={bgMode} bgPreview={bgPreview} coverArtUrl={spotify.coverArtUrl}
-              ctaText={activeCta} genre={genre} artistName={artistName}
+              ctaText={activeCta} hookText={hookText} artistName={artistName}
               blurAmount={blurAmount} bgAnimation={bgAnimation} cta={ctaStyle}
               animKey={animKey} artMode={artMode} textureId={backgroundTexture}
               patternId={backgroundPattern} showAlbumArt={showAlbumArt}
@@ -968,63 +965,32 @@ export default function CampaignNewForm() {
 
               {/* Text */}
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
-                <SectionHeader
-                  title="Text"
-                  expanded={expanded.has('text')}
-                  onRecommend={() => {
-                    setCtaText('Listen Now'); setCustomCta('');
-                    setHeadingStyle(DEFAULT_HEADING); setSubheadingStyle(DEFAULT_SUBHEADING); setCtaStyle(DEFAULT_CTA);
-                    closeSection('text');
-                  }}
-                  onCustomise={() => openSection('text')}
-                />
-                {!expanded.has('text') ? (
-                  <p className="text-xs text-gray-500">Song title + artist · White · &quot;Listen Now&quot; CTA</p>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Artist</label>
-                        <input value={artistName} onChange={(e) => setArtistName(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">Title</label>
-                        <input value={songTitle} onChange={(e) => setSongTitle(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Call to action</p>
-                      <div className="flex flex-wrap gap-2">
-                        {CTA_OPTIONS.map(opt => (
-                          <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
-                        ))}
-                        <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
-                      </div>
-                      {ctaText === 'custom' && (
-                        <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
-                          placeholder="Enter CTA…"
-                          className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-                      )}
-                    </div>
-
-                    <div className="border-t border-gray-800 pt-4">
-                      <p className="text-xs text-gray-500 mb-2">Style</p>
-                      <div className="grid grid-cols-3 gap-2 mb-4">
-                        {(['heading', 'subheading', 'cta'] as TextLayer[]).map(layer => (
-                          <button key={layer} type="button" onClick={() => setSelectedLayer(layer)}
-                            className={`py-2 rounded-lg text-xs font-medium border transition
-                              ${selectedLayer === layer ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                            {layer === 'heading' ? 'Heading' : layer === 'subheading' ? 'Subheading' : 'CTA'}
-                          </button>
-                        ))}
-                      </div>
-                      <TextLayerEditor style={currentLayerStyle} onChange={(patch) => updateLayer(selectedLayer, patch)} />
-                    </div>
+                <p className="text-sm font-semibold mb-3">Text</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Top text</label>
+                    <input
+                      value={hookText}
+                      onChange={(e) => setHookText(e.target.value)}
+                      placeholder="Wanna hear something great?"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500 placeholder-gray-600"
+                    />
                   </div>
-                )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Call to action</p>
+                    <div className="flex flex-wrap gap-2">
+                      {CTA_OPTIONS.map(opt => (
+                        <Pill key={opt} active={ctaText === opt} onClick={() => setCtaText(opt)}>{opt}</Pill>
+                      ))}
+                      <Pill active={ctaText === 'custom'} onClick={() => setCtaText('custom')}>Custom</Pill>
+                    </div>
+                    {ctaText === 'custom' && (
+                      <input value={customCta} onChange={(e) => setCustomCta(e.target.value)}
+                        placeholder="Enter CTA…"
+                        className="w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-violet-500" />
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Clips */}

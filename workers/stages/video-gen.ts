@@ -26,6 +26,7 @@ interface VisualConfig {
   subheading?: ElementStyle;
   cta?: ElementStyle;
   dailyBudgetUsd?: number;
+  hookText?: string;
   artMode?: 'art' | 'color' | 'texture' | 'pattern';
   backgroundTexture?: string;
   backgroundPattern?: string;
@@ -275,9 +276,8 @@ function generateTextureVideo(opts: {
   const vc = visualConfig ?? {};
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  const hookText = genre ? `Do you like ${genre}?`
-    : artistName ? `Do you like ${artistName}?`
-    : null;
+  const hookText = vc.hookText?.trim()
+    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : null);
 
   const hookFontSize = hookText ? dynamicFontSize(hookText, 76) : 76;
   const ctaFontSize = dynamicFontSize(ctaText, 54);
@@ -389,9 +389,8 @@ function generateVideo(opts: {
   const blur = vc.blurAmount ?? 18;
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  const hookText = genre ? `Do you like ${genre}?`
-    : artistName ? `Do you like ${artistName}?`
-    : null;
+  const hookText = vc.hookText?.trim()
+    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : null);
   const hookFontSize = hookText ? dynamicFontSize(hookText, 72) : 72;
   const hookY = ART_Y + TEXT_PAD;
 

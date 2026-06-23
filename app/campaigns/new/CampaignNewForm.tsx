@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -378,6 +379,8 @@ function TextLayerEditor({ style, onChange }: {
 
 export default function CampaignNewForm() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.email === 'hobeybennett@gmail.com';
   const audioInputRef = useRef<HTMLInputElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
 
@@ -596,10 +599,12 @@ export default function CampaignNewForm() {
       {/* Header */}
       <div className="flex items-center justify-between py-4 mb-4">
         <h1 className="font-display text-2xl font-700">New Campaign</h1>
-        <button type="button" onClick={useTestData}
-          className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
-          Use test data
-        </button>
+        {isAdmin && (
+          <button type="button" onClick={useTestData}
+            className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-400 transition">
+            Use test data
+          </button>
+        )}
       </div>
 
       {/* ── Mode picker ─────────────────────────────────────────────────── */}

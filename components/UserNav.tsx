@@ -48,6 +48,12 @@ export default function UserNav() {
             className="block px-3 py-2 text-sm hover:bg-gray-800 transition">
             Settings
           </Link>
+          {session.user.email === 'hobeybennett@gmail.com' && (
+            <Link href="/admin" onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-gray-800 transition text-violet-400">
+              Admin
+            </Link>
+          )}
           <button onClick={() => signOut({ callbackUrl: '/auth/signin' })}
             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-800 transition text-red-400">
             Sign out

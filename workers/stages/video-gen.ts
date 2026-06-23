@@ -26,6 +26,8 @@ interface VisualConfig {
   subheading?: ElementStyle;
   cta?: ElementStyle;
   dailyBudgetUsd?: number;
+  artMode?: 'art' | 'texture';
+  backgroundTexture?: string;
 }
 
 const W = 1080;
@@ -222,6 +224,7 @@ export async function runVideoGen(campaignId: string) {
       output: outputFile,
       ctaText,
       genre: (campaign as any).genre as string | undefined,
+      artistName: campaign.artistName ?? undefined,
       visualConfig,
       presetIndex: segment.index,
     });
@@ -250,6 +253,76 @@ export async function runVideoGen(campaignId: string) {
   }
 }
 
+// ── Texture mode video ────────────────────────────────────────────────────────
+
+const ASSETS_DIR = path.join(__dirname, '../../assets');
+
+function generateTextureVideo(opts: {
+  texturePath: string;
+  coverArtPath: string;
+  audio: string;
+  output: string;
+  ctaText: string;
+  genre?: string;
+  artistName?: string;
+  visualConfig: VisualConfig | null;
+  presetIndex: number;
+}): Promise<void> {
+  const { texturePath, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
+  const vc = visualConfig ?? {};
+  const preset = PRESETS[presetIndex % PRESETS.length];
+
+  const hookText = genre ? `Do you like ${genre}?`
+    : artistName ? `Do you like ${artistName}?`
+    : ctaText;
+
+  const hookFontSize = dynamicFontSize(hookText, 76);
+  const ctaFontSize = dynamicFontSize(ctaText, 54);
+  const ctaStyle = vc.cta ?? {};
+  const ctaColor = toFFColor(ctaStyle.fontColor ?? '#FFFFFF');
+
+  const THUMB = 390;
+  const THUMB_X = Math.round((W - THUMB) / 2);
+  const THUMB_Y = 325;
+  const HOOK_Y = 155;
+  const CTA_Y = THUMB_Y + THUMB + 55;
+
+  const fc = [
+    `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,zoompan=z='min(1+0.00012*on,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
+    `[bg]drawbox=x=0:y=0:w=${W}:h=${THUMB_Y - 30}:color=black@0.55:t=fill[c0]`,
+    `[c0]drawbox=x=0:y=${THUMB_Y + THUMB + 30}:w=${W}:h=${H}:color=black@0.55:t=fill[c1]`,
+    `[1:v]scale=${THUMB}:${THUMB}:force_original_aspect_ratio=decrease,pad=${THUMB}:${THUMB}:(ow-iw)/2:(oh-ih)/2:black[art]`,
+    `[c1][art]overlay=${THUMB_X}:${THUMB_Y}[c2]`,
+    `[c2]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.9:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c3]`,
+    `[c3]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.9:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
+  ].join(';');
+
+  return new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(texturePath).inputOptions(['-stream_loop', '-1'])
+      .input(coverArtPath).inputOptions(['-stream_loop', '-1'])
+      .input(audio)
+      .outputOptions([
+        '-filter_complex', fc,
+        '-map', '[vout]',
+        '-map', '2:a',
+        '-c:v', 'libx264',
+        '-preset', 'fast',
+        '-crf', '20',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-shortest',
+        '-pix_fmt', 'yuv420p',
+        '-r', '30',
+        '-movflags', '+faststart',
+      ])
+      .output(output)
+      .on('end', () => resolve())
+      .on('error', reject)
+      .run();
+  });
+}
+
 function generateVideo(opts: {
   bgSrc: string;
   coverArtPath: string;
@@ -257,18 +330,30 @@ function generateVideo(opts: {
   output: string;
   ctaText: string;
   genre?: string;
+  artistName?: string;
   visualConfig: VisualConfig | null;
   presetIndex: number;
 }): Promise<void> {
-  const { bgSrc, coverArtPath, audio, output, ctaText, genre, visualConfig, presetIndex } = opts;
+  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
   const vc = visualConfig ?? {};
-  const blur = vc.blurAmount ?? 18;
 
+  if (vc.artMode === 'texture') {
+    const textureId = vc.backgroundTexture ?? 'midnight';
+    const texturePath = path.join(ASSETS_DIR, 'textures', `${textureId}.png`);
+    const fallback = path.join(ASSETS_DIR, 'textures', 'midnight.png');
+    return generateTextureVideo({
+      texturePath: fs.existsSync(texturePath) ? texturePath : fallback,
+      coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex,
+    });
+  }
+
+  const blur = vc.blurAmount ?? 18;
   const preset = PRESETS[presetIndex % PRESETS.length];
 
-  // Hook: genre question when available, else CTA text
-  const hookText = genre ? `Do you like ${genre}?` : ctaText;
-  const hookFontSize = dynamicFontSize(hookText, 72);
+  const hookText = genre ? `Do you like ${genre}?`
+    : artistName ? `Do you like ${artistName}?`
+    : null;
+  const hookFontSize = hookText ? dynamicFontSize(hookText, 72) : 72;
   const hookY = ART_Y + TEXT_PAD;
 
   const ctaStyle = vc.cta ?? {};
@@ -279,27 +364,30 @@ function generateVideo(opts: {
   const hookYExpr = preset.hookYExpr(hookY);
   const ctaYExpr  = preset.ctaYExpr(ctaY);
 
-  // Background animation filter — defined by preset
   const bgSection = preset.bgFilter(blur);
-
-  // Determine if bgSection already outputs [bg] directly or goes via [bg_large]
-  // (all presets output [bg] as the final node)
   const needsBgInput = !bgSection.includes('[bg]') ? `${bgSection}[bg]` : bgSection;
 
-  const fc = [
-    needsBgInput,
-    // Cover art — large, centred, no animation (art stays locked)
+  const overlayAndTextFilters = [
     `[1:v]scale=${ART_SIZE}:${ART_SIZE}:force_original_aspect_ratio=decrease,pad=${ART_SIZE}:${ART_SIZE}:(ow-iw)/2:(oh-ih)/2:black[art]`,
     `[bg][art]overlay=${ART_X}:${ART_Y}[c0]`,
-    // Gradient-style dark overlay: stronger at top and bottom for text legibility
     `[c0]drawbox=x=${ART_X}:y=${ART_Y}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c1]`,
     `[c1]drawbox=x=${ART_X}:y=${ART_BOTTOM - 160}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c2]`,
     `[c2]drawbox=x=${ART_X}:y=${ART_Y + 160}:w=${ART_SIZE}:h=${ART_SIZE - 320}:color=black@0.30:t=fill[c3]`,
-    // Hook text
-    `[c3]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y='${hookYExpr}':shadowcolor=black@0.85:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c4]`,
-    // CTA text
+  ];
+
+  if (hookText) {
+    overlayAndTextFilters.push(
+      `[c3]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y='${hookYExpr}':shadowcolor=black@0.85:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c4]`,
+    );
+  } else {
+    overlayAndTextFilters.push(`[c3]copy[c4]`);
+  }
+
+  overlayAndTextFilters.push(
     `[c4]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y='${ctaYExpr}':shadowcolor=black@0.85:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
-  ].join(';');
+  );
+
+  const fc = [needsBgInput, ...overlayAndTextFilters].join(';');
 
   return new Promise((resolve, reject) => {
     ffmpeg()

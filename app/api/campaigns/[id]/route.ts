@@ -52,6 +52,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
+  // Retry a stuck PROCESSING/PENDING campaign — re-dispatches SEGMENTATION from scratch
+  if (action === 'retry-stuck') {
+    await prisma.campaignJob.updateMany({
+      where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+      data: { status: 'PENDING', error: null },
+    });
+    await prisma.campaign.update({
+      where: { id: params.id },
+      data: { status: CampaignStatus.PROCESSING },
+    });
+    await dispatchStage(params.id, 'SEGMENTATION');
+    return NextResponse.json({ status: 'retrying' });
+  }
+
   if (action === 'select-copy') {
     const { copyId } = body;
     if (!copyId) return NextResponse.json({ error: 'copyId required' }, { status: 400 });

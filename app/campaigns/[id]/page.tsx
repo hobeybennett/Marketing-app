@@ -107,7 +107,15 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           </div>
           {isStale && (
             <div className="mt-5 rounded-lg border border-yellow-700 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-300">
-              <span className="font-semibold">Taking longer than expected.</span> Make sure the worker service is running on Railway — the web app and worker must both be deployed as separate services.
+              <p className="font-semibold mb-1">Taking longer than expected</p>
+              <p className="mb-3 text-yellow-400">The worker may have been down when this was submitted. Click retry to requeue it.</p>
+              <button
+                onClick={() => handleAction('retry-stuck')}
+                disabled={actionLoading}
+                className="px-4 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {actionLoading ? 'Retrying…' : 'Retry now'}
+              </button>
             </div>
           )}
         </div>

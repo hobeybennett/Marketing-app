@@ -858,7 +858,7 @@ export default function CampaignNewForm() {
                 {[
                   'Blurred cover art background with zoom-in animation',
                   '5 clips, evenly spread across your track',
-                  'Song title + artist name overlay, fade-in entrance',
+                  '"Wanna hear something great?" hook text, fade-in entrance',
                   '"Listen Now" call to action',
                   'AI-written ad copy for each video',
                   '3 target audiences — interest, retargeting, lookalike',

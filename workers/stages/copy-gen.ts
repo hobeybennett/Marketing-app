@@ -8,6 +8,9 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function runCopyGen(campaignId: string) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+  }
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id: campaignId },
   });

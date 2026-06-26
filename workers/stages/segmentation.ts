@@ -12,8 +12,9 @@ export async function runSegmentation(campaignId: string) {
 
   await prisma.audioSegment.deleteMany({ where: { campaignId } });
 
-  const uploadDir = process.env.UPLOAD_DIR || '/uploads';
-  const segmentDir = path.join(uploadDir, campaignId, 'segments');
+  // Derive segment dir from the audio file path so it always co-locates with
+  // the source file, regardless of UPLOAD_DIR differences between services.
+  const segmentDir = path.join(path.dirname(campaign.audioUrl), 'segments');
   fs.mkdirSync(segmentDir, { recursive: true });
 
   const duration = await getAudioDuration(campaign.audioUrl);
@@ -46,7 +47,10 @@ function getAudioDuration(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
       if (err) return reject(err);
-      resolve(metadata.format.duration ?? 0);
+      if (!metadata.format.duration) {
+        return reject(new Error('Could not determine audio duration — file may be corrupt or in an unsupported format'));
+      }
+      resolve(metadata.format.duration);
     });
   });
 }

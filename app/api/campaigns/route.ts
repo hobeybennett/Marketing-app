@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
         coverArtUrl: coverPath,
         autoLaunch: autoLaunch === 'true',
         status: 'PROCESSING',
+        dailyBudget: visualConfigObj?.dailyBudgetUsd ? Number(visualConfigObj.dailyBudgetUsd) : undefined,
         visualConfig: visualConfigObj ? (visualConfigObj as Prisma.InputJsonValue) : undefined,
         clipDefinitions: clipDefinitions ? (clipDefinitions as Prisma.InputJsonValue) : undefined,
         userId: userId ?? undefined,

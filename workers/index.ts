@@ -11,13 +11,19 @@ import { runMetaSetup } from './stages/meta-setup';
 import { runInsightsSync } from './stages/insights-sync';
 import { runOptimisation } from './stages/optimise';
 
-const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null,
-});
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+
+// BullMQ requires a dedicated ioredis connection per Queue/Worker — Workers use
+// blocking commands that cannot share a connection with Queues or other Workers.
+function makeConn() {
+  const conn = new Redis(REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 5000 });
+  conn.on('error', (err) => console.error('[worker] Redis error:', err.message));
+  return conn;
+}
 
 // ── Repeatable jobs queue ────────────────────────────────────────────────────
-const insightsSyncQueue = new Queue('insights-sync', { connection });
-const optimiseQueue = new Queue('optimise', { connection });
+const insightsSyncQueue = new Queue('insights-sync', { connection: makeConn() });
+const optimiseQueue     = new Queue('optimise',       { connection: makeConn() });
 
 // Register repeatable job: insights sync every 6 hours
 insightsSyncQueue.add(
@@ -51,10 +57,13 @@ const insightsSyncWorker = new Worker(
       await runInsightsSync(c.id);
     }
   },
-  { connection },
+  { connection: makeConn() },
 );
 insightsSyncWorker.on('failed', (_job: unknown, err: Error) =>
   console.error('[insights-sync worker] failed:', err.message),
+);
+insightsSyncWorker.on('error', (err) =>
+  console.error('[insights-sync worker] error:', err.message),
 );
 
 // ── Optimise worker ──────────────────────────────────────────────────────────
@@ -69,10 +78,13 @@ const optimiseWorker = new Worker(
       await runOptimisation(c.id);
     }
   },
-  { connection },
+  { connection: makeConn() },
 );
 optimiseWorker.on('failed', (_job: unknown, err: Error) =>
   console.error('[optimise worker] failed:', err.message),
+);
+optimiseWorker.on('error', (err) =>
+  console.error('[optimise worker] error:', err.message),
 );
 
 const worker = new Worker<StageJob>(
@@ -125,11 +137,12 @@ const worker = new Worker<StageJob>(
       throw err;
     }
   },
-  { connection },
+  { connection: makeConn() },
 );
 
 worker.on('completed', (job) => console.log(`[worker] job ${job.id} (${job.name}) done`));
 worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err.message));
+worker.on('error', (err) => console.error('[worker] error:', err.message));
 
 process.on('SIGTERM', async () => {
   console.log('[worker] SIGTERM received, draining…');

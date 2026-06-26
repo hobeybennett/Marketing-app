@@ -106,7 +106,7 @@ export async function runMetaSetup(campaignId: string) {
           image_hash: coverImageHash,
           message: copy.primaryText,
           call_to_action: {
-            type: 'LEARN_MORE',
+            type: 'LISTEN_MUSIC',
             value: { link: `${process.env.NEXTAUTH_URL}/go/${campaignId}` },
           },
         },
@@ -135,7 +135,7 @@ export async function runMetaSetup(campaignId: string) {
       optimization_goal: 'LINK_CLICKS',
       bid_amount: 200,
       bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
-      daily_budget: Math.round(((campaign.visualConfig as any)?.dailyBudgetUsd ?? 10) / 3 * 100),
+      daily_budget: Math.round((campaign.dailyBudget ?? 10) / 3 * 100),
       targeting: buildTargeting(audience),
       status: 'PAUSED',
     });
@@ -246,9 +246,11 @@ const SPOTIFY_MARKETS = [
 ];
 
 function buildTargeting(audience: { type: string; interests: string[] }) {
-  return {
-    geo_locations: { countries: SPOTIFY_MARKETS },
-    age_min: 18,
-    age_max: 65,
-  };
+  const base = { geo_locations: { countries: SPOTIFY_MARKETS }, age_min: 18, age_max: 65 };
+  if (audience.type === 'INTEREST') {
+    return { ...base, targeting_automation: { advantage_audience: 1 } };
+  }
+  // RETARGETING and LOOKALIKE require a Meta custom audience — adset creation is
+  // skipped for these when dataStatus is PENDING_DATA (no custom audience yet created).
+  return base;
 }

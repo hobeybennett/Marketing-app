@@ -106,7 +106,7 @@ const PRESETS: Preset[] = [
       `[0:v]scale=1440:1080:force_original_aspect_ratio=increase,crop=1440:1080`,
       blur > 0 ? `,boxblur=${blur}:2` : '',
       `[bg_wide]`,
-      `;[bg_wide]crop=${W}:${H}:'min((1440-1080)*min(t/28,1),360)':0[bg]`,
+      `;[bg_wide]crop=${W}:${H}:'min((1440-1080)*min(t/28\\,1)\\,360)':0:eval=frame[bg]`,
     ].join(''),
     hookFont: FONTS.oswald,
     ctaFont: FONTS.montserratB,
@@ -187,9 +187,8 @@ function toFFColor(hex: string | undefined, alpha = '1.0'): string {
 
 function esc(text: string): string {
   return text
-    .replace(/'/g, '’')
     .replace(/\\/g, '/')
-    .replace(/:/g, ' -')
+    .replace(/'/g, '’')
     .replace(/\[/g, '(')
     .replace(/\]/g, ')');
 }

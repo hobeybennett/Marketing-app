@@ -6,3 +6,4 @@ prisma/migrations/
 *.tsbuildinfo
 .claude/settings.local.json
 next-env.d.ts
+dump.rdb

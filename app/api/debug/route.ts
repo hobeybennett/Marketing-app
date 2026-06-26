@@ -57,14 +57,19 @@ export async function GET(req: NextRequest) {
     results.redis = { ok: false, detail: String(err) };
   }
 
-  // 4. Queue
+  // 4. Queue — show job counts so we can tell if worker is consuming jobs
   try {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     const conn = new Redis(redisUrl, { maxRetriesPerRequest: 0, connectTimeout: 5000 });
     const queue = new Queue('campaign', { connection: conn });
-    await queue.getJobCounts();
+    const counts = await queue.getJobCounts('waiting', 'active', 'failed', 'completed', 'delayed');
     await queue.close();
-    results.queue = { ok: true, detail: 'BullMQ queue reachable' };
+    const workerActive = counts.active > 0;
+    const stuck = counts.waiting > 0 && counts.active === 0;
+    results.queue = {
+      ok: !stuck,
+      detail: `waiting=${counts.waiting} active=${counts.active} failed=${counts.failed} completed=${counts.completed}${stuck ? ' — jobs waiting but no worker consuming (worker may be down)' : workerActive ? ' — worker is active' : ''}`,
+    };
   } catch (err) {
     results.queue = { ok: false, detail: String(err) };
   }

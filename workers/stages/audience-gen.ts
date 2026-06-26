@@ -6,25 +6,42 @@ export async function runAudienceGen(campaignId: string) {
 
   await prisma.audience.deleteMany({ where: { campaignId } });
 
-  const audienceName = campaign.soundsLike.length > 0
-    ? `Fans of ${campaign.soundsLike.slice(0, 2).join(' & ')}`
-    : 'Music Fans';
+  const baseName = campaign.soundsLike.length > 0
+    ? campaign.soundsLike.slice(0, 2).join(' & ')
+    : 'Music';
+
+  const interests = campaign.soundsLike.length > 0 ? campaign.soundsLike : ['Music', 'Spotify'];
 
   await prisma.audience.createMany({
     data: [
       {
         campaignId,
-        name: audienceName,
+        name: `${baseName} — Interest`,
         type: 'INTEREST',
-        interests: campaign.soundsLike.length > 0 ? campaign.soundsLike : ['Music', 'Spotify'],
+        interests,
         dataStatus: 'AVAILABLE',
+      },
+      {
+        campaignId,
+        name: `${campaign.artistName} — Retargeting`,
+        type: 'RETARGETING',
+        interests: [],
+        dataStatus: 'PENDING_DATA',
+      },
+      {
+        campaignId,
+        name: `${baseName} — Lookalike`,
+        type: 'LOOKALIKE',
+        interests,
+        dataStatus: 'PENDING_DATA',
       },
     ],
   });
 
   if (campaign.autoLaunch) {
-    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'LAUNCHING' } });
+    // Dispatch before updating status so status only advances if dispatch succeeds
     await dispatchStage(campaignId, 'META_SETUP');
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'LAUNCHING' } });
   } else {
     await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'READY' } });
   }

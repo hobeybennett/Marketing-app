@@ -2,6 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
 
+if (!process.env.ANTHROPIC_API_KEY) {
+  throw new Error('[copy-gen] ANTHROPIC_API_KEY environment variable is not set');
+}
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function runCopyGen(campaignId: string) {
@@ -80,14 +83,26 @@ Return ONLY a valid JSON array of exactly 5 objects:
     ],
   });
 
-  const text = message.content[0].type === 'text' ? message.content[0].text : '';
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error('No JSON array returned from Claude');
-  try {
-    const parsed = JSON.parse(match[0]);
-    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty array');
-    return parsed.slice(0, 5);
-  } catch {
-    throw new Error(`Claude returned invalid JSON: ${text.slice(0, 200)}`);
+  const block = message.content[0];
+  if (!block || block.type !== 'text') {
+    throw new Error(`Unexpected Claude response: ${JSON.stringify(message.content)}`);
   }
+  const text = block.text;
+
+  // Try full text first, then find the first JSON array
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('No JSON array returned from Claude');
+    try {
+      parsed = JSON.parse(text.slice(start, end + 1));
+    } catch {
+      throw new Error(`Claude returned invalid JSON: ${text.slice(0, 200)}`);
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty array from Claude');
+  return (parsed as CopyVariant[]).slice(0, 5);
 }

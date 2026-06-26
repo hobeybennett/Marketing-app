@@ -81,7 +81,9 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     const doneCount = contentJobs.filter((j: any) => j.status === 'DONE').length;
     const pct = Math.round((doneCount / Math.max(contentJobs.length, 1)) * 100);
     const ageMs = now - new Date(campaign.createdAt).getTime();
-    const isStale = pct === 0 && ageMs > 5 * 60 * 1000;
+    const anyRunning = contentJobs.some((j: any) => j.status === 'RUNNING');
+    // Stale if older than 5 min and nothing is actively running (covers partial progress too)
+    const isStale = ageMs > 5 * 60 * 1000 && !anyRunning && pct < 100;
 
     return (
       <div className="max-w-xl mx-auto">

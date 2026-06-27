@@ -185,6 +185,16 @@ function toFFColor(hex: string | undefined, alpha = '1.0'): string {
   return `0x${hex.replace('#', '').toUpperCase()}@${alpha}`;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 function esc(text: string): string {
   return text
     .replace(/\\/g, '/')
@@ -213,37 +223,63 @@ export async function runVideoGen(campaignId: string) {
   const bgPath = visualConfig?.backgroundPath as string | undefined;
   const coverArtPath = campaign.coverArtUrl;
 
+  const failures: string[] = [];
   for (const segment of campaign.segments) {
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
     const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
 
-    await generateVideo({
-      bgSrc,
-      coverArtPath,
-      audio: segment.fileUrl,
-      output: outputFile,
-      ctaText,
-      genre: (campaign as any).genre as string | undefined,
-      artistName: campaign.artistName ?? undefined,
-      visualConfig,
-      presetIndex: segment.index,
-    });
+    if (!fs.existsSync(segment.fileUrl)) {
+      failures.push(`segment ${segment.index}: audio file missing at ${segment.fileUrl}`);
+      continue;
+    }
+    if (!fs.existsSync(coverArtPath)) {
+      failures.push(`segment ${segment.index}: cover art missing at ${coverArtPath}`);
+      continue;
+    }
 
-    const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
-    await new Promise<void>((resolve) => {
-      ffmpeg(outputFile)
-        .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
-        .output(thumbFile)
-        .on('end', () => resolve())
-        .on('error', () => resolve())
-        .run();
-    });
+    const t0 = Date.now();
+    console.log(`[video-gen] campaign ${campaignId} segment ${segment.index}/4 starting`);
+    try {
+      await withTimeout(generateVideo({
+        bgSrc,
+        coverArtPath,
+        audio: segment.fileUrl,
+        output: outputFile,
+        ctaText,
+        genre: (campaign as any).genre as string | undefined,
+        artistName: campaign.artistName ?? undefined,
+        visualConfig,
+        presetIndex: segment.index,
+      }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 
-    await prisma.videoCreative.create({
-      data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
-    });
+      const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
+      await withTimeout(new Promise<void>((resolve) => {
+        ffmpeg(outputFile)
+          .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
+          .output(thumbFile)
+          .on('end', () => resolve())
+          .on('error', () => resolve())
+          .run();
+      }), 30 * 1000, `thumbnail segment ${segment.index}`).catch(() => {});
+
+      await prisma.videoCreative.create({
+        data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
+      });
+      console.log(`[video-gen] segment ${segment.index} done in ${Math.round((Date.now() - t0) / 1000)}s`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[video-gen] segment ${segment.index} failed:`, msg);
+      failures.push(`segment ${segment.index}: ${msg}`);
+    }
+  }
+
+  if (failures.length === campaign.segments.length) {
+    throw new Error(`All ${failures.length} video segments failed:\n${failures.join('\n')}`);
+  }
+  if (failures.length > 0) {
+    console.warn(`[video-gen] ${failures.length}/${campaign.segments.length} segments failed but continuing:\n${failures.join('\n')}`);
   }
 
   await prisma.campaign.update({
@@ -314,7 +350,7 @@ function generateTextureVideo(opts: {
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
           '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k',
-          '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
+          '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output).on('end', () => resolve()).on('error', reject).run();
     });
   } else {
@@ -347,7 +383,7 @@ function generateTextureVideo(opts: {
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
           '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-c:a', 'aac', '-b:a', '192k',
-          '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
+          '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output).on('end', () => resolve()).on('error', reject).run();
     });
   }
@@ -440,6 +476,7 @@ function generateVideo(opts: {
         '-crf', '20',
         '-c:a', 'aac',
         '-b:a', '192k',
+        '-t', '30',
         '-shortest',
         '-pix_fmt', 'yuv420p',
         '-r', '30',

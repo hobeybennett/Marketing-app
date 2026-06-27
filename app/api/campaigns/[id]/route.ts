@@ -3,7 +3,7 @@ import { rm } from 'fs/promises';
 import path from 'path';
 import { CampaignStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { dispatchStage } from '@/lib/queue';
+import { dispatchStage, campaignQueue } from '@/lib/queue';
 import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -22,17 +22,30 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const anyRunning = stalenessCheck.jobs.some(j => j.status === 'RUNNING');
     const anyDone = stalenessCheck.jobs.some(j => j.stage === 'SEGMENTATION' && j.status === 'DONE');
     const ageMs = Date.now() - new Date(stalenessCheck.createdAt).getTime();
-    // Fire after just 30 seconds — if the worker had the job it would have set RUNNING by now
-    if (!anyRunning && !anyDone && ageMs > 30 * 1000) {
-      console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id} (age=${Math.round(ageMs/1000)}s)`);
+    // Fire after 60 seconds — if the worker had the job it would have set RUNNING by now
+    if (!anyRunning && !anyDone && ageMs > 60 * 1000) {
+      // IDEMPOTENCY: check if there's already a job for this campaign in Redis
+      // before dispatching another. Otherwise every page refresh creates a duplicate.
+      let alreadyQueued = false;
       try {
-        await prisma.campaignJob.updateMany({
-          where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
-          data: { status: 'PENDING', error: null },
-        });
-        await dispatchStage(params.id, 'SEGMENTATION');
+        const waitingActive = await campaignQueue.getJobs(['waiting', 'active', 'delayed'], 0, 1000, false);
+        alreadyQueued = waitingActive.some(j => (j.data as { campaignId?: string })?.campaignId === params.id);
       } catch (err) {
-        console.error('[auto-recover] dispatch failed:', err);
+        console.error('[auto-recover] queue inspection failed:', err);
+      }
+      if (alreadyQueued) {
+        console.log(`[auto-recover] skip — campaign ${params.id} already has a queued job`);
+      } else {
+        console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id} (age=${Math.round(ageMs/1000)}s)`);
+        try {
+          await prisma.campaignJob.updateMany({
+            where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+            data: { status: 'PENDING', error: null },
+          });
+          await dispatchStage(params.id, 'SEGMENTATION');
+        } catch (err) {
+          console.error('[auto-recover] dispatch failed:', err);
+        }
       }
     }
   }

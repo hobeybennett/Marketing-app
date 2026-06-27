@@ -358,7 +358,14 @@ function generateTextureVideo(opts: {
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
-        .output(output).on('end', () => resolve()).on('error', reject).run();
+        .output(output)
+        .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
+        .on('error', ((err: Error, _stdout: string, stderr: string) => {
+          const lastStderr = (stderr || '').trim().split('\n').slice(-10).join('\n');
+          reject(new Error(`${err.message}\nstderr:\n${lastStderr}`));
+        }) as any)
+        .on('end', () => resolve())
+        .run();
     });
   } else {
     // No art — bg + dark overlay top+bottom + hook + artist name center + CTA (2 inputs)
@@ -391,7 +398,14 @@ function generateTextureVideo(opts: {
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
-        .output(output).on('end', () => resolve()).on('error', reject).run();
+        .output(output)
+        .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
+        .on('error', ((err: Error, _stdout: string, stderr: string) => {
+          const lastStderr = (stderr || '').trim().split('\n').slice(-10).join('\n');
+          reject(new Error(`${err.message}\nstderr:\n${lastStderr}`));
+        }) as any)
+        .on('end', () => resolve())
+        .run();
     });
   }
 }
@@ -490,8 +504,12 @@ function generateVideo(opts: {
         '-movflags', '+faststart',
       ])
       .output(output)
+      .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
+      .on('error', ((err: Error, _stdout: string, stderr: string) => {
+        const lastStderr = (stderr || '').trim().split('\n').slice(-10).join('\n');
+        reject(new Error(`${err.message}\nstderr:\n${lastStderr}`));
+      }) as any)
       .on('end', () => resolve())
-      .on('error', reject)
       .run();
   });
 }

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import AdminUsers from './AdminUsers';
+import ResetButton from './ResetButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,8 @@ export default async function AdminPage() {
           {session.user.email}
         </span>
       </div>
+
+      <ResetButton />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">

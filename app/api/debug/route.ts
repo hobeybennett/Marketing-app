@@ -24,6 +24,39 @@ export async function GET(req: NextRequest) {
       jobs: campaign.jobs.map(j => ({ stage: j.stage, status: j.status, error: j.error })),
     });
   }
+
+  // Show recent FAILED jobs from Redis: /api/debug?failures=1
+  if (req.nextUrl.searchParams.get('failures')) {
+    try {
+      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      const conn = new Redis(redisUrl, { maxRetriesPerRequest: 0, connectTimeout: 5000 });
+      const queue = new Queue('campaign', { connection: conn });
+      const failedJobs = await queue.getJobs(['failed'], 0, 20, false);
+      const failures = failedJobs.map(j => ({
+        id: j.id,
+        name: j.name,
+        data: j.data,
+        failedReason: j.failedReason,
+        stacktrace: j.stacktrace?.[0]?.split('\n').slice(0, 4).join('\n'),
+        attemptsMade: j.attemptsMade,
+      }));
+      await queue.close();
+      return NextResponse.json({ failures }, { status: 200 });
+    } catch (err) {
+      return NextResponse.json({ error: String(err) }, { status: 500 });
+    }
+  }
+
+  // Show recent FAILED CampaignJobs from DB across all campaigns: /api/debug?dbfailures=1
+  if (req.nextUrl.searchParams.get('dbfailures')) {
+    const failed = await prisma.campaignJob.findMany({
+      where: { status: 'FAILED' },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+      select: { campaignId: true, stage: true, error: true, updatedAt: true },
+    });
+    return NextResponse.json({ failed });
+  }
   const results: Record<string, { ok: boolean; detail: string }> = {};
 
   // 1. Database

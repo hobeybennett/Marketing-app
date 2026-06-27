@@ -5,6 +5,7 @@ const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', 
   maxRetriesPerRequest: null,
   connectTimeout: 5000,
 });
+connection.on('error', (err) => console.error('[queue] Redis error:', err.message));
 
 export const campaignQueue = new Queue('campaign', { connection });
 

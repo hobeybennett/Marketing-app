@@ -2,9 +2,6 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
 
-if (!process.env.ANTHROPIC_API_KEY) {
-  throw new Error('[copy-gen] ANTHROPIC_API_KEY environment variable is not set');
-}
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function runCopyGen(campaignId: string) {

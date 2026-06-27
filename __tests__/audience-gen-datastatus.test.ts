@@ -23,7 +23,7 @@ import { runAudienceGen } from '../workers/stages/audience-gen';
 describe('runAudienceGen — dataStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue({ id: 'camp-1', autoLaunch: false });
+    mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue({ id: 'camp-1', autoLaunch: false, artistName: 'Test Artist', soundsLike: ['Test Band'] });
   });
 
   it('sets INTEREST audience dataStatus to AVAILABLE', async () => {

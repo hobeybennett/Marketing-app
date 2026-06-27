@@ -18,7 +18,7 @@ const mockFfmpegFn = vi.hoisted(() => vi.fn());
 
 // ── module mocks ──────────────────────────────────────────────────────────────
 
-vi.mock('fs', () => ({ mkdirSync: vi.fn() }));
+vi.mock('fs', () => ({ mkdirSync: vi.fn(), existsSync: vi.fn().mockReturnValue(true) }));
 vi.mock('../lib/queue', () => ({ dispatchStage: mockDispatch }));
 vi.mock('../workers/prisma', () => ({ prisma: mockPrisma }));
 vi.mock('fluent-ffmpeg', () => ({ default: mockFfmpegFn }));
@@ -32,6 +32,7 @@ function makeChain() {
   const chain: any = {
     loop: vi.fn().mockReturnThis(),
     input: vi.fn().mockReturnThis(),
+    inputOptions: vi.fn().mockReturnThis(),
     videoFilters: vi.fn().mockReturnThis(),
     outputOptions: vi.fn().mockReturnThis(),
     output: vi.fn().mockReturnThis(),

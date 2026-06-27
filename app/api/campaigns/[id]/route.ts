@@ -11,6 +11,26 @@ export const dynamic = 'force-dynamic';
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession();
 
+  // Auto-recover: if a campaign has been PROCESSING with no progress for >2min,
+  // requeue SEGMENTATION on read. This handles jobs lost from Redis between deploys.
+  const stalenessCheck = await prisma.campaign.findUnique({
+    where: { id: params.id },
+    select: { status: true, updatedAt: true, createdAt: true, jobs: { select: { status: true, stage: true } } },
+  });
+  if (stalenessCheck && (stalenessCheck.status === 'PROCESSING' || stalenessCheck.status === 'PENDING')) {
+    const anyRunning = stalenessCheck.jobs.some(j => j.status === 'RUNNING');
+    const anyDone = stalenessCheck.jobs.some(j => j.stage === 'SEGMENTATION' && j.status === 'DONE');
+    const ageMs = Date.now() - new Date(stalenessCheck.createdAt).getTime();
+    if (!anyRunning && !anyDone && ageMs > 2 * 60 * 1000) {
+      console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id}`);
+      await prisma.campaignJob.updateMany({
+        where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+        data: { status: 'PENDING', error: null },
+      });
+      await dispatchStage(params.id, 'SEGMENTATION');
+    }
+  }
+
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
     include: {

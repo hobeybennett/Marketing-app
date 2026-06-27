@@ -137,7 +137,7 @@ const worker = new Worker<StageJob>(
       throw err;
     }
   },
-  { connection: makeConn() },
+  { connection: makeConn(), concurrency: 3 },
 );
 
 worker.on('completed', (job) => console.log(`[worker] job ${job.id} (${job.name}) done`));

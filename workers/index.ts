@@ -137,12 +137,44 @@ const worker = new Worker<StageJob>(
       throw err;
     }
   },
-  { connection: makeConn(), concurrency: 3 },
+  {
+    connection: makeConn(),
+    concurrency: 3,
+    // Video generation can take 5+ minutes per campaign (5 clips × FFmpeg).
+    // Default lockDuration is 30s which causes jobs to stall, especially when
+    // the worker process restarts during a deploy. Bump to 15 min.
+    lockDuration: 15 * 60 * 1000,
+    stalledInterval: 60 * 1000,
+  },
 );
 
 worker.on('completed', (job) => console.log(`[worker] job ${job.id} (${job.name}) done`));
 worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err.message));
 worker.on('error', (err) => console.error('[worker] error:', err.message));
+
+// When BullMQ detects a stalled job, mark the CampaignJob FAILED in the DB
+// so the UI doesn't spin forever. Without this, stalls leave the campaign in
+// PROCESSING/BUILDING with no error and no progress.
+worker.on('stalled', async (jobId: string) => {
+  console.error(`[worker] job ${jobId} stalled — marking campaign FAILED`);
+  try {
+    const queue = new Queue('campaign', { connection: makeConn() });
+    const job = await queue.getJob(jobId);
+    await queue.close();
+    if (!job?.data) return;
+    const { campaignId, stage } = job.data as StageJob;
+    await prisma.campaignJob.updateMany({
+      where: { campaignId, stage },
+      data: { status: 'FAILED', error: 'Worker stalled — job exceeded lock duration. Retry from the UI.' },
+    });
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'FAILED' },
+    });
+  } catch (err) {
+    console.error('[worker] stalled handler error:', err);
+  }
+});
 
 process.on('SIGTERM', async () => {
   console.log('[worker] SIGTERM received, draining…');

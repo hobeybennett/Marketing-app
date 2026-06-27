@@ -214,6 +214,12 @@ async function metaPost(endpoint: string, token: string, body: Record<string, un
     const e = json?.error;
     // Log full error details to help diagnose Meta API issues
     console.error(`[meta-setup] API error on ${endpoint}:`, JSON.stringify(e ?? json, null, 2));
+
+    // Friendly message for the most common gotcha: Meta app still in dev mode
+    if (e?.error_subcode === 1885183) {
+      throw new Error('Your Meta app is still in Development mode. Submit it for App Review in the Meta Developer dashboard, or set MOCK_META=true on Railway to test without going live.');
+    }
+
     const msg = e?.error_user_msg || e?.message || JSON.stringify(json);
     const detail = e ? ` (code=${e.code} subcode=${e.error_subcode} type=${e.type})` : '';
     throw new Error(`Meta API error on ${endpoint}: ${msg}${detail}`);

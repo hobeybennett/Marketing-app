@@ -23,7 +23,7 @@ vi.mock('../workers/prisma', () => ({ prisma: mockPrisma }));
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function mockCampaign(autoLaunch = false) {
-  return { id: 'camp-1', autoLaunch };
+  return { id: 'camp-1', autoLaunch, artistName: 'Test Artist', soundsLike: ['Test Band'] };
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────

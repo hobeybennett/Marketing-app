@@ -1,5 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
+// Set test API key before importing copy-gen module
+process.env.ANTHROPIC_API_KEY = 'test-key';
+
 // ── hoisted mock state ────────────────────────────────────────────────────────
 
 const mockCreate = vi.hoisted(() => vi.fn());
@@ -25,9 +28,14 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function stubClaudeResponse(json: object) {
+function stubFiveVariants() {
+  const variants = Array.from({ length: 5 }, (_, i) => ({
+    headline: `Headline ${i}`,
+    primaryText: `Primary text ${i}`,
+    description: `Description ${i}`,
+  }));
   mockCreate.mockResolvedValue({
-    content: [{ type: 'text', text: JSON.stringify(json) }],
+    content: [{ type: 'text', text: JSON.stringify(variants) }],
   });
 }
 
@@ -36,10 +44,8 @@ function mockCampaign(overrides: Record<string, unknown> = {}) {
     id: 'camp-1',
     artistName: 'Jeff Buckley',
     songTitle: 'Hallelujah',
-    creatives: [
-      { id: 'c-0', ctaText: 'Listen Now' },
-      { id: 'c-1', ctaText: 'Stream Today' },
-    ],
+    soundsLike: [],
+    promoteType: 'track',
     ...overrides,
   };
 }
@@ -53,34 +59,35 @@ describe('runCopyGen', () => {
     vi.clearAllMocks();
   });
 
-  it('calls Claude API once per creative', async () => {
+  it('calls Claude API exactly once to generate all 5 variants', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
-    stubClaudeResponse({ headline: 'H', primaryText: 'P', description: 'D' });
+    stubFiveVariants();
 
     await runCopyGen('camp-1');
 
-    expect(mockCreate).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('creates an AdCopy record for each creative with parsed fields', async () => {
+  it('creates 5 AdCopy records — one per variant', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
-    stubClaudeResponse({ headline: 'Feel the Music', primaryText: 'Stream now.', description: 'Out now' });
+    stubFiveVariants();
 
     await runCopyGen('camp-1');
 
-    expect(mockPrisma.adCopy.create).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.adCopy.create).toHaveBeenCalledTimes(5);
     const firstCall = mockPrisma.adCopy.create.mock.calls[0][0];
     expect(firstCall.data).toMatchObject({
       campaignId: 'camp-1',
-      headline: 'Feel the Music',
-      primaryText: 'Stream now.',
-      description: 'Out now',
+      creativeId: null,
+      isSelected: true, // first variant is selected by default
+      headline: 'Headline 0',
+      primaryText: 'Primary text 0',
     });
   });
 
-  it('dispatches AUDIENCE_GEN after processing all creatives', async () => {
+  it('dispatches AUDIENCE_GEN after creating all variants', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
-    stubClaudeResponse({ headline: 'H', primaryText: 'P' });
+    stubFiveVariants();
 
     await runCopyGen('camp-1');
 
@@ -90,7 +97,7 @@ describe('runCopyGen', () => {
 
   it('deletes existing AdCopy records before creating new ones (idempotency)', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
-    stubClaudeResponse({ headline: 'H', primaryText: 'P' });
+    stubFiveVariants();
 
     await runCopyGen('camp-1');
 
@@ -106,7 +113,7 @@ describe('runCopyGen', () => {
       content: [{ type: 'text', text: 'Sorry, I cannot help with that.' }],
     });
 
-    await expect(runCopyGen('camp-1')).rejects.toThrow(/No JSON returned/i);
+    await expect(runCopyGen('camp-1')).rejects.toThrow(/No JSON array returned/i);
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
@@ -114,7 +121,7 @@ describe('runCopyGen', () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(
       mockCampaign({ artistName: 'Radiohead', songTitle: 'Creep' }),
     );
-    stubClaudeResponse({ headline: 'H', primaryText: 'P' });
+    stubFiveVariants();
 
     await runCopyGen('camp-1');
 

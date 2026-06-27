@@ -27,6 +27,7 @@ export async function runAudienceGen(campaignId: string) {
         type: 'RETARGETING',
         interests: [],
         dataStatus: 'PENDING_DATA',
+        availabilityNote: 'Activates once your campaign has 100 landing page visitors',
       },
       {
         campaignId,
@@ -34,6 +35,7 @@ export async function runAudienceGen(campaignId: string) {
         type: 'LOOKALIKE',
         interests,
         dataStatus: 'PENDING_DATA',
+        availabilityNote: 'Activates once you have 100 source audience members',
       },
     ],
   });

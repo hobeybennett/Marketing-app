@@ -5,7 +5,8 @@ import { dispatchStage } from '../../lib/queue';
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function runCopyGen(campaignId: string) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const mockLlm = process.env.MOCK_LLM === 'true';
+  if (!mockLlm && !process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY environment variable is not set');
   }
   const campaign = await prisma.campaign.findUniqueOrThrow({
@@ -14,13 +15,15 @@ export async function runCopyGen(campaignId: string) {
 
   await prisma.adCopy.deleteMany({ where: { campaignId } });
 
-  const variants = await generateAdCopyVariants({
-    artistName: campaign.artistName,
-    songTitle: campaign.songTitle,
-    genre: (campaign as any).genre as string ?? '',
-    soundsLike: campaign.soundsLike,
-    promoteType: campaign.promoteType ?? 'track',
-  });
+  const variants = mockLlm
+    ? mockVariants(campaign.songTitle)
+    : await generateAdCopyVariants({
+        artistName: campaign.artistName,
+        songTitle: campaign.songTitle,
+        genre: (campaign as any).genre as string ?? '',
+        soundsLike: campaign.soundsLike,
+        promoteType: campaign.promoteType ?? 'track',
+      });
 
   for (let i = 0; i < variants.length; i++) {
     const v = variants[i];
@@ -105,4 +108,12 @@ Return ONLY a valid JSON array of exactly 5 objects:
   }
   if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty array from Claude');
   return (parsed as CopyVariant[]).slice(0, 5);
+}
+
+function mockVariants(songTitle: string): CopyVariant[] {
+  return Array.from({ length: 5 }, (_, i) => ({
+    headline: `${songTitle} — ${['Listen now', 'Out now', 'Stream today', 'Hear it', 'Play it'][i]}`,
+    primaryText: `Mock copy variant ${i + 1} for ${songTitle}.`,
+    description: 'Mock description',
+  }));
 }

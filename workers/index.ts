@@ -139,7 +139,7 @@ const worker = new Worker<StageJob>(
   },
   {
     connection: makeConn(),
-    concurrency: 3,
+    concurrency: 1,
     // Video generation can take 5+ minutes per campaign (5 clips × FFmpeg).
     // Default lockDuration is 30s which causes jobs to stall, especially when
     // the worker process restarts during a deploy. Bump to 15 min.

@@ -106,7 +106,7 @@ const PRESETS: Preset[] = [
       `[0:v]scale=1440:1080:force_original_aspect_ratio=increase,crop=1440:1080`,
       blur > 0 ? `,boxblur=${blur}:2` : '',
       `[bg_wide]`,
-      `;[bg_wide]crop=${W}:${H}:'min((1440-1080)*min(t/28\\,1)\\,360)':0:eval=frame[bg]`,
+      `;[bg_wide]crop=${W}:${H}:'min((1440-1080)*min(t/28\\,1)\\,360)':0[bg]`,
     ].join(''),
     hookFont: FONTS.oswald,
     ctaFont: FONTS.montserratB,
@@ -206,10 +206,12 @@ function esc(text: string): string {
 // ── Main worker ───────────────────────────────────────────────────────────────
 
 export async function runVideoGen(campaignId: string) {
+  console.log(`[video-gen] runVideoGen ENTRY for ${campaignId}`);
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id: campaignId },
     include: { segments: { orderBy: { index: 'asc' } } },
   });
+  console.log(`[video-gen] loaded campaign with ${campaign.segments.length} segments`);
 
   await prisma.videoCreative.deleteMany({ where: { campaignId } });
 

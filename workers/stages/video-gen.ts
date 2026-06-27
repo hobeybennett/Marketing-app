@@ -352,8 +352,8 @@ function generateTextureVideo(opts: {
 
     return new Promise((resolve, reject) => {
       ffmpeg()
-        .input(texturePath).inputOptions(['-stream_loop', '-1'])
-        .input(coverArtPath).inputOptions(['-stream_loop', '-1'])
+        .input(texturePath).inputOptions(['-loop', '1', '-framerate', '30'])
+        .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
@@ -393,7 +393,7 @@ function generateTextureVideo(opts: {
 
     return new Promise((resolve, reject) => {
       ffmpeg()
-        .input(texturePath).inputOptions(['-stream_loop', '-1'])
+        .input(texturePath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
@@ -485,8 +485,8 @@ function generateVideo(opts: {
 
   return new Promise((resolve, reject) => {
     ffmpeg()
-      .input(bgSrc).inputOptions(['-stream_loop', '-1'])
-      .input(coverArtPath).inputOptions(['-stream_loop', '-1'])
+      .input(bgSrc).inputOptions(['-loop', '1', '-framerate', '30'])
+      .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
       .input(audio)
       .outputOptions([
         '-filter_complex', fc,

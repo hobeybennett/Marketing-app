@@ -1,10 +1,9 @@
 /**
  * Admin: nuke all your campaigns + drain the Redis queue.
- * Use when stuck campaigns + stale queue jobs have accumulated.
  *
- * POST with no body deletes only YOUR campaigns + obliterates the queue.
+ * GET with ?confirm=yes from a mobile browser, or POST.
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 import { Queue } from 'bullmq';
@@ -17,7 +16,21 @@ export const maxDuration = 30;
 
 const ALLOWED_EMAIL = 'hobeybennett@gmail.com';
 
+export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get('confirm') !== 'yes') {
+    return NextResponse.json({
+      error: 'Add ?confirm=yes to actually run the reset',
+      example: '/api/admin/reset?confirm=yes',
+    }, { status: 400 });
+  }
+  return runReset();
+}
+
 export async function POST() {
+  return runReset();
+}
+
+async function runReset() {
   const session = await getServerSession();
   if (session?.user?.email !== ALLOWED_EMAIL) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });

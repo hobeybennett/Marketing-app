@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession();
 
-  // Auto-recover: if a campaign has been PROCESSING with no progress for >2min,
-  // requeue SEGMENTATION on read. This handles jobs lost from Redis between deploys.
+  // Auto-recover: if a campaign is PROCESSING with no progress and the queue
+  // doesn't actually have a job for it, requeue. This handles jobs lost from
+  // Redis (deploys, eviction) and silent dispatch failures during campaign create.
   const stalenessCheck = await prisma.campaign.findUnique({
     where: { id: params.id },
     select: { status: true, updatedAt: true, createdAt: true, jobs: { select: { status: true, stage: true } } },
@@ -21,13 +22,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const anyRunning = stalenessCheck.jobs.some(j => j.status === 'RUNNING');
     const anyDone = stalenessCheck.jobs.some(j => j.stage === 'SEGMENTATION' && j.status === 'DONE');
     const ageMs = Date.now() - new Date(stalenessCheck.createdAt).getTime();
-    if (!anyRunning && !anyDone && ageMs > 2 * 60 * 1000) {
-      console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id}`);
-      await prisma.campaignJob.updateMany({
-        where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
-        data: { status: 'PENDING', error: null },
-      });
-      await dispatchStage(params.id, 'SEGMENTATION');
+    // Fire after just 30 seconds — if the worker had the job it would have set RUNNING by now
+    if (!anyRunning && !anyDone && ageMs > 30 * 1000) {
+      console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id} (age=${Math.round(ageMs/1000)}s)`);
+      try {
+        await prisma.campaignJob.updateMany({
+          where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+          data: { status: 'PENDING', error: null },
+        });
+        await dispatchStage(params.id, 'SEGMENTATION');
+      } catch (err) {
+        console.error('[auto-recover] dispatch failed:', err);
+      }
     }
   }
 

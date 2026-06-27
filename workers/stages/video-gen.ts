@@ -223,21 +223,24 @@ export async function runVideoGen(campaignId: string) {
   const bgPath = visualConfig?.backgroundPath as string | undefined;
   const coverArtPath = campaign.coverArtUrl;
 
-  // Render all 5 segments in parallel — bounded by CPU cores. On a 2-vCPU
-  // Railway instance this is ~2x faster than sequential since ffmpeg can saturate
-  // multiple cores at once and we get pipelining across segments.
+  // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's 1-2 vCPU
+  // instance (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes).
+  // ultrafast preset keeps each render fast enough.
   const tAll = Date.now();
-  const results = await Promise.all(campaign.segments.map(async (segment) => {
+  const failures: string[] = [];
+  for (const segment of campaign.segments) {
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
     const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
 
     if (!fs.existsSync(segment.fileUrl)) {
-      return { ok: false, error: `segment ${segment.index}: audio file missing at ${segment.fileUrl}` };
+      failures.push(`segment ${segment.index}: audio file missing at ${segment.fileUrl}`);
+      continue;
     }
     if (!fs.existsSync(coverArtPath)) {
-      return { ok: false, error: `segment ${segment.index}: cover art missing at ${coverArtPath}` };
+      failures.push(`segment ${segment.index}: cover art missing at ${coverArtPath}`);
+      continue;
     }
 
     const t0 = Date.now();
@@ -269,14 +272,12 @@ export async function runVideoGen(campaignId: string) {
         data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
       });
       console.log(`[video-gen] segment ${segment.index} done in ${Math.round((Date.now() - t0) / 1000)}s`);
-      return { ok: true as const };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[video-gen] segment ${segment.index} failed:`, msg);
-      return { ok: false, error: `segment ${segment.index}: ${msg}` };
+      failures.push(`segment ${segment.index}: ${msg}`);
     }
-  }));
-  const failures = results.filter((r): r is { ok: false; error: string } => !r.ok).map((r) => r.error);
+  }
   console.log(`[video-gen] all segments done in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);
 
   if (failures.length === campaign.segments.length) {

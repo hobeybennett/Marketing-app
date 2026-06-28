@@ -40,7 +40,9 @@ export async function runSegmentation(campaignId: string) {
     });
   }
 
-  await dispatchStage(campaignId, 'VIDEO_GEN');
+  // Reordered pipeline: do the FAST stages (copy + audiences) before the slow
+  // video render, so the user can review/pick ad copy while videos generate.
+  await dispatchStage(campaignId, 'COPY_GEN');
 }
 
 function getAudioDuration(filePath: string): Promise<number> {

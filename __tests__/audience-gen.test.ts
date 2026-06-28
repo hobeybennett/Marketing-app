@@ -54,28 +54,20 @@ describe('runAudienceGen', () => {
     expect(types).toEqual(['INTEREST', 'LOOKALIKE', 'RETARGETING']);
   });
 
-  it('sets campaign status to READY when autoLaunch is false', async () => {
+  it('dispatches VIDEO_GEN next (slow stage runs last) when autoLaunch is false', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign(false));
 
     await runAudienceGen('camp-1');
 
-    expect(mockPrisma.campaign.update).toHaveBeenCalledWith({
-      where: { id: 'camp-1' },
-      data: { status: 'READY' },
-    });
-    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'VIDEO_GEN');
   });
 
-  it('sets campaign status to LAUNCHING and dispatches META_SETUP when autoLaunch is true', async () => {
+  it('dispatches VIDEO_GEN next regardless of autoLaunch', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign(true));
 
     await runAudienceGen('camp-1');
 
-    expect(mockPrisma.campaign.update).toHaveBeenCalledWith({
-      where: { id: 'camp-1' },
-      data: { status: 'LAUNCHING' },
-    });
-    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'META_SETUP');
+    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'VIDEO_GEN');
   });
 
   it('deletes existing audiences before creating new ones (idempotency)', async () => {

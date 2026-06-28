@@ -40,11 +40,8 @@ export async function runAudienceGen(campaignId: string) {
     ],
   });
 
-  if (campaign.autoLaunch) {
-    // Dispatch before updating status so status only advances if dispatch succeeds
-    await dispatchStage(campaignId, 'META_SETUP');
-    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'LAUNCHING' } });
-  } else {
-    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'READY' } });
-  }
+  // Video generation is the slow stage — run it LAST, after copy + audiences
+  // are ready, so the user can start reviewing while videos render. Campaign
+  // stays PROCESSING; VIDEO_GEN flips it to READY (or LAUNCHING for autoLaunch).
+  await dispatchStage(campaignId, 'VIDEO_GEN');
 }

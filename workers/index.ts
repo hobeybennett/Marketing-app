@@ -99,8 +99,10 @@ const worker = new Worker<StageJob>(
       data: { status: 'RUNNING' },
     });
 
-    // Reset campaign to in-progress status if it was previously set to FAILED
-    const inProgressStatus = ['SEGMENTATION', 'VIDEO_GEN'].includes(stage) ? 'PROCESSING' : 'BUILDING';
+    // Reset campaign to in-progress status if it was previously set to FAILED.
+    // All content stages (segmentation, copy, audiences, video) are part of the
+    // PROCESSING phase now; only META_SETUP belongs to LAUNCHING.
+    const inProgressStatus = stage === 'META_SETUP' ? 'LAUNCHING' : 'PROCESSING';
     await prisma.campaign.updateMany({
       where: { id: campaignId, status: 'FAILED' },
       data: { status: inProgressStatus },
@@ -176,11 +178,24 @@ worker.on('stalled', async (jobId: string) => {
   }
 });
 
-process.on('SIGTERM', async () => {
-  console.log('[worker] SIGTERM received, draining…');
-  await Promise.all([worker.close(), insightsSyncWorker.close(), optimiseWorker.close()]);
-  await prisma.$disconnect();
+async function shutdown(signal: string) {
+  console.log(`[worker] ${signal} received, draining…`);
+  // Force-exit if graceful drain hangs (BullMQ close() can stall), so Railway
+  // deploy restarts and tests don't leave a lingering worker on the queue.
+  const force = setTimeout(() => {
+    console.warn('[worker] graceful shutdown timed out, forcing exit');
+    process.exit(0);
+  }, 10_000);
+  try {
+    await Promise.all([worker.close(), insightsSyncWorker.close(), optimiseWorker.close()]);
+    await prisma.$disconnect();
+  } catch (err) {
+    console.error('[worker] shutdown error:', err);
+  }
+  clearTimeout(force);
   process.exit(0);
-});
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 console.log('[worker] started, listening for jobs…');

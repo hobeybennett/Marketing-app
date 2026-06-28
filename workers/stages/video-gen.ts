@@ -289,12 +289,21 @@ export async function runVideoGen(campaignId: string) {
     console.warn(`[video-gen] ${failures.length}/${campaign.segments.length} segments failed but continuing:\n${failures.join('\n')}`);
   }
 
-  await prisma.campaign.update({
-    where: { id: campaignId },
-    data: { status: campaign.autoLaunch ? 'BUILDING' : 'CONTENT_READY' },
-  });
+  // Video gen is the last content stage. Copy + audiences are already done by now.
   if (campaign.autoLaunch) {
-    await dispatchStage(campaignId, 'COPY_GEN');
+    // Fully automatic: dispatch META_SETUP before flipping status so it only
+    // advances if dispatch succeeds.
+    await dispatchStage(campaignId, 'META_SETUP');
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'LAUNCHING' },
+    });
+  } else {
+    // Everything is prepared — the user can now pick copy (if they haven't) and launch.
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'READY' },
+    });
   }
 }
 

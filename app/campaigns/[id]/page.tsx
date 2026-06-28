@@ -21,7 +21,11 @@ function thumbApiUrl(fileUrl: string): string {
   return `/api/videos/${campaignId}/thumb/${filename}`;
 }
 
-const POLLING_STATUSES = new Set(['PENDING', 'PROCESSING', 'BUILDING', 'LAUNCHING']);
+const TOTAL_CLIPS = 5;
+
+// Pre-launch states that all render the progressive workspace. Polled while working.
+const WORKSPACE_STATUSES = new Set(['PENDING', 'PROCESSING', 'CONTENT_READY', 'BUILDING', 'READY']);
+const POLLING_STATUSES = new Set(['PENDING', 'PROCESSING', 'CONTENT_READY', 'BUILDING', 'LAUNCHING']);
 
 const STAGE_LABELS: Record<string, string> = {
   SEGMENTATION: 'Splitting audio into segments',
@@ -73,152 +77,18 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
   const { status } = campaign;
 
-  // ── Phase 1: content generating ──────────────────────────────────────────
-  if (status === 'PENDING' || status === 'PROCESSING') {
-    const contentJobs = campaign.jobs?.filter((j: any) =>
-      j.stage === 'SEGMENTATION' || j.stage === 'VIDEO_GEN'
-    ) ?? [];
-    const doneCount = contentJobs.filter((j: any) => j.status === 'DONE').length;
-    const pct = Math.round((doneCount / Math.max(contentJobs.length, 1)) * 100);
-    const ageMs = now - new Date(campaign.createdAt).getTime();
-    const anyRunning = contentJobs.some((j: any) => j.status === 'RUNNING');
-    // Stale if older than 5 min and nothing is actively running (covers partial progress too)
-    const isStale = ageMs > 5 * 60 * 1000 && !anyRunning && pct < 100;
-
+  // ── Progressive workspace: prep + review + launch on one page ────────────────
+  if (WORKSPACE_STATUSES.has(status)) {
     return (
-      <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
-        <TrackHeader campaign={campaign} />
-
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="font-display font-700 text-lg">Creating your content</h2>
-            <span className="text-sm text-gray-400">{pct}%</span>
-          </div>
-          <p className="text-sm text-gray-400 mb-4">Splitting your track and generating 5 video clips…</p>
-          <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
-            <div
-              className="h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(pct, 5)}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
-            />
-          </div>
-          <div className="space-y-4">
-            {contentJobs.map((job: any) => (
-              <StageRow key={job.stage} job={job} />
-            ))}
-          </div>
-          {isStale && (
-            <div className="mt-5 rounded-lg border border-yellow-700 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-300">
-              <p className="font-semibold mb-1">Taking longer than expected</p>
-              <p className="mb-3 text-yellow-400">The worker may have been down when this was submitted. Click retry to requeue it.</p>
-              <button
-                onClick={() => handleAction('retry-stuck')}
-                disabled={actionLoading}
-                className="px-4 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
-              >
-                {actionLoading ? 'Retrying…' : 'Retry now'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <CampaignWorkspace
+        campaign={campaign}
+        params={params}
+        handleAction={handleAction}
+        actionLoading={actionLoading}
+        router={router}
+        now={now}
+      />
     );
-  }
-
-  // ── Phase 1 done: show content ────────────────────────────────────────────
-  if (status === 'CONTENT_READY') {
-    return (
-      <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
-        <TrackHeader campaign={campaign} />
-
-        <div className="mt-6 mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-lg">Your videos are ready</h2>
-            <p className="text-sm text-gray-400">{campaign.creatives?.length} clips generated</p>
-          </div>
-          <span className="text-green-400 text-sm font-medium">Content ready</span>
-        </div>
-
-        <div className="space-y-3 mb-6">
-          {campaign.creatives?.map((creative: any, i: number) => (
-            <div key={creative.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-              {creative.fileUrl ? (
-                <video
-                  src={videoApiUrl(creative.fileUrl)}
-                  controls
-                  playsInline
-                  className="w-full aspect-square object-cover"
-                />
-              ) : (
-                <div className="w-full aspect-square bg-gray-800 flex items-center justify-center text-gray-600 text-sm">
-                  Processing…
-                </div>
-              )}
-              <div className="p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Clip {i + 1}</p>
-                  <p className="text-xs text-gray-400">
-                    {campaign.segments?.[i]?.startSec?.toFixed(0)}s – {campaign.segments?.[i]?.endSec?.toFixed(0)}s
-                  </p>
-                </div>
-                <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-full shrink-0">
-                  {creative.ctaText}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={() => handleAction('continue')}
-          disabled={actionLoading}
-          className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-50"
-        >
-          {actionLoading ? 'Starting…' : 'Continue to Campaign Setup'}
-        </button>
-      </div>
-    );
-  }
-
-  // ── Phase 2: campaign building ────────────────────────────────────────────
-  if (status === 'BUILDING') {
-    const campaignJobs = campaign.jobs?.filter((j: any) =>
-      j.stage === 'COPY_GEN' || j.stage === 'AUDIENCE_GEN'
-    ) ?? [];
-    const doneCount = campaignJobs.filter((j: any) => j.status === 'DONE').length;
-    const pct = Math.round((doneCount / Math.max(campaignJobs.length, 1)) * 100);
-
-    return (
-      <div className="max-w-xl mx-auto">
-        <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
-        <TrackHeader campaign={campaign} />
-
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mt-6">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="font-display font-700 text-lg">Building your campaign</h2>
-            <span className="text-sm text-gray-400">{pct}%</span>
-          </div>
-          <p className="text-sm text-gray-400 mb-4">Writing ad copy and setting up audiences…</p>
-          <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
-            <div
-              className="h-1.5 rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(pct, 5)}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
-            />
-          </div>
-          <div className="space-y-4">
-            {campaignJobs.map((job: any) => (
-              <StageRow key={job.stage} job={job} />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Phase 2 done: ready to launch ─────────────────────────────────────────
-  if (status === 'READY') {
-    return <ReadyToLaunch campaign={campaign} params={params} handleAction={handleAction} actionLoading={actionLoading} router={router} />;
   }
 
   // ── Paused ───────────────────────────────────────────────────────────────
@@ -359,18 +229,40 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   );
 }
 
-function ReadyToLaunch({ campaign, params, handleAction, actionLoading, router }: {
+// ── Progressive workspace ─────────────────────────────────────────────────────
+// One page that reveals each piece as it's ready: ad copy + audiences are ready
+// in seconds (so the user can start picking) while videos render in the background.
+function CampaignWorkspace({ campaign, params, handleAction, actionLoading, router, now }: {
   campaign: any;
   params: { id: string };
   handleAction: (action: string) => Promise<void>;
   actionLoading: boolean;
   router: ReturnType<typeof useRouter>;
+  now: number;
 }) {
+  const jobs: any[] = campaign.jobs ?? [];
+  const jobStatus = (stage: string) => jobs.find((j) => j.stage === stage)?.status;
+  const segDone = jobStatus('SEGMENTATION') === 'DONE';
+  const copyDone = jobStatus('COPY_GEN') === 'DONE';
+  const audienceDone = jobStatus('AUDIENCE_GEN') === 'DONE';
+  const videoDone = jobStatus('VIDEO_GEN') === 'DONE';
+
+  const creatives: any[] = campaign.creatives ?? [];
+  const videoCount = Math.min(creatives.length, TOTAL_CLIPS);
   const copies: any[] = campaign.adCopies ?? [];
-  const initialSelected = copies.find((c: any) => c.isSelected)?.id ?? copies[0]?.id ?? null;
-  const [selectedCopyId, setSelectedCopyId] = useState<string | null>(initialSelected);
-  const [selecting, setSelecting] = useState(false);
+  const audiences: any[] = campaign.audiences ?? [];
   const hasMetaConnection = campaign.hasMetaConnection;
+
+  const allReady = copyDone && audienceDone && videoDone;
+
+  const [selectedCopyId, setSelectedCopyId] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState(false);
+
+  // Initialise the selection once copies arrive (they may not exist on first render).
+  useEffect(() => {
+    if (selectedCopyId || copies.length === 0) return;
+    setSelectedCopyId(copies.find((c) => c.isSelected)?.id ?? copies[0]?.id ?? null);
+  }, [copies, selectedCopyId]);
 
   async function selectCopy(copyId: string) {
     setSelectedCopyId(copyId);
@@ -383,29 +275,92 @@ function ReadyToLaunch({ campaign, params, handleAction, actionLoading, router }
     setSelecting(false);
   }
 
+  // Smooth progress: segmentation + copy + audiences (1 unit each) + each video clip.
+  const doneUnits = (segDone ? 1 : 0) + (copyDone ? 1 : 0) + (audienceDone ? 1 : 0) + videoCount;
+  const pct = Math.round((doneUnits / (3 + TOTAL_CLIPS)) * 100);
+
+  const ageMs = now - new Date(campaign.createdAt).getTime();
+  const anyRunning = jobs.some(
+    (j) => ['SEGMENTATION', 'COPY_GEN', 'AUDIENCE_GEN', 'VIDEO_GEN'].includes(j.stage) && j.status === 'RUNNING',
+  );
+  const isStale = !allReady && ageMs > 5 * 60 * 1000 && !anyRunning;
+
+  const steps = [
+    { key: 'SEGMENTATION', label: 'Splitting your track', done: segDone },
+    { key: 'COPY_GEN', label: 'Writing your ad copy', done: copyDone },
+    { key: 'AUDIENCE_GEN', label: 'Building your audiences', done: audienceDone },
+    {
+      key: 'VIDEO_GEN',
+      label: videoDone ? 'Videos ready' : `Generating videos (${videoCount}/${TOTAL_CLIPS})`,
+      done: videoDone,
+    },
+  ];
+  const activeKey = steps.find((s) => !s.done)?.key;
+
+  const budgetUsd = (campaign.visualConfig as any)?.dailyBudgetUsd ?? 10;
+
   return (
     <div className="max-w-xl mx-auto space-y-4">
       <BackButton onClick={() => router.push('/campaigns')} campaignId={params.id} />
       <TrackHeader campaign={campaign} />
 
-      {hasMetaConnection ? (
-        <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
-          <h2 className="font-display font-700 text-lg mb-1">Ready to launch</h2>
-          <p className="text-sm text-gray-400">Pick your ad copy below, then launch.</p>
-        </div>
+      {/* Header: progress while working, or ready banner when done */}
+      {allReady ? (
+        hasMetaConnection ? (
+          <div className="bg-green-900/20 border border-green-700 rounded-xl p-5">
+            <h2 className="font-display font-700 text-lg mb-1">Ready to launch 🎉</h2>
+            <p className="text-sm text-gray-400">Pick your ad copy below, then launch.</p>
+          </div>
+        ) : (
+          <div className="border border-amber-700/50 bg-amber-900/15 rounded-xl p-5">
+            <h2 className="font-display font-700 text-lg mb-1 text-amber-200">Connect Meta to launch</h2>
+            <p className="text-sm text-amber-300/80 mb-3">
+              Everything&apos;s ready — connect your Meta account before going live.
+            </p>
+            <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
+              Go to Settings to connect Meta
+            </a>
+          </div>
+        )
       ) : (
-        <div className="border border-amber-700/50 bg-amber-900/15 rounded-xl p-5">
-          <h2 className="font-display font-700 text-lg mb-1 text-amber-200">Connect Meta to launch</h2>
-          <p className="text-sm text-amber-300/80 mb-3">
-            Your videos and ad copy are ready — connect your Meta account before going live.
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-display font-700 text-lg">Building your campaign</h2>
+            <span className="text-sm text-gray-400">{pct}%</span>
+          </div>
+          <p className="text-sm text-gray-400 mb-4">
+            {copyDone
+              ? 'Pick your ad copy below while we finish rendering your videos…'
+              : 'Setting everything up — this takes about a minute…'}
           </p>
-          <a href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-300 hover:text-amber-100 border border-amber-700/60 hover:border-amber-500 px-4 py-2 rounded-lg transition">
-            Go to Settings to connect Meta
-          </a>
+          <div className="w-full bg-gray-800 rounded-full h-1.5 mb-6">
+            <div
+              className="h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.max(pct, 5)}%`, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
+            />
+          </div>
+          <div className="space-y-3">
+            {steps.map((s) => (
+              <WorkspaceStep key={s.key} label={s.label} done={s.done} active={s.key === activeKey} />
+            ))}
+          </div>
+          {isStale && (
+            <div className="mt-5 rounded-lg border border-yellow-700 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-300">
+              <p className="font-semibold mb-1">Taking longer than expected</p>
+              <p className="mb-3 text-yellow-400">The worker may have been down when this was submitted. Click retry to requeue it.</p>
+              <button
+                onClick={() => handleAction('retry-stuck')}
+                disabled={actionLoading}
+                className="px-4 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {actionLoading ? 'Retrying…' : 'Retry now'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Ad copy picker */}
+      {/* Ad copy picker — appears as soon as copy is ready, even mid-render */}
       {copies.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
@@ -448,39 +403,51 @@ function ReadyToLaunch({ campaign, params, handleAction, actionLoading, router }
         </div>
       )}
 
-      {/* Video clips (read-only — the A/B test) */}
+      {/* Video clips — fill in one at a time as they render */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Video clips ({campaign.creatives?.length})</h3>
-          <span className="text-xs text-gray-500">A/B testing which section performs best</span>
+          <h3 className="font-semibold">
+            Video clips {videoDone ? `(${TOTAL_CLIPS})` : `(${videoCount}/${TOTAL_CLIPS})`}
+          </h3>
+          <span className="text-xs text-gray-500">
+            {videoDone ? 'A/B testing which section performs best' : 'Rendering…'}
+          </span>
         </div>
         <div className="grid grid-cols-5 gap-2">
-          {campaign.creatives?.map((creative: any, i: number) => (
-            <div key={creative.id} className="text-center">
-              {creative.fileUrl ? (
-                <video
-                  src={videoApiUrl(creative.fileUrl)}
-                  poster={thumbApiUrl(creative.fileUrl)}
-                  muted
-                  playsInline
-                  preload="none"
-                  className="w-full aspect-square object-cover rounded-lg bg-gray-700"
-                />
-              ) : (
-                <div className="w-full aspect-square bg-gray-800 rounded-lg" />
-              )}
-              <p className="text-xs text-gray-500 mt-1">Clip {i + 1}</p>
-            </div>
-          ))}
+          {Array.from({ length: TOTAL_CLIPS }).map((_, i) => {
+            const creative = creatives[i];
+            return (
+              <div key={i} className="text-center">
+                {creative?.fileUrl ? (
+                  <video
+                    src={videoApiUrl(creative.fileUrl)}
+                    poster={thumbApiUrl(creative.fileUrl)}
+                    muted
+                    playsInline
+                    preload="none"
+                    className="w-full aspect-square object-cover rounded-lg bg-gray-700"
+                  />
+                ) : (
+                  <div className="w-full aspect-square bg-gray-800 rounded-lg flex items-center justify-center animate-pulse">
+                    <svg className="animate-spin w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">Clip {i + 1}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Audience */}
-      {campaign.audiences?.length > 0 && (
+      {audiences.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <h3 className="font-semibold mb-3">Audience</h3>
           <div className="space-y-2">
-            {campaign.audiences.map((aud: any) => (
+            {audiences.map((aud: any) => (
               <div key={aud.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
                 <p className="text-sm">{aud.name}</p>
                 <span className="text-xs text-gray-500">{aud.type}</span>
@@ -491,31 +458,32 @@ function ReadyToLaunch({ campaign, params, handleAction, actionLoading, router }
       )}
 
       {/* Budget summary */}
-      {(() => {
-        const budgetUsd = (campaign.visualConfig as any)?.dailyBudgetUsd ?? 10;
-        return (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">Daily ad spend</p>
-                <p className="text-xs text-gray-500 mt-0.5">Split across 3 audiences (~${(budgetUsd / 3).toFixed(2)}/day each)</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-white">${budgetUsd}<span className="text-sm font-normal text-gray-400">/day</span></p>
-                <p className="text-xs text-gray-600">total</p>
-              </div>
-            </div>
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">Daily ad spend</p>
+            <p className="text-xs text-gray-500 mt-0.5">Split across 3 audiences (~${(budgetUsd / 3).toFixed(2)}/day each)</p>
           </div>
-        );
-      })()}
+          <div className="text-right">
+            <p className="text-lg font-bold text-white">${budgetUsd}<span className="text-sm font-normal text-gray-400">/day</span></p>
+            <p className="text-xs text-gray-600">total</p>
+          </div>
+        </div>
+      </div>
 
+      {/* Launch */}
       <button
         onClick={() => handleAction('launch')}
-        disabled={actionLoading || !selectedCopyId || !hasMetaConnection}
+        disabled={actionLoading || !allReady || !selectedCopyId || !hasMetaConnection}
         className="btn-primary w-full px-6 py-3 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {actionLoading ? 'Launching…' : 'Launch Campaign'}
+        {actionLoading ? 'Launching…' : allReady ? 'Launch Campaign' : 'Finishing your videos…'}
       </button>
+      {!allReady && (
+        <p className="text-center text-xs text-gray-500">
+          Pick your ad copy now — the Launch button unlocks the moment your videos are ready.
+        </p>
+      )}
     </div>
   );
 }
@@ -554,39 +522,25 @@ function TrackHeader({ campaign }: { campaign: any }) {
   );
 }
 
-function StageRow({ job }: { job: any }) {
-  const isDone = job.status === 'DONE';
-  const isRunning = job.status === 'RUNNING';
-  const isFailed = job.status === 'FAILED';
-
+function WorkspaceStep({ label, done, active }: { label: string; done: boolean; active: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-        {isDone && (
+        {done ? (
           <svg className="text-green-400 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-        )}
-        {isRunning && (
+        ) : active ? (
           <svg className="animate-spin text-blue-400 w-5 h-5" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
-        )}
-        {isFailed && (
-          <svg className="text-red-400 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        )}
-        {!isDone && !isRunning && !isFailed && (
+        ) : (
           <div className="w-4 h-4 rounded-full border-2 border-gray-600" />
         )}
       </div>
-      <span className={`text-sm ${isDone ? 'text-green-300' : isRunning ? 'text-blue-300 font-medium' : isFailed ? 'text-red-400' : 'text-gray-500'}`}>
-        {STAGE_LABELS[job.stage] ?? job.stage}
-        {isFailed && job.error && (
-          <span className="block text-xs text-red-500 mt-0.5">{job.error}</span>
-        )}
+      <span className={`text-sm ${done ? 'text-green-300' : active ? 'text-blue-300 font-medium' : 'text-gray-500'}`}>
+        {label}
       </span>
     </div>
   );

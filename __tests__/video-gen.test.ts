@@ -91,28 +91,28 @@ describe('runVideoGen', () => {
     expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(5);
   });
 
-  it('sets campaign status to CONTENT_READY when autoLaunch is false', async () => {
+  it('sets campaign status to READY when autoLaunch is false (everything prepared)', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign({ autoLaunch: false }));
 
     await runVideoGen('camp-1');
 
     expect(mockPrisma.campaign.update).toHaveBeenCalledWith({
       where: { id: 'camp-1' },
-      data: { status: 'CONTENT_READY' },
+      data: { status: 'READY' },
     });
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
-  it('sets campaign status to BUILDING and dispatches COPY_GEN when autoLaunch is true', async () => {
+  it('sets campaign status to LAUNCHING and dispatches META_SETUP when autoLaunch is true', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign({ autoLaunch: true }));
 
     await runVideoGen('camp-1');
 
     expect(mockPrisma.campaign.update).toHaveBeenCalledWith({
       where: { id: 'camp-1' },
-      data: { status: 'BUILDING' },
+      data: { status: 'LAUNCHING' },
     });
-    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'COPY_GEN');
+    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'META_SETUP');
   });
 
   it('deletes existing creatives before generating new ones (idempotency)', async () => {

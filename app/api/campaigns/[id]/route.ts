@@ -20,10 +20,14 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
   if (stalenessCheck && (stalenessCheck.status === 'PROCESSING' || stalenessCheck.status === 'PENDING')) {
     const anyRunning = stalenessCheck.jobs.some(j => j.status === 'RUNNING');
-    const anyDone = stalenessCheck.jobs.some(j => j.stage === 'SEGMENTATION' && j.status === 'DONE');
     const ageMs = Date.now() - new Date(stalenessCheck.createdAt).getTime();
+    // Content stages in execution order. Re-kick the earliest one that isn't DONE —
+    // each stage dispatches the next on success, so this resumes the whole chain.
+    const CONTENT_ORDER = ['SEGMENTATION', 'COPY_GEN', 'AUDIENCE_GEN', 'VIDEO_GEN'] as const;
+    const isDone = (stage: string) => stalenessCheck.jobs.some(j => j.stage === stage && j.status === 'DONE');
+    const nextStage = CONTENT_ORDER.find(s => !isDone(s));
     // Fire after 60 seconds — if the worker had the job it would have set RUNNING by now
-    if (!anyRunning && !anyDone && ageMs > 60 * 1000) {
+    if (!anyRunning && nextStage && ageMs > 60 * 1000) {
       // IDEMPOTENCY: check if there's already a job for this campaign in Redis
       // before dispatching another. Otherwise every page refresh creates a duplicate.
       let alreadyQueued = false;
@@ -36,13 +40,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       if (alreadyQueued) {
         console.log(`[auto-recover] skip — campaign ${params.id} already has a queued job`);
       } else {
-        console.log(`[auto-recover] requeuing SEGMENTATION for stuck campaign ${params.id} (age=${Math.round(ageMs/1000)}s)`);
+        console.log(`[auto-recover] requeuing ${nextStage} for stuck campaign ${params.id} (age=${Math.round(ageMs/1000)}s)`);
         try {
           await prisma.campaignJob.updateMany({
-            where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+            where: { campaignId: params.id, stage: nextStage },
             data: { status: 'PENDING', error: null },
           });
-          await dispatchStage(params.id, 'SEGMENTATION');
+          await dispatchStage(params.id, nextStage);
         } catch (err) {
           console.error('[auto-recover] dispatch failed:', err);
         }
@@ -91,10 +95,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  // Retry a stuck PROCESSING/PENDING campaign — re-dispatches SEGMENTATION from scratch
+  // Retry a stuck PROCESSING/PENDING campaign — re-runs the whole content chain from scratch
   if (action === 'retry-stuck') {
     await prisma.campaignJob.updateMany({
-      where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'VIDEO_GEN'] } },
+      where: { campaignId: params.id, stage: { in: ['SEGMENTATION', 'COPY_GEN', 'AUDIENCE_GEN', 'VIDEO_GEN'] } },
       data: { status: 'PENDING', error: null },
     });
     await prisma.campaign.update({
@@ -111,19 +115,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await prisma.adCopy.updateMany({ where: { campaignId: params.id, creativeId: null }, data: { isSelected: false } });
     await prisma.adCopy.update({ where: { id: copyId }, data: { isSelected: true } });
     return NextResponse.json({ ok: true });
-  }
-
-  if (action === 'continue') {
-    const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });
-    if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
-
-    if (campaign.status !== CampaignStatus.CONTENT_READY) {
-      return NextResponse.json({ error: 'campaign must be CONTENT_READY to continue' }, { status: 400 });
-    }
-
-    await prisma.campaign.update({ where: { id: params.id }, data: { status: CampaignStatus.BUILDING } });
-    await dispatchStage(params.id, 'COPY_GEN');
-    return NextResponse.json({ status: 'building' });
   }
 
   if (action === 'launch') {
@@ -177,11 +168,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const failedJob = campaign.jobs.find(j => j.status === 'FAILED');
     if (!failedJob) return NextResponse.json({ error: 'no failed job found' }, { status: 400 });
 
+    // All content stages live in the PROCESSING phase now; only META_SETUP is LAUNCHING.
     const stageStatusMap: Partial<Record<string, CampaignStatus>> = {
-      SEGMENTATION: CampaignStatus.PENDING,
+      SEGMENTATION: CampaignStatus.PROCESSING,
+      COPY_GEN:     CampaignStatus.PROCESSING,
+      AUDIENCE_GEN: CampaignStatus.PROCESSING,
       VIDEO_GEN:    CampaignStatus.PROCESSING,
-      COPY_GEN:     CampaignStatus.BUILDING,
-      AUDIENCE_GEN: CampaignStatus.BUILDING,
       META_SETUP:   CampaignStatus.LAUNCHING,
     };
     const newStatus = stageStatusMap[failedJob.stage];

@@ -76,14 +76,14 @@ describe('runSegmentation', () => {
     (mockFfmpegFn as any).ffprobe = mockFfprobe;
   });
 
-  it('dispatches VIDEO_GEN after successful segmentation', async () => {
+  it('dispatches COPY_GEN after successful segmentation (fast stages run before video)', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
     stubFfprobe(180);
 
     await runSegmentation('camp-1');
 
     expect(mockDispatch).toHaveBeenCalledOnce();
-    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'VIDEO_GEN');
+    expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'COPY_GEN');
   });
 
   it('creates exactly 5 AudioSegment records', async () => {

@@ -6,7 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Promohit** is an automated music promotion platform. Users paste a Spotify link, upload an audio file, customise visuals, and the platform generates 5 × 30-second MP4 ad creatives, writes ad copy via Claude API, builds audiences, and launches a Meta (Facebook/Instagram) ad campaign — all automatically.
 
-Active development branch: `claude/migrate-marketing-app-jfiNE`
+## Branches & deployment
+
+- `main` → **production** (live customers). Protected; only updated via PR from `staging`.
+- `staging` → **staging** environment (own DB/Redis). Verify changes here first.
+- `feature/*` → day-to-day work; PR into `staging`.
+
+Never push directly to `main`. Full flow, Railway setup, and the migration plan
+are in **`DEPLOYMENT.md`**.
 
 ## Commands
 

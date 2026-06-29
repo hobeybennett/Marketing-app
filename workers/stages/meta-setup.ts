@@ -133,8 +133,9 @@ export async function runMetaSetup(campaignId: string) {
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
       optimization_goal: 'LINK_CLICKS',
-      bid_amount: 200,
-      bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
+      // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
+      // a small daily budget can prevent delivery entirely.
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       daily_budget: Math.round((campaign.dailyBudget ?? 10) / 3 * 100),
       targeting: buildTargeting(audience),
       // Ad sets + ads are created ACTIVE, but the parent campaign stays PAUSED
@@ -248,8 +249,11 @@ const SPOTIFY_MARKETS = [
   'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
   // Latin America
   'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
-  // Asia-Pacific
-  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'TH', 'ID', 'VN', 'HK',
+  // Asia-Pacific — note: Thailand (min age 20) and Indonesia (min age 21) are
+  // intentionally excluded. Meta rejects an 18+ ad set that includes them, and a
+  // single ad set can only have one minimum age. Keeping 18+ everywhere else
+  // preserves the crucial 18-19 music demographic in all major markets.
+  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'VN', 'HK',
   // Middle East
   'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
   // Africa

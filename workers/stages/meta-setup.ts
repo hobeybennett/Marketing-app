@@ -137,7 +137,9 @@ export async function runMetaSetup(campaignId: string) {
       bid_strategy: 'LOWEST_COST_WITH_BID_CAP',
       daily_budget: Math.round((campaign.dailyBudget ?? 10) / 3 * 100),
       targeting: buildTargeting(audience),
-      status: 'PAUSED',
+      // Ad sets + ads are created ACTIVE, but the parent campaign stays PAUSED
+      // until the very end, so nothing delivers while we're still building it.
+      status: 'ACTIVE',
     });
 
     await prisma.audience.update({
@@ -153,11 +155,16 @@ export async function runMetaSetup(campaignId: string) {
       await metaPost(`/act_${adAccountId}/ads`, token, {
         name: `${campaign.songTitle} — Clip ${clipNum} — ${audience.name}`,
         adset_id: adSet.id,
-        status: 'PAUSED',
+        status: 'ACTIVE',
         creative: { creative_id: adCreativeId },
       });
     }
   }
+
+  // Everything is built (ad sets + ads ACTIVE under a still-PAUSED campaign).
+  // Flip the campaign to ACTIVE last so delivery starts atomically — this is
+  // what actually makes the ads run and spend the daily budget.
+  await metaPost(`/${metaCampaignId}`, token, { status: 'ACTIVE' });
 
   await prisma.campaign.update({
     where: { id: campaignId },

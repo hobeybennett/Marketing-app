@@ -462,7 +462,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">Daily ad spend</p>
-            <p className="text-xs text-gray-500 mt-0.5">Split across 3 audiences (~${(budgetUsd / 3).toFixed(2)}/day each)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Across Facebook &amp; Instagram, targeting music fans</p>
           </div>
           <div className="text-right">
             <p className="text-lg font-bold text-white">${budgetUsd}<span className="text-sm font-normal text-gray-400">/day</span></p>

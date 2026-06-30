@@ -165,7 +165,7 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
         // Verify pipeline outputs
         expect(c!.segments.length).toBe(5);
         expect(c!.creatives.length).toBe(5);
-        expect(c!.audiences.length).toBe(3);
+        expect(c!.audiences.length).toBe(1);
         expect(c!.jobs.every((j) => j.status === 'DONE')).toBe(true);
         return;
       }
@@ -203,7 +203,7 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
       if (lastStatus === 'READY') {
         expect(copyReadyBeforeVideos).toBe(true);
         expect(c!.creatives.length).toBe(5);
-        expect(c!.audiences.length).toBe(3);
+        expect(c!.audiences.length).toBe(1);
         expect(c!.adCopies.length).toBeGreaterThan(0);
         // META_SETUP must NOT have run yet — that waits for the user to click Launch.
         expect(job('META_SETUP')).toBe('PENDING');

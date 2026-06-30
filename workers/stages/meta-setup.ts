@@ -142,6 +142,13 @@ export async function runMetaSetup(campaignId: string) {
     throw new Error('Exceeded regional_regulated_categories retries');
   }
 
+  // Split the daily budget across the ad sets that will actually run (PENDING_DATA
+  // audiences are skipped). With a single interest audience this is the full budget.
+  const adSetCount = Math.max(
+    campaign.audiences.filter((a) => (a as any).dataStatus !== 'PENDING_DATA').length,
+    1,
+  );
+
   for (const audience of campaign.audiences) {
     // Skip adset creation on retry if this audience already has a Meta adset ID
     if (audience.metaAdSetId) {
@@ -163,7 +170,7 @@ export async function runMetaSetup(campaignId: string) {
       // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
       // a small daily budget can prevent delivery entirely.
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      daily_budget: Math.round((campaign.dailyBudget ?? 10) / 3 * 100),
+      daily_budget: Math.round((campaign.dailyBudget ?? 10) / adSetCount * 100),
       targeting: buildTargeting(audience),
       // EU/Brazil/etc. DSA transparency: naming the beneficiary + payer here means
       // the customer never has to fill this in. For general (non-political) ads

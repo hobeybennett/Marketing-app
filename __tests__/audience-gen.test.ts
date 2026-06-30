@@ -11,7 +11,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   audience: {
     deleteMany: vi.fn().mockResolvedValue({}),
-    createMany: vi.fn().mockResolvedValue({}),
+    create: vi.fn().mockResolvedValue({}),
   },
 }));
 
@@ -35,23 +35,25 @@ describe('runAudienceGen', () => {
     vi.clearAllMocks();
   });
 
-  it('creates exactly 3 audiences', async () => {
+  it('creates a single AVAILABLE interest audience', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
 
     await runAudienceGen('camp-1');
 
-    const created: any[] = mockPrisma.audience.createMany.mock.calls[0][0].data;
-    expect(created).toHaveLength(3);
+    expect(mockPrisma.audience.create).toHaveBeenCalledTimes(1);
+    const created = mockPrisma.audience.create.mock.calls[0][0].data;
+    expect(created.type).toBe('INTEREST');
+    expect(created.dataStatus).toBe('AVAILABLE');
+    expect(created.campaignId).toBe('camp-1');
   });
 
-  it('creates one of each audience type', async () => {
+  it('uses soundsLike as the interests', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
 
     await runAudienceGen('camp-1');
 
-    const created: any[] = mockPrisma.audience.createMany.mock.calls[0][0].data;
-    const types = created.map((a) => a.type).sort();
-    expect(types).toEqual(['INTEREST', 'LOOKALIKE', 'RETARGETING']);
+    const created = mockPrisma.audience.create.mock.calls[0][0].data;
+    expect(created.interests).toEqual(['Test Band']);
   });
 
   it('dispatches VIDEO_GEN next (slow stage runs last) when autoLaunch is false', async () => {
@@ -77,18 +79,18 @@ describe('runAudienceGen', () => {
 
     expect(mockPrisma.audience.deleteMany).toHaveBeenCalledWith({ where: { campaignId: 'camp-1' } });
     const deleteOrder = mockPrisma.audience.deleteMany.mock.invocationCallOrder[0];
-    const createOrder = mockPrisma.audience.createMany.mock.invocationCallOrder[0];
+    const createOrder = mockPrisma.audience.create.mock.invocationCallOrder[0];
     expect(deleteOrder).toBeLessThan(createOrder);
   });
 
-  it('all audiences belong to the correct campaign', async () => {
-    mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
+  it('falls back to generic interests when soundsLike is empty', async () => {
+    mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue({
+      id: 'camp-1', autoLaunch: false, artistName: 'Test Artist', soundsLike: [],
+    });
 
     await runAudienceGen('camp-1');
 
-    const created: any[] = mockPrisma.audience.createMany.mock.calls[0][0].data;
-    for (const aud of created) {
-      expect(aud.campaignId).toBe('camp-1');
-    }
+    const created = mockPrisma.audience.create.mock.calls[0][0].data;
+    expect(created.interests.length).toBeGreaterThan(0);
   });
 });

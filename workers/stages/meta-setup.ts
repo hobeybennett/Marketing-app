@@ -115,6 +115,33 @@ export async function runMetaSetup(campaignId: string) {
     adCreativeIds.set(creative.id, adCreative.id);
   }
 
+  // Some countries (Taiwan, Singapore, …) require a `regional_regulated_categories`
+  // declaration to publish ads. Meta's error names the exact value to use, so we
+  // self-heal: attempt the ad set, and on that specific error append the named
+  // *_UNIVERSAL value and retry. Accumulated across ad sets so later ones start ready.
+  const regulatedCategories: string[] = [];
+  async function createAdSet(payload: Record<string, unknown>): Promise<any> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const body = regulatedCategories.length
+        ? { ...payload, regional_regulated_categories: regulatedCategories }
+        : payload;
+      try {
+        return await metaPost(`/act_${adAccountId}/adsets`, token, body);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const match = msg.match(/\b([A-Z]+(?:_[A-Z]+)*_UNIVERSAL)\b/);
+        const category = match?.[1];
+        if (category && !regulatedCategories.includes(category)) {
+          console.log(`[meta-setup] adding regional_regulated_category ${category} and retrying ad set`);
+          regulatedCategories.push(category);
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('Exceeded regional_regulated_categories retries');
+  }
+
   for (const audience of campaign.audiences) {
     // Skip adset creation on retry if this audience already has a Meta adset ID
     if (audience.metaAdSetId) {
@@ -128,7 +155,7 @@ export async function runMetaSetup(campaignId: string) {
       continue;
     }
 
-    const adSet = await metaPost(`/act_${adAccountId}/adsets`, token, {
+    const adSet = await createAdSet({
       name: audience.name,
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
@@ -249,10 +276,10 @@ const SPOTIFY_MARKETS = [
   'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
   // Latin America
   'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
-  // Asia-Pacific. Intentionally excluded (Meta regulatory hoops, like the proven
-  // reference campaign): Thailand (min age 20), Indonesia (min age 21), and
-  // Taiwan (requires a regional_regulated_categories=TAIWAN_UNIVERSAL declaration).
-  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'VN', 'HK',
+  // Asia-Pacific. Thailand (min age 20) and Indonesia (min age 21) are excluded —
+  // a single 18+ ad set can't include them. Taiwan + Singapore ARE included now;
+  // their regional_regulated_categories requirement is handled by createAdSet().
+  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'VN', 'HK',
   // Middle East
   'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
   // Africa

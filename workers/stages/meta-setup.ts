@@ -165,6 +165,12 @@ export async function runMetaSetup(campaignId: string) {
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       daily_budget: Math.round((campaign.dailyBudget ?? 10) / 3 * 100),
       targeting: buildTargeting(audience),
+      // EU/Brazil/etc. DSA transparency: naming the beneficiary + payer here means
+      // the customer never has to fill this in. For general (non-political) ads
+      // these are just transparency strings, not a verification gate — so big
+      // markets like the EU keep working with zero extra Meta work.
+      dsa_beneficiary: campaign.artistName,
+      dsa_payor: campaign.artistName,
       // Ad sets + ads are created ACTIVE, but the parent campaign stays PAUSED
       // until the very end, so nothing delivers while we're still building it.
       status: 'ACTIVE',
@@ -276,10 +282,10 @@ const SPOTIFY_MARKETS = [
   'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
   // Latin America
   'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
-  // Asia-Pacific. Thailand (min age 20) and Indonesia (min age 21) are excluded —
-  // a single 18+ ad set can't include them. Taiwan + Singapore ARE included now;
-  // their regional_regulated_categories requirement is handled by createAdSet().
-  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'VN', 'HK',
+  // Asia-Pacific. Excluded so a brand-new customer account needs ZERO extra Meta
+  // work: Thailand (min age 20), Indonesia (min age 21), and Singapore + Taiwan
+  // (both require the advertiser to complete account verification themselves).
+  'JP', 'KR', 'PH', 'MY', 'IN', 'VN', 'HK',
   // Middle East
   'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
   // Africa

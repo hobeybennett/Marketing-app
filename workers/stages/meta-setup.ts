@@ -249,11 +249,10 @@ const SPOTIFY_MARKETS = [
   'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
   // Latin America
   'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
-  // Asia-Pacific — note: Thailand (min age 20) and Indonesia (min age 21) are
-  // intentionally excluded. Meta rejects an 18+ ad set that includes them, and a
-  // single ad set can only have one minimum age. Keeping 18+ everywhere else
-  // preserves the crucial 18-19 music demographic in all major markets.
-  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'TW', 'VN', 'HK',
+  // Asia-Pacific. Intentionally excluded (Meta regulatory hoops, like the proven
+  // reference campaign): Thailand (min age 20), Indonesia (min age 21), and
+  // Taiwan (requires a regional_regulated_categories=TAIWAN_UNIVERSAL declaration).
+  'JP', 'KR', 'SG', 'PH', 'MY', 'IN', 'VN', 'HK',
   // Middle East
   'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
   // Africa

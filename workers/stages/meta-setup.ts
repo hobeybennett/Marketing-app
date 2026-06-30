@@ -126,7 +126,7 @@ export async function runMetaSetup(campaignId: string) {
         ? { ...payload, regional_regulated_categories: regulatedCategories }
         : payload;
       try {
-        return await metaPost(`/act_${adAccountId}/adsets`, token, body);
+        return await metaPost(`/act_${adAccountId}/adsets`, token!, body);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const match = msg.match(/\b([A-Z]+(?:_[A-Z]+)*_UNIVERSAL)\b/);

@@ -725,12 +725,12 @@ export default function CampaignNewForm() {
               <p className="text-sm font-semibold text-gray-200 mb-3">What we&apos;ll create for you</p>
               <ul className="space-y-2.5">
                 {[
-                  'Blurred cover art background with zoom-in animation',
-                  '5 clips, evenly spread across your track',
-                  '"Wanna hear something great?" hook text, fade-in entrance',
+                  'Framed cover art with a live audio equalizer that moves to your track',
+                  '5 video clips, evenly spread across your song',
+                  '"Wanna hear something great?" hook text',
                   '"Listen Now" call to action',
-                  'AI-written ad copy for each video',
-                  '3 target audiences — interest, retargeting, lookalike',
+                  'AI-written ad copy',
+                  'A targeted audience of the right music fans',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2.5 text-sm text-gray-400">
                     <span className="text-green-500 mt-0.5 shrink-0 text-base leading-none">–</span>
@@ -760,74 +760,24 @@ export default function CampaignNewForm() {
                   onCustomise={() => openSection('bg')}
                 />
                 {!expanded.has('bg') ? (
-                  <p className="text-xs text-gray-500">Cover art · 20px blur · Zoom-in animation</p>
+                  <p className="text-xs text-gray-500">Your cover art, blurred behind the framed artwork</p>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => { setBgMode('generate'); replayAnim(); }}
+                      <button type="button" onClick={() => { setBgMode('generate'); }}
                         className={`py-2.5 rounded-lg text-sm font-medium border transition
                           ${bgMode === 'generate' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                        Generate
+                        Use cover art
                       </button>
                       <button type="button" onClick={() => bgInputRef.current?.click()}
                         className={`py-2.5 rounded-lg text-sm font-medium border transition
                           ${bgMode === 'upload' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
-                        Upload
+                        Upload image
                       </button>
                     </div>
                     {bgMode === 'upload' && bgFile && <p className="text-xs text-gray-400">{bgFile.name}</p>}
                     <input ref={bgInputRef} type="file" accept="image/*,video/*"
                       onChange={(e) => handleBgUpload(e.target.files?.[0] ?? null)} className="hidden" />
-                    <div>
-                      <div className="flex justify-between text-xs text-gray-400 mb-1.5">
-                        <span>Blur</span><span>{blurAmount}px</span>
-                      </div>
-                      <input type="range" min={0} max={40} step={1} value={blurAmount}
-                        onChange={(e) => setBlurAmount(Number(e.target.value))}
-                        className="w-full accent-blue-500 h-1.5 cursor-pointer" />
-                      <div className="flex justify-between text-xs text-gray-700 mt-0.5">
-                        <span>Sharp</span><span>Max blur</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Animation */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-3">
-                <SectionHeader
-                  title="Animation"
-                  expanded={expanded.has('anim')}
-                  onRecommend={() => {
-                    setBgAnimation('zoom-in'); setTextAnimation('fade-in');
-                    replayAnim(); closeSection('anim');
-                  }}
-                  onCustomise={() => openSection('anim')}
-                />
-                {!expanded.has('anim') ? (
-                  <p className="text-xs text-gray-500">Background: Zoom in · Text entrance: Fade in</p>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Background</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['none', 'zoom-in', 'zoom-out', 'slow-pan', 'pulse'] as BgAnimation[]).map(a => (
-                          <Pill key={a} active={bgAnimation === a} onClick={() => { setBgAnimation(a); replayAnim(); }}>
-                            {a === 'none' ? 'Static' : a === 'zoom-in' ? 'Zoom in' : a === 'zoom-out' ? 'Zoom out' : a === 'slow-pan' ? 'Slow pan' : 'Pulse'}
-                          </Pill>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 mb-2">Text entrance</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(['none', 'fade-in', 'slide-up'] as TextAnimation[]).map(a => (
-                          <Pill key={a} active={textAnimation === a} onClick={() => { setTextAnimation(a); replayAnim(); }}>
-                            {a === 'none' ? 'Static' : a === 'fade-in' ? 'Fade in' : 'Slide up'}
-                          </Pill>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>

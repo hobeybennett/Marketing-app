@@ -1,9 +1,10 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
 import { SmartLinkClickRecorder } from './SmartLinkClickRecorder';
 import { MetaPixelScript } from './MetaPixelScript';
-import { SpotifyButton, SpotifyPlaylistButton, AppleMusicButton, YouTubeMusicButton } from './StreamingButtons';
+import { SpotifyButton, SpotifyPlaylistButton } from './StreamingButtons';
 
 interface Props {
   params: { campaignId: string };
@@ -11,6 +12,35 @@ interface Props {
 }
 
 export const dynamic = 'force-dynamic';
+
+// Link preview (Facebook/Instagram/iMessage) should show the song, not Promohit's
+// own marketing. This overrides the root layout's default OG tags for /go pages.
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: params.campaignId },
+    select: { artistName: true, songTitle: true, coverArtUrl: true },
+  });
+  if (!campaign) return { title: 'Listen' };
+
+  const base = process.env.NEXTAUTH_URL ?? '';
+  const image = campaign.coverArtUrl?.startsWith('http')
+    ? campaign.coverArtUrl
+    : `${base}/api/covers/${params.campaignId}`;
+  const title = `${campaign.songTitle} — ${campaign.artistName}`;
+  const description = `Listen to ${campaign.songTitle} by ${campaign.artistName} on Spotify.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'music.song',
+      images: [{ url: image, width: 640, height: 640, alt: `${campaign.songTitle} cover art` }],
+    },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
+  };
+}
 
 export default async function SmartLinkPage({ params, searchParams }: Props) {
   const campaign = await prisma.campaign.findUnique({
@@ -133,18 +163,6 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
                   artistName={campaign.artistName}
                 />
               )}
-
-              <AppleMusicButton
-                href={buildClickUrl('apple_music')}
-                songTitle={campaign.songTitle}
-                artistName={campaign.artistName}
-              />
-
-              <YouTubeMusicButton
-                href={buildClickUrl('youtube_music')}
-                songTitle={campaign.songTitle}
-                artistName={campaign.artistName}
-              />
             </>
           )}
         </div>

@@ -226,8 +226,8 @@ export async function runVideoGen(campaignId: string) {
   const coverArtPath = campaign.coverArtUrl;
 
   // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's small CPU
-  // (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). ultrafast
-  // preset keeps each render fast enough that sequential is fine.
+  // (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The 'fast'
+  // preset (crf 19) keeps each render well under the per-clip timeout.
   const tAll = Date.now();
   const failures: string[] = [];
   for (const segment of campaign.segments) {
@@ -365,7 +365,7 @@ function generateTextureVideo(opts: {
         .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '19', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output)
         .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
@@ -405,7 +405,7 @@ function generateTextureVideo(opts: {
         .input(texturePath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
+          '-c:v', 'libx264', '-preset', 'fast', '-crf', '19', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output)
         .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
@@ -502,8 +502,8 @@ function generateVideo(opts: {
         '-map', '[vout]',
         '-map', '2:a',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
+        '-preset', 'fast',
+        '-crf', '19',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-t', '30',

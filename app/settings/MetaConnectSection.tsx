@@ -25,6 +25,8 @@ export default function MetaConnectSection({ connection }: Props) {
   const [editingPixel, setEditingPixel] = useState(false);
   const [pixelInput, setPixelInput] = useState('');
   const [savingPixel, setSavingPixel] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   const [selectedAccountId, setSelectedAccountId] = useState(connection?.adAccountId ?? '');
   const [selectedPageId, setSelectedPageId] = useState(connection?.pageId ?? '');
@@ -71,6 +73,17 @@ export default function MetaConnectSection({ connection }: Props) {
     });
     setSavingPixel(false);
     setEditingPixel(false);
+    router.refresh();
+  }
+
+  async function setupTracking() {
+    setSettingUp(true);
+    const res = await fetch('/api/settings/pixel', { method: 'POST' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setSetupError(data?.error ?? 'Could not set up tracking — try Reconnect.');
+    }
+    setSettingUp(false);
     router.refresh();
   }
 
@@ -163,28 +176,24 @@ export default function MetaConnectSection({ connection }: Props) {
             </button>
           </div>
 
-          {/* Meta Pixel section */}
+          {/* Conversion tracking (Meta Pixel) */}
           <div className="pt-4 border-t border-gray-800 mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-sm font-medium text-gray-200">Meta Pixel</p>
-                <p className="text-xs text-gray-500">Tracks conversions on your smart link page</p>
-              </div>
-              {!editingPixel && (
-                <button
-                  onClick={() => {
-                    setPixelInput(connection.pixelId ?? '');
-                    setEditingPixel(true);
-                  }}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition"
-                >
-                  Edit
-                </button>
-              )}
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-medium text-gray-200">Conversion tracking</p>
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                connection.pixelId
+                  ? 'bg-green-900/40 text-green-400 border-green-800'
+                  : 'bg-gray-800 text-gray-500 border-gray-700'
+              }`}>
+                {connection.pixelId ? 'On' : 'Off'}
+              </span>
             </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Tracks who clicks through to Spotify, so your ads learn to reach more real listeners.
+            </p>
 
             {editingPixel ? (
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={pixelInput}
@@ -192,32 +201,40 @@ export default function MetaConnectSection({ connection }: Props) {
                   placeholder="Enter Pixel ID"
                   className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 />
-                <button
-                  onClick={savePixel}
-                  disabled={savingPixel}
-                  className="px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50"
-                >
+                <button onClick={savePixel} disabled={savingPixel}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition disabled:opacity-50">
                   {savingPixel ? 'Saving...' : 'Save'}
                 </button>
-                <button
-                  onClick={() => setEditingPixel(false)}
-                  className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition"
-                >
+                <button onClick={() => setEditingPixel(false)}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition">
                   Cancel
                 </button>
               </div>
+            ) : connection.pixelId ? (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  Pixel <span className="font-mono text-gray-400">{connection.pixelId}</span>
+                  {connection.pixelName ? ` · ${connection.pixelName}` : ''}
+                </p>
+                <button onClick={() => { setPixelInput(connection.pixelId ?? ''); setEditingPixel(true); }}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition">
+                  Use my own
+                </button>
+              </div>
             ) : (
-              <p className="text-sm">
-                <span className="text-gray-500">Pixel ID: </span>
-                {connection.pixelId ? (
-                  <span className="font-mono text-gray-200">{connection.pixelId}</span>
-                ) : (
-                  <span className="text-gray-600">Not set</span>
-                )}
-                {connection.pixelName && (
-                  <span className="text-gray-500 ml-2">({connection.pixelName})</span>
-                )}
-              </p>
+              <div>
+                <div className="flex gap-2">
+                  <button onClick={setupTracking} disabled={settingUp}
+                    className="btn-primary flex-1 py-2 text-xs disabled:opacity-50">
+                    {settingUp ? 'Setting up…' : 'Set up conversion tracking'}
+                  </button>
+                  <button onClick={() => { setPixelInput(''); setEditingPixel(true); }}
+                    className="px-3 py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition">
+                    Use my own
+                  </button>
+                </div>
+                {setupError && <p className="text-xs text-red-400 mt-2">{setupError}</p>}
+              </div>
             )}
           </div>
         </div>

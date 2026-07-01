@@ -430,67 +430,34 @@ function generateVideo(opts: {
   visualConfig: VisualConfig | null;
   presetIndex: number;
 }): Promise<void> {
-  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, presetIndex } = opts;
+  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig } = opts;
   const vc = visualConfig ?? {};
 
-  const isOverlayMode = vc.artMode === 'color' || vc.artMode === 'texture' || vc.artMode === 'pattern';
-  if (isOverlayMode) {
-    let bgPath: string;
-    if (vc.artMode === 'pattern') {
-      const id = vc.backgroundPattern ?? 'lines';
-      const p = path.join(ASSETS_DIR, 'patterns', `${id}.png`);
-      bgPath = fs.existsSync(p) ? p : path.join(ASSETS_DIR, 'patterns', 'lines.png');
-    } else {
-      const id = vc.backgroundTexture ?? 'midnight';
-      const p = path.join(ASSETS_DIR, 'textures', `${id}.png`);
-      bgPath = fs.existsSync(p) ? p : path.join(ASSETS_DIR, 'textures', 'midnight.png');
-    }
-    const showAlbumArt = vc.showAlbumArt !== false;
-    return generateTextureVideo({
-      texturePath: bgPath, coverArtPath, audio, output, ctaText, genre, artistName, showAlbumArt, visualConfig, presetIndex,
-    });
-  }
-
-  const blur = vc.blurAmount ?? 18;
-  const preset = PRESETS[presetIndex % PRESETS.length];
-
+  const ACCENT = '0x1DB954'; // Spotify green
   const hookText = vc.hookText?.trim()
-    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : null);
-  const hookFontSize = hookText ? dynamicFontSize(hookText, 72) : 72;
-  const hookY = ART_Y + TEXT_PAD;
+    || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : 'Wanna hear something great?');
 
-  const ctaStyle = vc.cta ?? {};
-  const ctaFontSize = dynamicFontSize(ctaText, 52);
-  const ctaColor = toFFColor(ctaStyle.fontColor ?? '#FFFFFF');
-  const ctaY = ART_BOTTOM - TEXT_PAD - ctaFontSize;
+  // Single clean template: a framed cover on a blurred/darkened version of itself,
+  // a Spotify-green audio equalizer that pulses with the track, legibility scrims
+  // top + bottom, and crisp hook + CTA. Input 0 = background, 1 = cover, 2 = audio.
+  const CARD = 520;
+  const CARD_X = Math.round((W - CARD) / 2);
+  const CARD_Y = 285;
+  const B = 3; // cover border thickness
 
-  const hookYExpr = preset.hookYExpr(hookY);
-  const ctaYExpr  = preset.ctaYExpr(ctaY);
-
-  const bgSection = preset.bgFilter(blur);
-  const needsBgInput = !bgSection.includes('[bg]') ? `${bgSection}[bg]` : bgSection;
-
-  const overlayAndTextFilters = [
-    `[1:v]scale=${ART_SIZE}:${ART_SIZE}:force_original_aspect_ratio=decrease,pad=${ART_SIZE}:${ART_SIZE}:(ow-iw)/2:(oh-ih)/2:black[art]`,
-    `[bg][art]overlay=${ART_X}:${ART_Y}[c0]`,
-    `[c0]drawbox=x=${ART_X}:y=${ART_Y}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c1]`,
-    `[c1]drawbox=x=${ART_X}:y=${ART_BOTTOM - 160}:w=${ART_SIZE}:h=160:color=black@0.65:t=fill[c2]`,
-    `[c2]drawbox=x=${ART_X}:y=${ART_Y + 160}:w=${ART_SIZE}:h=${ART_SIZE - 320}:color=black@0.30:t=fill[c3]`,
-  ];
-
-  if (hookText) {
-    overlayAndTextFilters.push(
-      `[c3]drawtext=fontfile='${esc(preset.hookFont)}':text='${esc(hookText)}':fontsize=${hookFontSize}:fontcolor=0xFFFFFF@1.0:x=(w-text_w)/2:y='${hookYExpr}':shadowcolor=black@0.85:shadowx=3:shadowy=3:fix_bounds=true:${preset.hookAlpha}[c4]`,
-    );
-  } else {
-    overlayAndTextFilters.push(`[c3]copy[c4]`);
-  }
-
-  overlayAndTextFilters.push(
-    `[c4]drawtext=fontfile='${esc(preset.ctaFont)}':text='${esc(ctaText)}':fontsize=${ctaFontSize}:fontcolor=${ctaColor}:x=(w-text_w)/2:y='${ctaYExpr}':shadowcolor=black@0.85:shadowx=2:shadowy=2:fix_bounds=true:${preset.ctaAlpha}[vout]`,
-  );
-
-  const fc = [needsBgInput, ...overlayAndTextFilters].join(';');
+  const fc = [
+    `[2:a]asplit=2[aw][ao]`,
+    `[aw]showfreqs=s=${W}x210:mode=bar:ascale=log:fscale=log:win_size=1024:colors=${ACCENT},format=rgba,colorchannelmixer=aa=0.9[wave]`,
+    `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
+    `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
+    `[bg]drawbox=x=0:y=0:w=${W}:h=250:color=black@0.35:t=fill,drawbox=x=0:y=830:w=${W}:h=250:color=black@0.45:t=fill[bgsc]`,
+    `[1:v]scale=${CARD}:${CARD}:force_original_aspect_ratio=increase,crop=${CARD}:${CARD},setsar=1[card]`,
+    `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.85:t=${B}[bgb2]`,
+    `[bgb2][card]overlay=${CARD_X}:${CARD_Y}[c1]`,
+    `[c1][wave]overlay=0:820[c2]`,
+    `[c2]drawtext=fontfile='${FONTS.montserrat}':text='${esc(hookText)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=95:shadowcolor=black@0.5:shadowx=2:shadowy=2:fix_bounds=true[c3]`,
+    `[c3]drawtext=fontfile='${FONTS.oswald}':text='${esc(ctaText)}':fontsize=54:fontcolor=white:x=(w-text_w)/2:y=985:shadowcolor=black@0.6:shadowx=2:shadowy=2:fix_bounds=true[vout]`,
+  ].join(';');
 
   return new Promise((resolve, reject) => {
     ffmpeg()
@@ -500,7 +467,7 @@ function generateVideo(opts: {
       .outputOptions([
         '-filter_complex', fc,
         '-map', '[vout]',
-        '-map', '2:a',
+        '-map', '[ao]',
         '-c:v', 'libx264',
         '-preset', 'fast',
         '-crf', '19',

@@ -316,7 +316,15 @@ const SPOTIFY_MARKETS = [
 ];
 
 function buildTargeting(audience: { type: string; interests: string[] }) {
-  const base = { geo_locations: { countries: SPOTIFY_MARKETS }, age_min: 18, age_max: 65 };
+  const base = {
+    geo_locations: { countries: SPOTIFY_MARKETS },
+    age_min: 18,
+    age_max: 65,
+    // Manual placements — Instagram only (Feed, Stories, Reels). Specifying
+    // publisher_platforms + positions turns OFF Advantage+ (automatic) placements.
+    publisher_platforms: ['instagram'],
+    instagram_positions: ['stream', 'story', 'reels'],
+  };
   if (audience.type === 'INTEREST') {
     return { ...base, targeting_automation: { advantage_audience: 1 } };
   }

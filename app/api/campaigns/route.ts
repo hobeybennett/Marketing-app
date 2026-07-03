@@ -81,7 +81,17 @@ export async function POST(req: NextRequest) {
     const campaignId = uuidv4();
     const uploadDir = process.env.UPLOAD_DIR || '/uploads';
     const campaignDir = path.join(uploadDir, campaignId);
-    await mkdir(campaignDir, { recursive: true });
+    try {
+      await mkdir(campaignDir, { recursive: true });
+    } catch (err) {
+      // Storage volume not mounted/writable (e.g. dangling mount after a redeploy).
+      // Surface a clear, retryable message instead of a raw ENOENT stack trace.
+      console.error(`[campaigns] upload storage unavailable at ${uploadDir}:`, err);
+      return NextResponse.json(
+        { error: 'Storage is temporarily unavailable — please try again in a moment.' },
+        { status: 503 },
+      );
+    }
 
     const audioExt = audioFile.name.split('.').pop() || 'mp3';
     const audioPath = path.join(campaignDir, `audio.${audioExt}`);

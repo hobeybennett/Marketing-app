@@ -57,9 +57,11 @@ export async function runMetaSetup(campaignId: string) {
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
       name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // OUTCOME_SALES lets us optimize for the Spotify-click conversion; OUTCOME_TRAFFIC
-      // (ad clicks to the smart link) is the fallback when there's no pixel to optimize on.
-      objective: useConversions ? 'OUTCOME_SALES' : 'OUTCOME_TRAFFIC',
+      // OUTCOME_LEADS is the objective that supports optimizing for the 'Lead'
+      // pixel event (the Spotify-button click). OUTCOME_SALES only accepts
+      // purchase-type events. OUTCOME_TRAFFIC (ad clicks to the smart link) is the
+      // fallback when there's no pixel to optimize on.
+      objective: useConversions ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
       destination_type: 'WEBSITE',

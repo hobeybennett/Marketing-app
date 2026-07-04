@@ -306,8 +306,8 @@ const SPOTIFY_MARKETS = [
   'AM', 'GE', 'AZ', 'KZ',
 ];
 
-function buildTargeting(audience: { type: string; interests: string[] }) {
-  const base = {
+function buildTargeting(_audience: { type: string; interests: string[] }) {
+  return {
     geo_locations: { countries: SPOTIFY_MARKETS },
     age_min: 18,
     age_max: 65,
@@ -315,11 +315,8 @@ function buildTargeting(audience: { type: string; interests: string[] }) {
     // publisher_platforms + positions turns OFF Advantage+ (automatic) placements.
     publisher_platforms: ['instagram'],
     instagram_positions: ['stream', 'story', 'reels'],
+    // Detailed targeting expansion OFF — keep delivery within our defined audience
+    // (expansion reaches beyond it and muddies conversion signals).
+    targeting_automation: { advantage_audience: 0 },
   };
-  if (audience.type === 'INTEREST') {
-    return { ...base, targeting_automation: { advantage_audience: 1 } };
-  }
-  // RETARGETING and LOOKALIKE require a Meta custom audience — adset creation is
-  // skipped for these when dataStatus is PENDING_DATA (no custom audience yet created).
-  return base;
 }

@@ -54,8 +54,10 @@ export async function GET(
   const todayRows = campaignRows.filter(r => r.date.toISOString().split('T')[0] === todayStr);
   const todaySpend = todayRows.reduce((s, r) => s + r.spend, 0);
 
-  // Smart link conversions
-  const smartLinkTotal = allClicks.length;
+  // Smart link conversions = clicks through to a streaming platform (Spotify).
+  // A page_view is just landing on the page, not a conversion, so exclude it.
+  const conversionClicks = allClicks.filter((c) => c.platform && c.platform !== 'page_view');
+  const smartLinkTotal = conversionClicks.length;
   const costPerConversion = smartLinkTotal > 0 ? totalSpend / smartLinkTotal : null;
 
   const daily = campaignRows.map(r => ({
@@ -92,7 +94,7 @@ export async function GET(
   });
 
   const byPlatform: Record<string, number> = {};
-  for (const click of allClicks) {
+  for (const click of conversionClicks) {
     const platform = click.platform ?? 'unknown';
     byPlatform[platform] = (byPlatform[platform] ?? 0) + 1;
   }

@@ -33,7 +33,7 @@ async function fetchInsights(
   objectId: string,
   token: string,
   level: InsightLevel,
-  datePreset = 'last_30d',
+  datePreset = 'maximum',
 ): Promise<MetaInsightRow[]> {
   const fields = [
     'spend',
@@ -51,19 +51,25 @@ async function fetchInsights(
     access_token: token,
     fields,
     level,
-    date_preset: datePreset,
+    date_preset: datePreset,   // all-time, matches Ads Manager "Maximum"
     time_increment: '1',
+    limit: '500',
   });
 
-  const url = `${META_API}/${objectId}/insights?${params.toString()}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Meta Insights API error (${level}): ${text}`);
+  // Follow pagination so we get every daily row, not just the first page.
+  let url: string | null = `${META_API}/${objectId}/insights?${params.toString()}`;
+  const rows: MetaInsightRow[] = [];
+  while (url) {
+    const res: Response = await fetch(url);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Meta Insights API error (${level}): ${text}`);
+    }
+    const data = await res.json();
+    rows.push(...((data.data as MetaInsightRow[]) ?? []));
+    url = data.paging?.next ?? null;
   }
-
-  const data = await res.json();
-  return (data.data as MetaInsightRow[]) ?? [];
+  return rows;
 }
 
 function normalise(row: MetaInsightRow): NormalisedInsight {

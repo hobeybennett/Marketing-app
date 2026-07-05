@@ -6,7 +6,7 @@ import { fetchCampaignInsights } from '@/lib/meta-insights';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } },
 ) {
   const session = await getServerSession();
@@ -21,6 +21,31 @@ export async function GET(
   if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
   if (campaign.userId && campaign.userId !== session.user.id) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  // ?debug=live — compare what's stored vs what Meta returns live, to pinpoint
+  // sync discrepancies (right campaign id? fetch complete? storage stale?).
+  if (req.nextUrl.searchParams.get('debug') === 'live') {
+    const full = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { metaCampaignId: true, user: { select: { metaConnection: { select: { accessToken: true } } } } },
+    });
+    const token = full?.user?.metaConnection?.accessToken ?? process.env.META_ACCESS_TOKEN;
+    if (!full?.metaCampaignId || !token) {
+      return NextResponse.json({ error: 'no meta campaign id or token' }, { status: 400 });
+    }
+    const stored = await prisma.adInsight.findMany({ where: { campaignId: params.id } });
+    const storedCampaign = stored.filter((r) => r.metaAdSetId === null && r.metaAdId === null);
+    const live = await fetchCampaignInsights(full.metaCampaignId, token);
+    const liveCampaign = live.filter((r) => !r.metaAdSetId && !r.metaAdId);
+    const sumImp = (rows: { impressions: number }[]) => rows.reduce((s, r) => s + r.impressions, 0);
+    const sumSpend = (rows: { spend: number }[]) => +rows.reduce((s, r) => s + r.spend, 0).toFixed(2);
+    return NextResponse.json({
+      metaCampaignId: full.metaCampaignId,
+      stored: { rows: storedCampaign.length, impressions: sumImp(storedCampaign), spend: sumSpend(storedCampaign) },
+      live: { rows: liveCampaign.length, impressions: sumImp(liveCampaign), spend: sumSpend(liveCampaign) },
+      liveTotalRowsAllLevels: live.length,
+    });
   }
 
   const allInsights = await prisma.adInsight.findMany({

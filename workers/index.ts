@@ -25,25 +25,36 @@ function makeConn() {
 const insightsSyncQueue = new Queue('insights-sync', { connection: makeConn() });
 const optimiseQueue     = new Queue('optimise',       { connection: makeConn() });
 
-// Register repeatable job: insights sync every 6 hours
-insightsSyncQueue.add(
-  'SYNC_ALL_LIVE',
-  {},
-  {
-    repeat: { every: 6 * 60 * 60 * 1000 },
-    jobId: 'insights-sync-repeatable',
-  },
-).catch((err: unknown) => console.error('[worker] Failed to register insights-sync repeatable job:', err));
+// Register repeatable jobs. Clear any previously-registered schedules first so
+// interval changes actually take effect (BullMQ keys repeatables by interval, so
+// a changed `every` would otherwise leave the old schedule running alongside).
+(async () => {
+  try {
+    for (const j of await insightsSyncQueue.getRepeatableJobs()) {
+      await insightsSyncQueue.removeRepeatableByKey(j.key);
+    }
+    await insightsSyncQueue.add(
+      'SYNC_ALL_LIVE',
+      {},
+      { repeat: { every: 2 * 60 * 60 * 1000 }, jobId: 'insights-sync-repeatable' }, // every 2 hours
+    );
+  } catch (err) {
+    console.error('[worker] Failed to register insights-sync repeatable job:', err);
+  }
 
-// Register repeatable job: optimisation every 12 hours
-optimiseQueue.add(
-  'OPTIMISE_ALL_LIVE',
-  {},
-  {
-    repeat: { every: 12 * 60 * 60 * 1000 },
-    jobId: 'optimise-repeatable',
-  },
-).catch((err: unknown) => console.error('[worker] Failed to register optimise repeatable job:', err));
+  try {
+    for (const j of await optimiseQueue.getRepeatableJobs()) {
+      await optimiseQueue.removeRepeatableByKey(j.key);
+    }
+    await optimiseQueue.add(
+      'OPTIMISE_ALL_LIVE',
+      {},
+      { repeat: { every: 12 * 60 * 60 * 1000 }, jobId: 'optimise-repeatable' }, // every 12 hours
+    );
+  } catch (err) {
+    console.error('[worker] Failed to register optimise repeatable job:', err);
+  }
+})();
 
 // ── Insights sync worker ─────────────────────────────────────────────────────
 const insightsSyncWorker = new Worker(

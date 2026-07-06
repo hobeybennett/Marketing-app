@@ -38,6 +38,9 @@ const optimiseQueue     = new Queue('optimise',       { connection: makeConn() }
       {},
       { repeat: { every: 2 * 60 * 60 * 1000 }, jobId: 'insights-sync-repeatable' }, // every 2 hours
     );
+    // Kick an immediate one-off sync on startup so data refreshes on every deploy,
+    // not only on the 2h cadence (and proves the worker/queue path is alive).
+    await insightsSyncQueue.add('SYNC_ALL_LIVE', {}, { removeOnComplete: true, removeOnFail: true });
   } catch (err) {
     console.error('[worker] Failed to register insights-sync repeatable job:', err);
   }

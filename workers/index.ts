@@ -65,10 +65,18 @@ const insightsSyncWorker = new Worker(
   async () => {
     const liveCampaigns = await prisma.campaign.findMany({
       where: { status: 'LIVE', metaCampaignId: { not: null } },
-      select: { id: true },
+      select: { id: true, metaCampaignId: true },
     });
     for (const c of liveCampaigns) {
-      await runInsightsSync(c.id);
+      // Mock campaigns (fake IDs from mock mode / no token) 404 on the Insights
+      // API — skip them so they can't fail the sync.
+      if (c.metaCampaignId?.startsWith('mock_')) continue;
+      // Isolate each campaign: one bad campaign must not abort the whole batch.
+      try {
+        await runInsightsSync(c.id);
+      } catch (err) {
+        console.error(`[insights-sync] failed for campaign ${c.id}:`, err instanceof Error ? err.message : err);
+      }
     }
   },
   { connection: makeConn() },

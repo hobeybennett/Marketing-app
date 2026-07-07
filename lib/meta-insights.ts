@@ -1,3 +1,5 @@
+import type { PrismaClient } from '@prisma/client';
+
 const META_API = 'https://graph.facebook.com/v22.0';
 
 export interface MetaInsightRow {
@@ -45,6 +47,10 @@ async function fetchInsights(
     'video_p25_watched_actions',
     'date_start',
     'date_stop',
+    // Without these, adset/ad rows come back with no level id, collapse onto the
+    // campaign row (overwriting the real total), and get triple-counted in sums.
+    'adset_id',
+    'ad_id',
   ].join(',');
 
   const params = new URLSearchParams({
@@ -109,4 +115,36 @@ export async function fetchCampaignInsights(
     ...adsetRows.map(normalise),
     ...adRows.map(normalise),
   ];
+}
+
+// Persist insights with a clean full replace. date_preset=maximum returns the
+// whole history each sync, so replacing is correct and self-heals any rows
+// corrupted by the old (level-less) storage. Accepts the caller's PrismaClient
+// (web and worker each have their own singleton).
+export async function storeInsights(
+  prisma: PrismaClient,
+  campaignId: string,
+  insights: NormalisedInsight[],
+): Promise<void> {
+  // Nothing came back (transient/empty) — keep existing data rather than wiping it.
+  if (insights.length === 0) return;
+
+  await prisma.$transaction([
+    prisma.adInsight.deleteMany({ where: { campaignId } }),
+    prisma.adInsight.createMany({
+      data: insights.map((i) => ({
+        campaignId,
+        metaAdSetId: i.metaAdSetId ?? null,
+        metaAdId: i.metaAdId ?? null,
+        date: i.date,
+        spend: i.spend,
+        impressions: i.impressions,
+        cpm: i.cpm,
+        ctr: i.ctr,
+        cpc: i.cpc,
+        outboundClicks: i.outboundClicks,
+        videoViews: i.videoViews,
+      })),
+    }),
+  ]);
 }

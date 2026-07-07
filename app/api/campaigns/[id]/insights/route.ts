@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
-import { fetchCampaignInsights } from '@/lib/meta-insights';
+import { fetchCampaignInsights, storeInsights } from '@/lib/meta-insights';
 
 export const dynamic = 'force-dynamic';
 
@@ -212,41 +212,7 @@ export async function POST(
     }
 
     const insights = await fetchCampaignInsights(campaign.metaCampaignId, token);
-
-    for (const insight of insights) {
-      const existing = await prisma.adInsight.findFirst({
-        where: {
-          campaignId: params.id,
-          metaAdSetId: insight.metaAdSetId ?? null,
-          metaAdId: insight.metaAdId ?? null,
-          date: insight.date,
-        },
-      });
-
-      const payload = {
-        spend: insight.spend,
-        impressions: insight.impressions,
-        cpm: insight.cpm,
-        ctr: insight.ctr,
-        cpc: insight.cpc,
-        outboundClicks: insight.outboundClicks,
-        videoViews: insight.videoViews,
-      };
-
-      if (existing) {
-        await prisma.adInsight.update({ where: { id: existing.id }, data: payload });
-      } else {
-        await prisma.adInsight.create({
-          data: {
-            campaignId: params.id,
-            metaAdSetId: insight.metaAdSetId ?? null,
-            metaAdId: insight.metaAdId ?? null,
-            date: insight.date,
-            ...payload,
-          },
-        });
-      }
-    }
+    await storeInsights(prisma, params.id, insights);
 
     // Fetch adset daily budgets and store total on the campaign
     let totalDailyBudgetCents = 0;

@@ -10,10 +10,10 @@ const mockPrisma = vi.hoisted(() => ({
     update: vi.fn().mockResolvedValue({}),
   },
   adInsight: {
-    findFirst: vi.fn(),
-    update: vi.fn().mockResolvedValue({}),
-    create: vi.fn().mockResolvedValue({}),
+    deleteMany: vi.fn().mockResolvedValue({}),
+    createMany: vi.fn().mockResolvedValue({}),
   },
+  $transaction: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../workers/prisma', () => ({ prisma: mockPrisma }));
@@ -59,7 +59,6 @@ function makeInsightRow(overrides: Record<string, unknown> = {}) {
 describe('runInsightsSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.adInsight.findFirst.mockResolvedValue(null);
   });
 
   it('skips campaigns without metaCampaignId', async () => {
@@ -72,7 +71,7 @@ describe('runInsightsSync', () => {
     await runInsightsSync('camp-1');
 
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(mockPrisma.adInsight.create).not.toHaveBeenCalled();
+    expect(mockPrisma.adInsight.createMany).not.toHaveBeenCalled();
   });
 
   it('skips when no Meta token available', async () => {
@@ -81,10 +80,10 @@ describe('runInsightsSync', () => {
     await runInsightsSync('camp-1');
 
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(mockPrisma.adInsight.create).not.toHaveBeenCalled();
+    expect(mockPrisma.adInsight.createMany).not.toHaveBeenCalled();
   });
 
-  it('fetches insights and creates new records', async () => {
+  it('fetches insights and clean-replaces the records', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockLiveCampaign(true));
     mockFetch.mockResolvedValue({
       ok: true,
@@ -95,21 +94,19 @@ describe('runInsightsSync', () => {
 
     // 3 fetch calls (campaign, adset, ad level)
     expect(mockFetch).toHaveBeenCalledTimes(3);
-    expect(mockPrisma.adInsight.create).toHaveBeenCalled();
+    // Clean replace: delete existing rows, then bulk-insert fresh ones.
+    expect(mockPrisma.adInsight.deleteMany).toHaveBeenCalledWith({ where: { campaignId: 'camp-1' } });
+    expect(mockPrisma.adInsight.createMany).toHaveBeenCalled();
   });
 
-  it('updates existing records when found', async () => {
+  it('does not wipe existing data when the fetch returns nothing', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockLiveCampaign(true));
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => makeInsightRow(),
-    });
-    mockPrisma.adInsight.findFirst.mockResolvedValue({ id: 'existing-id' });
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ data: [] }) });
 
     await runInsightsSync('camp-1');
 
-    expect(mockPrisma.adInsight.update).toHaveBeenCalled();
-    expect(mockPrisma.adInsight.create).not.toHaveBeenCalled();
+    expect(mockPrisma.adInsight.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.adInsight.createMany).not.toHaveBeenCalled();
   });
 
   it('updates campaign.lastSyncAt after sync', async () => {

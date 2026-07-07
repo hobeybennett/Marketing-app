@@ -1,5 +1,5 @@
 import { prisma } from '../prisma';
-import { fetchCampaignInsights } from '../../lib/meta-insights';
+import { fetchCampaignInsights, storeInsights } from '../../lib/meta-insights';
 
 export async function runInsightsSync(campaignId: string): Promise<void> {
   const campaign = await prisma.campaign.findUniqueOrThrow({
@@ -22,42 +22,7 @@ export async function runInsightsSync(campaignId: string): Promise<void> {
   }
 
   const insights = await fetchCampaignInsights(campaign.metaCampaignId, token);
-
-  for (const insight of insights) {
-    // Use findFirst + create/update pattern to handle nullable fields in unique key
-    const existing = await prisma.adInsight.findFirst({
-      where: {
-        campaignId,
-        metaAdSetId: insight.metaAdSetId ?? null,
-        metaAdId: insight.metaAdId ?? null,
-        date: insight.date,
-      },
-    });
-
-    const payload = {
-      spend: insight.spend,
-      impressions: insight.impressions,
-      cpm: insight.cpm,
-      ctr: insight.ctr,
-      cpc: insight.cpc,
-      outboundClicks: insight.outboundClicks,
-      videoViews: insight.videoViews,
-    };
-
-    if (existing) {
-      await prisma.adInsight.update({ where: { id: existing.id }, data: payload });
-    } else {
-      await prisma.adInsight.create({
-        data: {
-          campaignId,
-          metaAdSetId: insight.metaAdSetId ?? null,
-          metaAdId: insight.metaAdId ?? null,
-          date: insight.date,
-          ...payload,
-        },
-      });
-    }
-  }
+  await storeInsights(prisma, campaignId, insights);
 
   await prisma.campaign.update({
     where: { id: campaignId },

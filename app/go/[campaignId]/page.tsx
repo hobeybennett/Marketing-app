@@ -76,9 +76,10 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
   const pixelId = campaign.user?.metaConnection?.pixelId ?? null;
 
-  const buildClickUrl = (platform: string) => {
+  const buildClickUrl = (platform: string, recordOnly = false) => {
     const p = new URLSearchParams({
       platform,
+      ...(recordOnly ? { record_only: '1' } : {}),
       ...(utmSource && { utm_source: utmSource }),
       ...(utmMedium && { utm_medium: utmMedium }),
       ...(utmCampaign && { utm_campaign: utmCampaign }),
@@ -149,7 +150,8 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
             <>
               {campaign.spotifyUrl && (
                 <SpotifyButton
-                  href={buildClickUrl('spotify')}
+                  recordUrl={buildClickUrl('spotify', true)}
+                  destination={campaign.spotifyUrl}
                   songTitle={campaign.songTitle}
                   artistName={campaign.artistName}
                 />

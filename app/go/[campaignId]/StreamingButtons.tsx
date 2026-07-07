@@ -14,9 +14,22 @@ function firePixel(platform: string, songTitle: string, artistName: string) {
   }
 }
 
-export function SpotifyButton({ href, songTitle, artistName }: { href: string; songTitle: string; artistName: string }) {
+export function SpotifyButton({ recordUrl, destination, songTitle, artistName }: { recordUrl: string; destination: string; songTitle: string; artistName: string }) {
+  function handleClick() {
+    firePixel('spotify', songTitle, artistName);
+    // Record with a beacon so the click is captured even when the browser (e.g.
+    // Meta's in-app browser) jumps straight to the Spotify app and skips our
+    // redirect route. Fire-and-forget; survives the navigation.
+    try {
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(recordUrl);
+      } else {
+        fetch(recordUrl, { keepalive: true }).catch(() => {});
+      }
+    } catch { /* best-effort tracking */ }
+  }
   return (
-    <a href={href} onClick={() => firePixel('spotify', songTitle, artistName)}
+    <a href={destination} onClick={handleClick}
       className="flex items-center justify-center gap-3 w-full bg-[#1db954] hover:bg-[#1ed760] text-black font-semibold py-4 px-6 rounded-xl transition">
       <SpotifyIcon />
       Listen on Spotify

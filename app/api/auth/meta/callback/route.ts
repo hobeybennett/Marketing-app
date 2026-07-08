@@ -135,19 +135,37 @@ export async function GET(req: NextRequest) {
       ? new Date(Date.now() + expires_in * 1000)
       : null;
 
-    // Get first pixel (best-effort — not required)
+    // Ensure a Pixel exists on the ad account so conversion optimization (the
+    // Spotify-click 'Lead' event) works. Use an existing one or create one.
+    // Non-fatal — connection still succeeds if it can't.
     let pixelId: string | null = null;
     let pixelName: string | null = null;
     try {
-      const pixelsRes = await fetch(
-        `https://graph.facebook.com/v22.0/me/adspixels?fields=id,name&limit=1&access_token=${longToken}`
+      const acct = defaultAccount.account_id;
+      const existingRes = await fetch(
+        `https://graph.facebook.com/v22.0/act_${acct}/adspixels?fields=id,name&limit=1&access_token=${longToken}`
       );
-      const pixelsData = await pixelsRes.json();
-      if (!pixelsData.error && pixelsData.data?.[0]) {
-        pixelId = pixelsData.data[0].id;
-        pixelName = pixelsData.data[0].name ?? null;
+      const existing = await existingRes.json();
+      if (!existing.error && existing.data?.[0]) {
+        pixelId = existing.data[0].id;
+        pixelName = existing.data[0].name ?? null;
+      } else {
+        const createRes = await fetch(`https://graph.facebook.com/v22.0/act_${acct}/adspixels`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Promohit Conversions', access_token: longToken }),
+        });
+        const created = await createRes.json();
+        if (!created.error && created.id) {
+          pixelId = created.id;
+          pixelName = 'Promohit Conversions';
+        } else if (created.error) {
+          console.warn('[meta/callback] pixel auto-create failed:', created.error.message);
+        }
       }
-    } catch { /* non-fatal */ }
+    } catch (err) {
+      console.warn('[meta/callback] pixel setup skipped:', err);
+    }
 
     await prisma.metaConnection.upsert({
       where: { userId },

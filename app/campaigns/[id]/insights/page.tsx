@@ -119,6 +119,24 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+
+  async function handleDuplicate() {
+    setDuplicating(true);
+    try {
+      const res = await fetch(`/api/campaigns/${params.id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const c = await res.json();
+        window.location.href = `/campaigns/${c.id}`;
+        return;
+      }
+      const body = await res.json().catch(() => null);
+      alert(body?.error ?? 'Could not duplicate this campaign.');
+    } catch {
+      alert('Network error — could not duplicate this campaign.');
+    }
+    setDuplicating(false);
+  }
 
   const fetchAll = useCallback(async () => {
     const [iRes, cRes] = await Promise.all([
@@ -218,6 +236,14 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
               Ads Manager
             </a>
           )}
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="px-4 py-2 text-sm rounded-lg font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white transition disabled:opacity-50"
+          >
+            {duplicating ? 'Duplicating…' : 'Duplicate'}
+          </button>
           <button
             type="button"
             onClick={handleSync}

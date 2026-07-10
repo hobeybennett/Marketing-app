@@ -22,12 +22,6 @@ export async function runMetaSetup(campaignId: string) {
   const pageToken = metaConn?.pageAccessToken ?? token;
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
-  const pixelId = metaConn?.pixelId ?? process.env.META_PIXEL_ID;
-
-  // Optimize for the Spotify-button click (the pixel 'Lead' event) so Meta finds
-  // people who actually listen, not just cheap ad-clickers. Needs a pixel; falls
-  // back to Traffic when there isn't one.
-  const useConversions = !!pixelId;
 
   // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
   const forceMock = process.env.MOCK_META === 'true';
@@ -56,12 +50,12 @@ export async function runMetaSetup(campaignId: string) {
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
       name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // OUTCOME_LEADS supports optimizing for the 'Lead' pixel event (the Spotify
-      // click). Traffic is the fallback when there's no pixel to optimize on.
-      objective: useConversions ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC',
+      // Engagement — matches the proven Spiration/Hypeddit-style reference. For a
+      // small music budget this beats conversion optimization (which starves in the
+      // learning phase) and beats raw Traffic (which buys bouncy clickers).
+      objective: 'OUTCOME_ENGAGEMENT',
       status: 'PAUSED',
       special_ad_categories: [],
-      destination_type: 'WEBSITE',
       is_adset_budget_sharing_enabled: false,
     });
     metaCampaignId = metaCampaign.id;
@@ -174,13 +168,10 @@ export async function runMetaSetup(campaignId: string) {
       name: audience.name,
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
-      // Optimize for the Spotify-button click (the 'Lead' pixel event) when a
-      // pixel is connected — Meta then finds likely listeners. Falls back to
-      // link clicks (Traffic) with no pixel.
-      optimization_goal: useConversions ? 'OFFSITE_CONVERSIONS' : 'LINK_CLICKS',
-      ...(useConversions
-        ? { promoted_object: { pixel_id: pixelId, custom_event_type: 'LEAD' } }
-        : {}),
+      // ThruPlay — optimize for people who watch the video (hear the song). Standard
+      // Engagement optimization for a video music ad. The pixel + smart link still
+      // track Spotify clicks and build a retargetable audience.
+      optimization_goal: 'THRUPLAY',
       // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
       // a small daily budget can prevent delivery entirely.
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',

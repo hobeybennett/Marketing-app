@@ -22,6 +22,12 @@ export async function runMetaSetup(campaignId: string) {
   const pageToken = metaConn?.pageAccessToken ?? token;
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
+  const pixelId = metaConn?.pixelId ?? process.env.META_PIXEL_ID;
+
+  // Optimize for the Spotify-button click on the landing page (the pixel 'Lead'
+  // event) — the deepest funnel action, only optimizable under a conversion
+  // objective. Falls back to Landing Page Views (Traffic) when there's no pixel.
+  const useConversions = !!pixelId;
 
   // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
   const forceMock = process.env.MOCK_META === 'true';
@@ -50,10 +56,10 @@ export async function runMetaSetup(campaignId: string) {
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
       name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // Traffic objective so we can optimize for LANDING_PAGE_VIEWS — people who
-      // click through and whose smart-link page actually loads (one tap from
-      // Spotify), not the cheap bouncers that LINK_CLICKS buys.
-      objective: 'OUTCOME_TRAFFIC',
+      // Conversion objective (Meta labels it "Leads") so we can optimize for the
+      // Spotify-button click — the deepest funnel action. Traffic is the fallback
+      // when there's no pixel to optimize on.
+      objective: useConversions ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
       destination_type: 'WEBSITE',
@@ -169,10 +175,13 @@ export async function runMetaSetup(campaignId: string) {
       name: audience.name,
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
-      // Landing page views — Meta finds people who click AND whose smart-link page
-      // actually loads (they saw the video, clicked, and arrived — one tap from
-      // Spotify). Far higher quality than LINK_CLICKS, which just buys bouncers.
-      optimization_goal: 'LANDING_PAGE_VIEWS',
+      // Optimize for the Spotify-button click (the 'Lead' pixel event) when a pixel
+      // is connected; otherwise fall back to Landing Page Views (people who at least
+      // reach the smart link).
+      optimization_goal: useConversions ? 'OFFSITE_CONVERSIONS' : 'LANDING_PAGE_VIEWS',
+      ...(useConversions
+        ? { promoted_object: { pixel_id: pixelId, custom_event_type: 'LEAD' } }
+        : {}),
       // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
       // a small daily budget can prevent delivery entirely.
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',

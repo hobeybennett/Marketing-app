@@ -50,12 +50,13 @@ export async function runMetaSetup(campaignId: string) {
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
       name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // Engagement — matches the proven Spiration/Hypeddit-style reference. For a
-      // small music budget this beats conversion optimization (which starves in the
-      // learning phase) and beats raw Traffic (which buys bouncy clickers).
-      objective: 'OUTCOME_ENGAGEMENT',
+      // Traffic objective so we can optimize for LANDING_PAGE_VIEWS — people who
+      // click through and whose smart-link page actually loads (one tap from
+      // Spotify), not the cheap bouncers that LINK_CLICKS buys.
+      objective: 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
+      destination_type: 'WEBSITE',
       is_adset_budget_sharing_enabled: false,
     });
     metaCampaignId = metaCampaign.id;
@@ -168,10 +169,10 @@ export async function runMetaSetup(campaignId: string) {
       name: audience.name,
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
-      // ThruPlay — optimize for people who watch the video (hear the song). Standard
-      // Engagement optimization for a video music ad. The pixel + smart link still
-      // track Spotify clicks and build a retargetable audience.
-      optimization_goal: 'THRUPLAY',
+      // Landing page views — Meta finds people who click AND whose smart-link page
+      // actually loads (they saw the video, clicked, and arrived — one tap from
+      // Spotify). Far higher quality than LINK_CLICKS, which just buys bouncers.
+      optimization_goal: 'LANDING_PAGE_VIEWS',
       // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
       // a small daily budget can prevent delivery entirely.
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',

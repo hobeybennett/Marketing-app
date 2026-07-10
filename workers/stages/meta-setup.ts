@@ -24,11 +24,6 @@ export async function runMetaSetup(campaignId: string) {
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
   const pixelId = metaConn?.pixelId ?? process.env.META_PIXEL_ID;
 
-  // Optimize for the Spotify-button click on the landing page (the pixel 'Lead'
-  // event) — the deepest funnel action, only optimizable under a conversion
-  // objective. Falls back to Landing Page Views (Traffic) when there's no pixel.
-  const useConversions = !!pixelId;
-
   // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
   const forceMock = process.env.MOCK_META === 'true';
 
@@ -45,6 +40,15 @@ export async function runMetaSetup(campaignId: string) {
     return;
   }
 
+  // Match the proven Hypeddit/Spiration setup: Sales objective + a custom
+  // conversion on the smart-link (Spotify) click. Find or create that custom
+  // conversion; if we have one, run conversion optimization, else fall back to
+  // Traffic + Landing Page Views.
+  const customConversionId = pixelId && adAccountId && token
+    ? await ensureSpotifyClickConversion(adAccountId, token, pixelId)
+    : null;
+  const useConversions = !!customConversionId;
+
   if (!adAccountId) throw new Error('No Meta ad account configured — connect Meta in Settings');
   if (!pageId) throw new Error('No Facebook Page configured — connect Meta in Settings');
   if (!pageToken) {
@@ -56,10 +60,10 @@ export async function runMetaSetup(campaignId: string) {
   if (!metaCampaignId) {
     const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
       name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // Conversion objective (Meta labels it "Leads") so we can optimize for the
-      // Spotify-button click — the deepest funnel action. Traffic is the fallback
-      // when there's no pixel to optimize on.
-      objective: useConversions ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC',
+      // Sales objective + custom conversion = the proven Hypeddit/Spiration setup
+      // ("Conversion location: Website, Maximize conversions"). Traffic is the
+      // fallback when there's no pixel/custom conversion.
+      objective: useConversions ? 'OUTCOME_SALES' : 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
       destination_type: 'WEBSITE',
@@ -175,12 +179,11 @@ export async function runMetaSetup(campaignId: string) {
       name: audience.name,
       campaign_id: metaCampaignId,
       billing_event: 'IMPRESSIONS',
-      // Optimize for the Spotify-button click (the 'Lead' pixel event) when a pixel
-      // is connected; otherwise fall back to Landing Page Views (people who at least
-      // reach the smart link).
+      // Maximize conversions of the "Spotify click" custom conversion when we have
+      // one; otherwise optimize for Landing Page Views.
       optimization_goal: useConversions ? 'OFFSITE_CONVERSIONS' : 'LANDING_PAGE_VIEWS',
       ...(useConversions
-        ? { promoted_object: { pixel_id: pixelId, custom_event_type: 'LEAD' } }
+        ? { promoted_object: { pixel_id: pixelId, custom_conversion_id: customConversionId } }
         : {}),
       // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
       // a small daily budget can prevent delivery entirely.
@@ -226,6 +229,49 @@ export async function runMetaSetup(campaignId: string) {
     where: { id: campaignId },
     data: { status: 'LIVE' },
   });
+}
+
+// Find or create the "Spotify Click" custom conversion. Our smart-link page fires
+// the standard 'Lead' pixel event when someone taps "Listen on Spotify", so the
+// custom conversion is defined on that event. Reused per ad account (Meta caps
+// custom conversions at 100/account). Returns its id, or null if it can't be set up.
+async function ensureSpotifyClickConversion(
+  adAccountId: string,
+  token: string,
+  pixelId: string,
+): Promise<string | null> {
+  const NAME = 'Promohit Spotify Click';
+  try {
+    const listRes = await fetch(
+      `${META_API}/act_${adAccountId}/customconversions?fields=id,name&limit=100&access_token=${token}`
+    );
+    const list = await listRes.json();
+    if (!list.error && Array.isArray(list.data)) {
+      const found = list.data.find((c: { id: string; name: string }) => c.name === NAME);
+      if (found) return found.id;
+    }
+
+    const createRes = await fetch(`${META_API}/act_${adAccountId}/customconversions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: NAME,
+        pixel_id: pixelId,
+        custom_event_type: 'OTHER',
+        rule: JSON.stringify({ and: [{ event: { eq: 'Lead' } }] }),
+        access_token: token,
+      }),
+    });
+    const created = await createRes.json();
+    if (created.error) {
+      console.warn('[meta-setup] custom conversion create failed:', created.error.message);
+      return null;
+    }
+    return created.id ?? null;
+  } catch (err) {
+    console.warn('[meta-setup] custom conversion setup skipped:', err);
+    return null;
+  }
 }
 
 async function uploadImageToMeta(filePath: string, token: string, adAccountId: string): Promise<string> {

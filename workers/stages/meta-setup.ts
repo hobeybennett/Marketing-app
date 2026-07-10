@@ -58,17 +58,30 @@ export async function runMetaSetup(campaignId: string) {
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;
   if (!metaCampaignId) {
-    const metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
-      name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-      // Sales objective + custom conversion = the proven Hypeddit/Spiration setup
-      // ("Conversion location: Website, Maximize conversions"). Traffic is the
-      // fallback when there's no pixel/custom conversion.
-      objective: useConversions ? 'OUTCOME_SALES' : 'OUTCOME_TRAFFIC',
-      status: 'PAUSED',
-      special_ad_categories: [],
-      destination_type: 'WEBSITE',
-      is_adset_budget_sharing_enabled: false,
-    });
+    // Objective preference: Engagement first (matches the reference), then Sales —
+    // both optimize for the same "Spotify Click" custom conversion. If Meta won't
+    // accept Engagement-for-website-conversions, Sales is the reliable equivalent.
+    // Traffic when there's no custom conversion to optimize on.
+    const objectives = useConversions ? ['OUTCOME_ENGAGEMENT', 'OUTCOME_SALES'] : ['OUTCOME_TRAFFIC'];
+    let metaCampaign: { id: string } | null = null;
+    let lastErr: unknown = null;
+    for (const objective of objectives) {
+      try {
+        metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
+          name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
+          objective,
+          status: 'PAUSED',
+          special_ad_categories: [],
+          destination_type: 'WEBSITE',
+          is_adset_budget_sharing_enabled: false,
+        });
+        break;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[meta-setup] objective ${objective} rejected, trying next:`, err instanceof Error ? err.message : err);
+      }
+    }
+    if (!metaCampaign) throw lastErr ?? new Error('Failed to create Meta campaign');
     metaCampaignId = metaCampaign.id;
     await prisma.campaign.update({
       where: { id: campaignId },
@@ -122,6 +135,13 @@ export async function runMetaSetup(campaignId: string) {
             type: 'LISTEN_MUSIC',
             value: { link: `${process.env.NEXTAUTH_URL}/go/${campaignId}` },
           },
+        },
+      },
+      // No Advantage+ creative: opt out of Meta's automatic "standard enhancements"
+      // so the ad runs exactly as built.
+      degrees_of_freedom_spec: {
+        creative_features_spec: {
+          standard_enhancements: { enroll_status: 'OPT_OUT' },
         },
       },
     });

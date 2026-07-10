@@ -137,13 +137,9 @@ export async function runMetaSetup(campaignId: string) {
           },
         },
       },
-      // No Advantage+ creative: opt out of Meta's automatic "standard enhancements"
-      // so the ad runs exactly as built.
-      degrees_of_freedom_spec: {
-        creative_features_spec: {
-          standard_enhancements: { enroll_status: 'OPT_OUT' },
-        },
-      },
+      // No Advantage+ creative. As of Marketing API v22.0 the bundled
+      // standard_enhancements opt-out is deprecated and enhancements are opt-IN
+      // per feature — so by NOT enrolling any, the ad runs exactly as built.
     });
     adCreativeIds.set(creative.id, adCreative.id);
   }

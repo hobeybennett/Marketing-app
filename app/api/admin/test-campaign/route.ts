@@ -150,7 +150,9 @@ export async function POST() {
       useConversions,
       pixelId: pixelId ?? null,
       customConversionId,
-      dailyBudgetCents: 100,
+      // Comfortably above Meta's per-currency minimum daily budget. The campaign
+      // never leaves PAUSED, so this is never actually spent.
+      dailyBudgetCents: 500,
       audience: { type: 'INTEREST', interests: [] },
       artistName: 'Promohit Test',
     }));

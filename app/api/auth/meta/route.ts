@@ -25,7 +25,13 @@ export async function GET() {
   const params = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     redirect_uri: `${process.env.NEXTAUTH_URL}/api/auth/meta/callback`,
-    scope: 'ads_management,ads_read,pages_show_list,pages_manage_ads,pages_read_engagement,instagram_basic,instagram_manage_ads',
+    // instagram_basic lets us read the Instagram account linked to each Page so
+    // ads can run under the artist's IG identity. We deliberately do NOT request
+    // instagram_manage_ads — it's an advanced permission that requires the
+    // Instagram product to be fully configured/approved on the Meta app, and
+    // requesting it before that breaks the whole OAuth dialog. instagram_basic
+    // alone is sufficient to publish ads under a Page-linked IG account.
+    scope: 'ads_management,ads_read,pages_show_list,pages_manage_ads,pages_read_engagement,instagram_basic',
     response_type: 'code',
     state,
   });

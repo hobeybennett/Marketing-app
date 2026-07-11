@@ -114,10 +114,18 @@ export async function GET(req: NextRequest) {
 
     // Fetch all pages — include access_token (Page Access Token) and the linked
     // Instagram business account so ads can run under the artist's IG identity.
-    const pagesRes = await fetch(
+    // If the token lacks instagram_basic (e.g. the permission isn't approved on
+    // the Meta app yet), the IG-augmented request can fail — fall back to a plain
+    // pages fetch so connecting Meta still succeeds, just without IG identities.
+    let pagesData = await (await fetch(
       `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token,instagram_business_account{id,username}&limit=25&access_token=${longToken}`
-    );
-    const pagesData = await pagesRes.json();
+    )).json();
+    if (pagesData.error) {
+      console.warn('[meta/callback] pages+IG lookup failed, retrying without IG fields:', pagesData.error.message);
+      pagesData = await (await fetch(
+        `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token&limit=25&access_token=${longToken}`
+      )).json();
+    }
     if (pagesData.error) throw new Error(`Page lookup failed: ${pagesData.error.message} (code ${pagesData.error.code})`);
     const allPages: any[] = pagesData.data ?? [];
     if (!allPages.length) throw new Error('No Facebook Pages found. Create a Facebook Page at facebook.com/pages/create first.');

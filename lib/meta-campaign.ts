@@ -105,6 +105,10 @@ export async function ensureSpotifyClickConversion(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: SPOTIFY_CLICK_CONVERSION_NAME,
+        // Newer Meta API (Datasets model) requires event_source_id; older builds
+        // used pixel_id. Send both — they're the same dataset/pixel id — so this
+        // works regardless of which the account is on.
+        event_source_id: pixelId,
         pixel_id: pixelId,
         custom_event_type: 'OTHER',
         rule: JSON.stringify({ and: [{ event: { eq: 'Lead' } }] }),

@@ -20,6 +20,7 @@ export default function TestCampaignSection() {
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function runTest() {
     setRunning(true);
@@ -32,6 +33,37 @@ export default function TestCampaignSection() {
       setReport({ error: err instanceof Error ? err.message : 'Request failed' });
     }
     setRunning(false);
+  }
+
+  // Build a compact, paste-friendly summary of the whole report.
+  function reportText(): string {
+    if (!report) return '';
+    const lines: string[] = [];
+    if (errorMsg) lines.push(`ERROR: ${errorMsg}`);
+    lines.push(`overall: ${report.overall ? 'PASS' : 'FAIL'}`);
+    lines.push(`objective: ${report.chosenObjective ?? '—'} · useConversions: ${report.useConversions}`);
+    if (report.customConversionDiag?.length) {
+      lines.push('customConversion:');
+      report.customConversionDiag.forEach((d) => lines.push(`  - ${d}`));
+    }
+    if (report.results?.length) {
+      lines.push('criteria:');
+      report.results.forEach((r) =>
+        lines.push(`  ${r.pass ? 'PASS' : 'FAIL'} | ${r.name} (${r.level}) | expected: ${r.expected} | actual: ${r.actual}`),
+      );
+    }
+    if (report.rawReadback) lines.push(`rawReadback: ${JSON.stringify(report.rawReadback)}`);
+    return lines.join('\n');
+  }
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(reportText());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Ignore — clipboard may be blocked; user can still screenshot.
+    }
   }
 
   const errorMsg =
@@ -61,6 +93,13 @@ export default function TestCampaignSection() {
 
       {report && (
         <div className="mt-5 space-y-4">
+          <button
+            onClick={copyReport}
+            className="w-full py-2 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 transition"
+          >
+            {copied ? '✅ Copied — paste it to Claude' : '📋 Copy full report to clipboard'}
+          </button>
+
           {errorMsg && (
             <div className="rounded-lg border border-red-700 bg-red-900/20 px-4 py-3 text-sm text-red-300">
               <p className="font-semibold mb-1">Test failed</p>

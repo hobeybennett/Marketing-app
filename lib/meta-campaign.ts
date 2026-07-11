@@ -86,7 +86,7 @@ export async function ensureSpotifyClickConversion(
 ): Promise<string | null> {
   try {
     const listRes = await fetch(
-      `${META_API}/act_${adAccountId}/customconversions?fields=id,name&limit=100&access_token=${token}`
+      `${META_API}/act_${adAccountId}/customconversions?fields=id,name,rule,custom_event_type&limit=100&access_token=${token}`
     );
     const list = await listRes.json();
     if (list.error) {
@@ -98,6 +98,11 @@ export async function ensureSpotifyClickConversion(
         return found.id;
       }
       diag?.push(`no existing "${SPOTIFY_CLICK_CONVERSION_NAME}" among ${list.data.length} custom conversions — creating`);
+      // Surface a known-good example so we can mirror its exact rule shape.
+      const sample = list.data[0];
+      if (sample) {
+        diag?.push(`example existing: name="${sample.name}" type=${sample.custom_event_type} rule=${typeof sample.rule === 'string' ? sample.rule : JSON.stringify(sample.rule)}`);
+      }
     }
 
     const createRes = await fetch(`${META_API}/act_${adAccountId}/customconversions`, {
@@ -105,11 +110,8 @@ export async function ensureSpotifyClickConversion(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: SPOTIFY_CLICK_CONVERSION_NAME,
-        // Newer Meta API (Datasets model) requires event_source_id; older builds
-        // used pixel_id. Send both — they're the same dataset/pixel id — so this
-        // works regardless of which the account is on.
+        // Meta's Datasets model wants event_source_id (the pixel/dataset id).
         event_source_id: pixelId,
-        pixel_id: pixelId,
         custom_event_type: 'OTHER',
         rule: JSON.stringify({ and: [{ event: { eq: 'Lead' } }] }),
         access_token: token,
@@ -185,7 +187,6 @@ export function buildCampaignBody(params: { name: string; objective: string }): 
     objective: params.objective,
     status: 'PAUSED',
     special_ad_categories: [],
-    destination_type: 'WEBSITE',
     is_adset_budget_sharing_enabled: false,
   };
 }
@@ -204,6 +205,9 @@ export function buildAdSetBody(params: {
     name: params.name,
     campaign_id: params.campaignId,
     billing_event: 'IMPRESSIONS',
+    // Conversion location = website (the smart-link page). This lives on the ad
+    // set, not the campaign.
+    destination_type: 'WEBSITE',
     // Maximise conversions of the "Spotify Click" custom conversion when we have
     // one; otherwise optimize for Landing Page Views.
     optimization_goal: params.useConversions ? 'OFFSITE_CONVERSIONS' : 'LANDING_PAGE_VIEWS',

@@ -89,10 +89,10 @@ export const CRITERIA: Criterion[] = [
   },
   {
     name: 'Conversion location',
-    level: 'Campaign',
-    source: 'campaign',
+    level: 'Ad set',
+    source: 'adset',
     describeExpected: () => 'destination_type = WEBSITE',
-    evaluate: (c) => [c?.destination_type === 'WEBSITE', show(c?.destination_type)],
+    evaluate: (a) => [a?.destination_type === 'WEBSITE', show(a?.destination_type)],
   },
   {
     name: 'Optimization goal',

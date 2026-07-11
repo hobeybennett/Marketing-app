@@ -172,10 +172,10 @@ export async function POST() {
 
     // 7. Read everything back.
     const [campaignRb, adsetRb, creativeRb, adRb] = await Promise.all([
-      getJson(campaign.id, 'objective,status,special_ad_categories,destination_type,buying_type', token),
+      getJson(campaign.id, 'objective,status,special_ad_categories,buying_type', token),
       getJson(
         adSet.id,
-        'optimization_goal,billing_event,bid_strategy,promoted_object{pixel_id,custom_conversion_id},targeting,daily_budget,status',
+        'optimization_goal,billing_event,bid_strategy,destination_type,promoted_object{pixel_id,custom_conversion_id},targeting,daily_budget,status',
         token,
       ),
       getJson(creative.id, 'object_story_spec,degrees_of_freedom_spec,instagram_user_id', pageToken),

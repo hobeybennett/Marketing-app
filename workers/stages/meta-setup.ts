@@ -31,7 +31,13 @@ export async function runMetaSetup(campaignId: string) {
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
   const pixelId = metaConn?.pixelId ?? process.env.META_PIXEL_ID;
-  const instagramUserId = metaConn?.instagramUserId ?? null;
+  // Only run ads under the artist's Instagram identity when Instagram is fully
+  // enabled (opt-in flag). Attaching instagram_user_id when the ad account isn't
+  // linked to that IG account makes Meta reject the ad creative (subcode 1815199),
+  // so default to the Page identity until it's set up.
+  const instagramUserId = process.env.META_ENABLE_INSTAGRAM_SCOPE === 'true'
+    ? (metaConn?.instagramUserId ?? null)
+    : null;
 
   // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
   const forceMock = process.env.MOCK_META === 'true';
@@ -126,19 +132,36 @@ export async function runMetaSetup(campaignId: string) {
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;
 
-    const adCreative = await metaPost(
-      `/act_${adAccountId}/adcreatives`,
-      pageToken,
-      buildAdCreativeBody({
-        name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
-        pageId,
-        instagramUserId,
-        videoId,
-        imageHash: coverImageHash,
-        message: copy.primaryText,
-        link: `${process.env.NEXTAUTH_URL}/go/${campaignId}`,
-      }),
-    );
+    const creativeParams = {
+      name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
+      pageId,
+      videoId,
+      imageHash: coverImageHash,
+      message: copy.primaryText,
+      link: `${process.env.NEXTAUTH_URL}/go/${campaignId}`,
+    };
+    let adCreative;
+    try {
+      adCreative = await metaPost(
+        `/act_${adAccountId}/adcreatives`,
+        pageToken,
+        buildAdCreativeBody({ ...creativeParams, instagramUserId }),
+      );
+    } catch (err) {
+      // If the ad account isn't linked to the chosen IG account, fall back to the
+      // Page identity rather than failing the whole campaign.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (instagramUserId && (msg.includes('1815199') || /access to this Instagram account/i.test(msg))) {
+        console.warn('[meta-setup] IG account not accessible to ad account — retrying creative without instagram_user_id');
+        adCreative = await metaPost(
+          `/act_${adAccountId}/adcreatives`,
+          pageToken,
+          buildAdCreativeBody({ ...creativeParams, instagramUserId: null }),
+        );
+      } else {
+        throw err;
+      }
+    }
     adCreativeIds.set(creative.id, adCreative.id);
   }
 

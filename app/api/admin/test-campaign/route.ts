@@ -78,7 +78,10 @@ export async function POST() {
   const adAccountId = conn.adAccountId;
   const pageId = conn.pageId;
   const pixelId = conn.pixelId;
-  const instagramUserId = conn.instagramUserId ?? null;
+  // Match the production gate: only use the IG identity when Instagram is enabled.
+  const instagramUserId = process.env.META_ENABLE_INSTAGRAM_SCOPE === 'true'
+    ? (conn.instagramUserId ?? null)
+    : null;
 
   if (!adAccountId) return NextResponse.json({ error: 'No ad account configured' }, { status: 400 });
   if (!pageId) return NextResponse.json({ error: 'No Facebook Page configured' }, { status: 400 });

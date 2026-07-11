@@ -82,15 +82,22 @@ export async function ensureSpotifyClickConversion(
   adAccountId: string,
   token: string,
   pixelId: string,
+  diag?: string[],
 ): Promise<string | null> {
   try {
     const listRes = await fetch(
       `${META_API}/act_${adAccountId}/customconversions?fields=id,name&limit=100&access_token=${token}`
     );
     const list = await listRes.json();
-    if (!list.error && Array.isArray(list.data)) {
+    if (list.error) {
+      diag?.push(`list failed: ${list.error.message} (code ${list.error.code} subcode ${list.error.error_subcode})`);
+    } else if (Array.isArray(list.data)) {
       const found = list.data.find((c: { id: string; name: string }) => c.name === SPOTIFY_CLICK_CONVERSION_NAME);
-      if (found) return found.id;
+      if (found) {
+        diag?.push(`found existing custom conversion ${found.id}`);
+        return found.id;
+      }
+      diag?.push(`no existing "${SPOTIFY_CLICK_CONVERSION_NAME}" among ${list.data.length} custom conversions — creating`);
     }
 
     const createRes = await fetch(`${META_API}/act_${adAccountId}/customconversions`, {
@@ -107,11 +114,14 @@ export async function ensureSpotifyClickConversion(
     const created = await createRes.json();
     if (created.error) {
       console.warn('[meta] custom conversion create failed:', created.error.message);
+      diag?.push(`create failed: ${created.error.message} (code ${created.error.code} subcode ${created.error.error_subcode} type ${created.error.type})`);
       return null;
     }
+    diag?.push(`created custom conversion ${created.id}`);
     return created.id ?? null;
   } catch (err) {
     console.warn('[meta] custom conversion setup skipped:', err);
+    diag?.push(`exception: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }

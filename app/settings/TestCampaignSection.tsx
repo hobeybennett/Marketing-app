@@ -7,6 +7,7 @@ type Report = {
   chosenObjective?: string;
   useConversions?: boolean;
   customConversionId?: string | null;
+  customConversionDiag?: string[];
   results?: Result[];
   createdIds?: Record<string, string>;
   adsManagerUrl?: string;
@@ -65,6 +66,23 @@ export default function TestCampaignSection() {
               <p className="font-semibold mb-1">Test failed</p>
               <p className="text-red-400/80 break-words">{errorMsg}</p>
               {report.note && <p className="text-xs text-red-400/60 mt-1">{report.note}</p>}
+            </div>
+          )}
+
+          {report.useConversions === false && (
+            <div className="rounded-lg border border-amber-700 bg-amber-900/20 px-4 py-3 text-xs text-amber-300">
+              <p className="font-semibold mb-1">
+                ⚠️ Fell back to Traffic — the Spotify-click custom conversion wasn&apos;t available.
+              </p>
+              {report.customConversionDiag?.length ? (
+                <ul className="list-disc pl-4 space-y-0.5 text-amber-400/90">
+                  {report.customConversionDiag.map((d, i) => (
+                    <li key={i} className="font-mono break-words">{d}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-amber-400/80">No diagnostic captured.</p>
+              )}
             </div>
           )}
 

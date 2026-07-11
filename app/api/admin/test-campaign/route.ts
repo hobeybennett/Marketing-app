@@ -99,12 +99,15 @@ export async function POST() {
 
   const createdIds: Record<string, string> = {};
   const rawReadback: Record<string, any> = {};
+  const customConversionDiag: string[] = [];
   let tmpDir: string | null = null;
 
   try {
-    // 1. Custom conversion → decides Engagement vs Traffic.
+    // 1. Custom conversion → decides Engagement vs Traffic. Capture diagnostics
+    // so the report can show exactly why it fell back to Traffic if it does.
+    if (!pixelId) customConversionDiag.push('no pixel configured on the Meta connection');
     const customConversionId = pixelId
-      ? await ensureSpotifyClickConversion(adAccountId, token, pixelId)
+      ? await ensureSpotifyClickConversion(adAccountId, token, pixelId, customConversionDiag)
       : null;
     const useConversions = !!customConversionId;
 
@@ -204,6 +207,7 @@ export async function POST() {
       chosenObjective,
       useConversions,
       customConversionId,
+      customConversionDiag,
       results,
       createdIds,
       adsManagerUrl,
@@ -213,6 +217,7 @@ export async function POST() {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({
       error: { message },
+      customConversionDiag,
       createdIds,
       rawReadback,
       note: 'Whatever was built is left PAUSED in Ads Manager for inspection.',

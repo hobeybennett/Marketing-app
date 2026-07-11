@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type AdAccountOption = { id: string; name: string; businessId: string | null; businessName: string | null };
-type PageOption = { id: string; name: string; accessToken: string | null };
+type PageOption = { id: string; name: string; accessToken: string | null; instagramUserId?: string | null; instagramUsername?: string | null };
+type InstagramOption = { id: string; username: string | null };
 
 type Props = {
   connection: {
@@ -16,6 +17,9 @@ type Props = {
     pixelName: string | null;
     availableAdAccounts: AdAccountOption[] | null;
     availablePages: PageOption[] | null;
+    instagramUserId: string | null;
+    instagramUsername: string | null;
+    availableInstagramAccounts: InstagramOption[] | null;
   } | null;
 };
 
@@ -28,17 +32,20 @@ export default function MetaConnectSection({ connection }: Props) {
 
   const [selectedAccountId, setSelectedAccountId] = useState(connection?.adAccountId ?? '');
   const [selectedPageId, setSelectedPageId] = useState(connection?.pageId ?? '');
+  const [selectedIgId, setSelectedIgId] = useState(connection?.instagramUserId ?? '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const accounts = connection?.availableAdAccounts ?? [];
   const pages = connection?.availablePages ?? [];
+  const igAccounts = connection?.availableInstagramAccounts ?? [];
 
   const hasAccountChoice = accounts.length > 1;
   const hasPageChoice = pages.length > 1;
   const selectionChanged =
     selectedAccountId !== connection?.adAccountId ||
-    selectedPageId !== connection?.pageId;
+    selectedPageId !== connection?.pageId ||
+    selectedIgId !== (connection?.instagramUserId ?? '');
 
   async function saveSelection() {
     setSaving(true);
@@ -48,6 +55,7 @@ export default function MetaConnectSection({ connection }: Props) {
       body: JSON.stringify({
         ...(selectedAccountId !== connection?.adAccountId ? { adAccountId: selectedAccountId } : {}),
         ...(selectedPageId !== connection?.pageId ? { pageId: selectedPageId } : {}),
+        ...(selectedIgId !== (connection?.instagramUserId ?? '') ? { instagramUserId: selectedIgId || null } : {}),
       }),
     });
     setSaving(false);
@@ -129,6 +137,30 @@ export default function MetaConnectSection({ connection }: Props) {
               </select>
             ) : (
               <p className="text-gray-200">{connection.pageName ?? connection.pageId}</p>
+            )}
+          </div>
+
+          {/* Instagram Account — the identity ads run under on Instagram */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Instagram Account</p>
+            {igAccounts.length > 0 ? (
+              <select
+                value={selectedIgId}
+                onChange={(e) => setSelectedIgId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Use Facebook Page identity</option>
+                {igAccounts.map((ig) => (
+                  <option key={ig.id} value={ig.id}>
+                    {ig.username ? `@${ig.username}` : ig.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-amber-400/90">
+                No Instagram account linked. Connect an Instagram account to your
+                Facebook Page in Meta Business Settings, then Reconnect here.
+              </p>
             )}
           </div>
 

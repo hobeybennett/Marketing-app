@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import MetaConnectSection from './MetaConnectSection';
 import SubscriptionSyncButton from './SubscriptionSyncButton';
+import TestCampaignSection from './TestCampaignSection';
 
 export default async function SettingsPage({
   searchParams,
@@ -25,6 +26,9 @@ export default async function SettingsPage({
         pixelName: true,
         availableAdAccounts: true,
         availablePages: true,
+        instagramUserId: true,
+        instagramUsername: true,
+        availableInstagramAccounts: true,
       },
     }),
     prisma.user.findUnique({
@@ -113,7 +117,10 @@ export default async function SettingsPage({
         ...metaConnection,
         availableAdAccounts: (metaConnection.availableAdAccounts as any) ?? null,
         availablePages: (metaConnection.availablePages as any) ?? null,
+        availableInstagramAccounts: (metaConnection.availableInstagramAccounts as any) ?? null,
       } : null} />
+
+      {session.user.email === 'hobeybennett@gmail.com' && <TestCampaignSection />}
     </div>
   );
 }

@@ -1,8 +1,16 @@
 import { prisma } from '../prisma';
 import * as fs from 'fs';
-import * as path from 'path';
-
-const META_API = 'https://graph.facebook.com/v22.0';
+import {
+  metaPost,
+  uploadVideoToMeta,
+  uploadImageToMeta,
+  ensureSpotifyClickConversion,
+  buildCampaignObjectives,
+  buildCampaignBody,
+  buildAdSetBody,
+  buildAdCreativeBody,
+  makeCreateAdSet,
+} from '../../lib/meta-campaign';
 
 export async function runMetaSetup(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({
@@ -23,6 +31,7 @@ export async function runMetaSetup(campaignId: string) {
   const adAccountId = metaConn?.adAccountId ?? process.env.META_AD_ACCOUNT_ID;
   const pageId = metaConn?.pageId ?? process.env.META_PAGE_ID;
   const pixelId = metaConn?.pixelId ?? process.env.META_PIXEL_ID;
+  const instagramUserId = metaConn?.instagramUserId ?? null;
 
   // MOCK_META=true bypasses all real API calls — useful while awaiting Meta approval
   const forceMock = process.env.MOCK_META === 'true';
@@ -40,10 +49,9 @@ export async function runMetaSetup(campaignId: string) {
     return;
   }
 
-  // Match the proven Hypeddit/Spiration setup: Sales objective + a custom
-  // conversion on the smart-link (Spotify) click. Find or create that custom
-  // conversion; if we have one, run conversion optimization, else fall back to
-  // Traffic + Landing Page Views.
+  // Optimize for the Spotify-click custom conversion (Hypeddit/Spiration-style).
+  // Find or create it; if we have one, run conversion optimization, else fall back
+  // to Traffic + Landing Page Views.
   const customConversionId = pixelId && adAccountId && token
     ? await ensureSpotifyClickConversion(adAccountId, token, pixelId)
     : null;
@@ -58,27 +66,22 @@ export async function runMetaSetup(campaignId: string) {
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;
   if (!metaCampaignId) {
-    // Objective preference: Engagement first (matches the reference), then Sales —
-    // both optimize for the same "Spotify Click" custom conversion. If Meta won't
-    // accept Engagement-for-website-conversions, Sales is the reliable equivalent.
-    // Traffic when there's no custom conversion to optimize on.
-    const objectives = useConversions ? ['OUTCOME_ENGAGEMENT', 'OUTCOME_SALES'] : ['OUTCOME_TRAFFIC'];
+    // Strict Engagement when we have a custom conversion (no Sales fallback);
+    // Traffic only when there's no custom conversion to optimize on.
+    const objectives = buildCampaignObjectives(useConversions);
     let metaCampaign: { id: string } | null = null;
     let lastErr: unknown = null;
     for (const objective of objectives) {
       try {
-        metaCampaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
-          name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`,
-          objective,
-          status: 'PAUSED',
-          special_ad_categories: [],
-          destination_type: 'WEBSITE',
-          is_adset_budget_sharing_enabled: false,
-        });
+        metaCampaign = await metaPost(
+          `/act_${adAccountId}/campaigns`,
+          token,
+          buildCampaignBody({ name: `Promohit — ${campaign.artistName} — ${campaign.songTitle}`, objective }),
+        );
         break;
       } catch (err) {
         lastErr = err;
-        console.warn(`[meta-setup] objective ${objective} rejected, trying next:`, err instanceof Error ? err.message : err);
+        console.warn(`[meta-setup] objective ${objective} rejected:`, err instanceof Error ? err.message : err);
       }
     }
     if (!metaCampaign) throw lastErr ?? new Error('Failed to create Meta campaign');
@@ -115,7 +118,7 @@ export async function runMetaSetup(campaignId: string) {
   // Create one AdCreative per video creative
   const adCreativeIds = new Map<string, string>(); // creativeId -> metaAdCreativeId
   const hasPageToken = !!(metaConn?.pageAccessToken);
-  console.log(`[meta-setup] Creating adcreatives for ${campaign.creatives.length} creatives. pageId=${pageId} hasPageToken=${hasPageToken}`);
+  console.log(`[meta-setup] Creating adcreatives for ${campaign.creatives.length} creatives. pageId=${pageId} igUserId=${instagramUserId} hasPageToken=${hasPageToken}`);
   for (const creative of campaign.creatives) {
     // Use campaign-level selected copy; fall back to per-creative copy for legacy campaigns
     const copy = selectedCopy ?? creative.adCopies[0];
@@ -123,53 +126,23 @@ export async function runMetaSetup(campaignId: string) {
     const videoId = videoIds.get(creative.id);
     if (!videoId) continue;
 
-    const adCreative = await metaPost(`/act_${adAccountId}/adcreatives`, pageToken, {
-      name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
-      object_story_spec: {
-        page_id: pageId,
-        video_data: {
-          video_id: videoId,
-          image_hash: coverImageHash,
-          message: copy.primaryText,
-          call_to_action: {
-            type: 'LISTEN_MUSIC',
-            value: { link: `${process.env.NEXTAUTH_URL}/go/${campaignId}` },
-          },
-        },
-      },
-      // No Advantage+ creative. As of Marketing API v22.0 the bundled
-      // standard_enhancements opt-out is deprecated and enhancements are opt-IN
-      // per feature — so by NOT enrolling any, the ad runs exactly as built.
-    });
+    const adCreative = await metaPost(
+      `/act_${adAccountId}/adcreatives`,
+      pageToken,
+      buildAdCreativeBody({
+        name: `${campaign.songTitle} — Clip ${campaign.creatives.indexOf(creative) + 1}`,
+        pageId,
+        instagramUserId,
+        videoId,
+        imageHash: coverImageHash,
+        message: copy.primaryText,
+        link: `${process.env.NEXTAUTH_URL}/go/${campaignId}`,
+      }),
+    );
     adCreativeIds.set(creative.id, adCreative.id);
   }
 
-  // Some countries (Taiwan, Singapore, …) require a `regional_regulated_categories`
-  // declaration to publish ads. Meta's error names the exact value to use, so we
-  // self-heal: attempt the ad set, and on that specific error append the named
-  // *_UNIVERSAL value and retry. Accumulated across ad sets so later ones start ready.
-  const regulatedCategories: string[] = [];
-  async function createAdSet(payload: Record<string, unknown>): Promise<any> {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const body = regulatedCategories.length
-        ? { ...payload, regional_regulated_categories: regulatedCategories }
-        : payload;
-      try {
-        return await metaPost(`/act_${adAccountId}/adsets`, token!, body);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const match = msg.match(/\b([A-Z]+(?:_[A-Z]+)*_UNIVERSAL)\b/);
-        const category = match?.[1];
-        if (category && !regulatedCategories.includes(category)) {
-          console.log(`[meta-setup] adding regional_regulated_category ${category} and retrying ad set`);
-          regulatedCategories.push(category);
-          continue;
-        }
-        throw err;
-      }
-    }
-    throw new Error('Exceeded regional_regulated_categories retries');
-  }
+  const createAdSet = makeCreateAdSet(adAccountId, token);
 
   // Split the daily budget across the ad sets that will actually run (PENDING_DATA
   // audiences are skipped). With a single interest audience this is the full budget.
@@ -191,31 +164,16 @@ export async function runMetaSetup(campaignId: string) {
       continue;
     }
 
-    const adSet = await createAdSet({
+    const adSet = await createAdSet(buildAdSetBody({
       name: audience.name,
-      campaign_id: metaCampaignId,
-      billing_event: 'IMPRESSIONS',
-      // Maximize conversions of the "Spotify click" custom conversion when we have
-      // one; otherwise optimize for Landing Page Views.
-      optimization_goal: useConversions ? 'OFFSITE_CONVERSIONS' : 'LANDING_PAGE_VIEWS',
-      ...(useConversions
-        ? { promoted_object: { pixel_id: pixelId, custom_conversion_id: customConversionId } }
-        : {}),
-      // "Highest volume" (no bid cap) — matches the proven campaign. A bid cap on
-      // a small daily budget can prevent delivery entirely.
-      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      daily_budget: Math.round((campaign.dailyBudget ?? 10) / adSetCount * 100),
-      targeting: buildTargeting(audience),
-      // EU/Brazil/etc. DSA transparency: naming the beneficiary + payer here means
-      // the customer never has to fill this in. For general (non-political) ads
-      // these are just transparency strings, not a verification gate — so big
-      // markets like the EU keep working with zero extra Meta work.
-      dsa_beneficiary: campaign.artistName,
-      dsa_payor: campaign.artistName,
-      // Ad sets + ads are created ACTIVE, but the parent campaign stays PAUSED
-      // until the very end, so nothing delivers while we're still building it.
-      status: 'ACTIVE',
-    });
+      campaignId: metaCampaignId,
+      useConversions,
+      pixelId: pixelId ?? null,
+      customConversionId,
+      dailyBudgetCents: Math.round((campaign.dailyBudget ?? 10) / adSetCount * 100),
+      audience,
+      artistName: campaign.artistName,
+    }));
 
     await prisma.audience.update({
       where: { id: audience.id },
@@ -245,150 +203,4 @@ export async function runMetaSetup(campaignId: string) {
     where: { id: campaignId },
     data: { status: 'LIVE' },
   });
-}
-
-// Find or create the "Spotify Click" custom conversion. Our smart-link page fires
-// the standard 'Lead' pixel event when someone taps "Listen on Spotify", so the
-// custom conversion is defined on that event. Reused per ad account (Meta caps
-// custom conversions at 100/account). Returns its id, or null if it can't be set up.
-async function ensureSpotifyClickConversion(
-  adAccountId: string,
-  token: string,
-  pixelId: string,
-): Promise<string | null> {
-  const NAME = 'Promohit Spotify Click';
-  try {
-    const listRes = await fetch(
-      `${META_API}/act_${adAccountId}/customconversions?fields=id,name&limit=100&access_token=${token}`
-    );
-    const list = await listRes.json();
-    if (!list.error && Array.isArray(list.data)) {
-      const found = list.data.find((c: { id: string; name: string }) => c.name === NAME);
-      if (found) return found.id;
-    }
-
-    const createRes = await fetch(`${META_API}/act_${adAccountId}/customconversions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: NAME,
-        pixel_id: pixelId,
-        custom_event_type: 'OTHER',
-        rule: JSON.stringify({ and: [{ event: { eq: 'Lead' } }] }),
-        access_token: token,
-      }),
-    });
-    const created = await createRes.json();
-    if (created.error) {
-      console.warn('[meta-setup] custom conversion create failed:', created.error.message);
-      return null;
-    }
-    return created.id ?? null;
-  } catch (err) {
-    console.warn('[meta-setup] custom conversion setup skipped:', err);
-    return null;
-  }
-}
-
-async function uploadImageToMeta(filePath: string, token: string, adAccountId: string): Promise<string> {
-  const fileBuffer = fs.readFileSync(filePath);
-  const form = new FormData();
-  form.append('source', new Blob([fileBuffer], { type: 'image/jpeg' }), path.basename(filePath));
-
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/adimages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!res.ok) throw new Error(`Meta image upload failed: ${await res.text()}`);
-  const data = await res.json();
-  const images = data.images as Record<string, { hash: string }>;
-  const hash = images[Object.keys(images)[0]]?.hash;
-  if (!hash) throw new Error('Meta image upload returned no hash');
-  return hash;
-}
-
-async function uploadVideoToMeta(filePath: string, token: string, adAccountId: string, title: string): Promise<string> {
-  const fileBuffer = fs.readFileSync(filePath);
-  const form = new FormData();
-  form.append('title', title);
-  form.append('source', new Blob([fileBuffer], { type: 'video/mp4' }), path.basename(filePath));
-
-  const res = await fetch(`https://graph.facebook.com/v22.0/act_${adAccountId}/advideos`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-  if (!res.ok) throw new Error(`Meta video upload failed: ${await res.text()}`);
-  const data = await res.json();
-  const videoId = data.video_id ?? data.id;
-  if (!videoId) throw new Error('Meta video upload returned no video ID');
-  return String(videoId);
-}
-
-async function metaPost(endpoint: string, token: string, body: Record<string, unknown>) {
-  const res = await fetch(`${META_API}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-
-  const json = await res.json().catch(() => null);
-
-  if (!res.ok || json?.error) {
-    const e = json?.error;
-    // Log full error details to help diagnose Meta API issues
-    console.error(`[meta-setup] API error on ${endpoint}:`, JSON.stringify(e ?? json, null, 2));
-
-    // Friendly message for the most common gotcha: Meta app still in dev mode
-    if (e?.error_subcode === 1885183) {
-      throw new Error('Your Meta app is still in Development mode. Submit it for App Review in the Meta Developer dashboard, or set MOCK_META=true on Railway to test without going live.');
-    }
-
-    const msg = e?.error_user_msg || e?.message || JSON.stringify(json);
-    const detail = e ? ` (code=${e.code} subcode=${e.error_subcode} type=${e.type})` : '';
-    throw new Error(`Meta API error on ${endpoint}: ${msg}${detail}`);
-  }
-
-  return json;
-}
-
-// Countries where Spotify is available and Meta advertising is permitted without
-// additional advertiser-side consent requirements. Excludes: China (Meta blocked),
-// Russia (Spotify suspended), and US-sanctioned territories (Cuba, Iran, North Korea, Syria).
-const SPOTIFY_MARKETS = [
-  // English-speaking
-  'US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'ZA',
-  // Western Europe
-  'DE', 'FR', 'ES', 'IT', 'NL', 'SE', 'NO', 'DK', 'FI', 'AT', 'CH', 'BE', 'PT', 'LU', 'IS',
-  // Central & Eastern Europe
-  'PL', 'CZ', 'HU', 'RO', 'SK', 'HR', 'SI', 'BG', 'EE', 'LV', 'LT', 'GR', 'CY', 'MT',
-  'TR', 'UA', 'RS', 'AL', 'BA', 'ME', 'MK', 'MD',
-  // Latin America
-  'BR', 'MX', 'AR', 'CO', 'CL', 'PE', 'UY', 'CR', 'EC', 'DO', 'GT', 'PA', 'PY', 'HN', 'SV', 'NI', 'BO', 'VE', 'JM', 'TT',
-  // Asia-Pacific. Excluded so a brand-new customer account needs ZERO extra Meta
-  // work: Thailand (min age 20), Indonesia (min age 21), and Singapore + Taiwan
-  // (both require the advertiser to complete account verification themselves).
-  'JP', 'KR', 'PH', 'MY', 'IN', 'VN', 'HK',
-  // Middle East
-  'AE', 'SA', 'QA', 'KW', 'OM', 'BH', 'JO', 'EG', 'MA', 'IL', 'TN', 'LB',
-  // Africa
-  'NG', 'GH', 'KE', 'TZ', 'UG', 'SN', 'CM', 'CI',
-  // Caucasus & Central Asia
-  'AM', 'GE', 'AZ', 'KZ',
-];
-
-function buildTargeting(_audience: { type: string; interests: string[] }) {
-  return {
-    geo_locations: { countries: SPOTIFY_MARKETS },
-    age_min: 18,
-    age_max: 65,
-    // Manual placements — Instagram only (Feed, Stories, Reels). Specifying
-    // publisher_platforms + positions turns OFF Advantage+ (automatic) placements.
-    publisher_platforms: ['instagram'],
-    instagram_positions: ['stream', 'story', 'reels'],
-    // Detailed targeting expansion OFF — keep delivery within our defined audience
-    // (expansion reaches beyond it and muddies conversion signals).
-    targeting_automation: { advantage_audience: 0 },
-  };
 }

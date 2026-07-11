@@ -112,9 +112,10 @@ export async function GET(req: NextRequest) {
       businessName: null,
     }));
 
-    // Fetch all pages — include access_token for Page Access Token
+    // Fetch all pages — include access_token (Page Access Token) and the linked
+    // Instagram business account so ads can run under the artist's IG identity.
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token&limit=25&access_token=${longToken}`
+      `https://graph.facebook.com/v22.0/me/accounts?fields=name,id,access_token,instagram_business_account{id,username}&limit=25&access_token=${longToken}`
     );
     const pagesData = await pagesRes.json();
     if (pagesData.error) throw new Error(`Page lookup failed: ${pagesData.error.message} (code ${pagesData.error.code})`);
@@ -124,12 +125,28 @@ export async function GET(req: NextRequest) {
     const defaultPage = allPages[0];
     const pageAccessToken: string | null = defaultPage.access_token ?? null;
 
-    // Store pages with their access tokens so the user can switch pages later
+    // Store pages with their access tokens + linked IG so the user can switch later
     const availablePages = allPages.map((p: any) => ({
       id: p.id,
       name: p.name,
       accessToken: p.access_token ?? null,
+      instagramUserId: p.instagram_business_account?.id ?? null,
+      instagramUsername: p.instagram_business_account?.username ?? null,
     }));
+
+    // Unique set of Instagram accounts linked across the user's pages.
+    const igSeen = new Set<string>();
+    const availableInstagramAccounts = allPages
+      .map((p: any) => p.instagram_business_account)
+      .filter((ig: any): ig is { id: string; username?: string } => !!ig?.id)
+      .filter((ig: { id: string }) => (igSeen.has(ig.id) ? false : (igSeen.add(ig.id), true)))
+      .map((ig: { id: string; username?: string }) => ({ id: ig.id, username: ig.username ?? null }));
+
+    // Default IG = the default page's linked account (or first available).
+    const defaultIg = defaultPage.instagram_business_account
+      ?? (availableInstagramAccounts[0] ? { id: availableInstagramAccounts[0].id, username: availableInstagramAccounts[0].username } : null);
+    const instagramUserId: string | null = defaultIg?.id ?? null;
+    const instagramUsername: string | null = defaultIg?.username ?? null;
 
     const expiresAt = expires_in
       ? new Date(Date.now() + expires_in * 1000)
@@ -183,6 +200,9 @@ export async function GET(req: NextRequest) {
         availablePages,
         pixelId,
         pixelName,
+        instagramUserId,
+        instagramUsername,
+        availableInstagramAccounts,
       },
       update: {
         accessToken: longToken,
@@ -197,6 +217,9 @@ export async function GET(req: NextRequest) {
         availablePages,
         pixelId,
         pixelName,
+        instagramUserId,
+        instagramUsername,
+        availableInstagramAccounts,
       },
     });
 

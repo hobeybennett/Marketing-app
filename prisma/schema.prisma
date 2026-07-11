@@ -288,6 +288,9 @@ model MetaConnection {
   availablePages      Json?
   pixelId             String?
   pixelName      String?
+  instagramUserId            String?
+  instagramUsername          String?
+  availableInstagramAccounts Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

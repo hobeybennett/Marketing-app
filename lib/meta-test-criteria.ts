@@ -123,8 +123,13 @@ export const CRITERIA: Criterion[] = [
     describeExpected: (ctx) => (ctx.useConversions ? `pixel_id = ${ctx.pixelId ?? '(set)'}` : 'none'),
     evaluate: (a, ctx) => {
       const px = a?.promoted_object?.pixel_id ?? null;
+      const cc = a?.promoted_object?.custom_conversion_id ?? null;
       if (!ctx.useConversions) return [px === null, show(px)];
-      return [!!px && (!ctx.pixelId || String(px) === String(ctx.pixelId)), show(px)];
+      // The pixel is implied by the custom conversion, so Meta may not echo
+      // pixel_id back. Accept an explicit matching pixel, or a present custom
+      // conversion (pixel derived from it).
+      if (px) return [!ctx.pixelId || String(px) === String(ctx.pixelId), show(px)];
+      return [!!cc, cc ? '(derived from custom conversion)' : show(px)];
     },
   },
   {

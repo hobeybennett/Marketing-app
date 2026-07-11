@@ -227,8 +227,11 @@ export function buildAdSetBody(params: {
     // Maximise conversions of the "Spotify Click" custom conversion when we have
     // one; otherwise optimize for Landing Page Views.
     optimization_goal: params.useConversions ? 'OFFSITE_CONVERSIONS' : 'LANDING_PAGE_VIEWS',
+    // For custom-conversion optimization, promoted_object takes ONLY the
+    // custom_conversion_id — the pixel/dataset is implied by the conversion.
+    // Sending pixel_id alongside it is an invalid combination (subcode 1885014).
     ...(params.useConversions
-      ? { promoted_object: { pixel_id: params.pixelId, custom_conversion_id: params.customConversionId } }
+      ? { promoted_object: { custom_conversion_id: params.customConversionId } }
       : {}),
     // "Highest volume" (no bid cap).
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',

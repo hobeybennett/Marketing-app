@@ -6,11 +6,19 @@ declare global {
 
 function firePixel(platform: string, songTitle: string, artistName: string) {
   if (typeof window !== 'undefined' && window.fbq) {
-    window.fbq('track', 'Lead', {
+    const params = {
       content_type: 'music',
       content_name: `${songTitle} by ${artistName}`,
       content_category: platform,
-    });
+    };
+    // Standard Lead event (kept for backwards-compatible reporting).
+    window.fbq('track', 'Lead', params);
+    // Custom event our "Promohit Spotify Click" custom conversion optimizes on.
+    // Fired for Spotify taps — that's the conversion we're buying. Using a custom
+    // event (not Lead) is what keeps this a "custom pixel event", not a lead.
+    if (platform.startsWith('spotify')) {
+      window.fbq('trackCustom', 'PromohitSpotifyClick', params);
+    }
   }
 }
 

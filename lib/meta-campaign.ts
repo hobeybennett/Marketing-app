@@ -77,6 +77,12 @@ export async function uploadVideoToMeta(filePath: string, token: string, adAccou
 // custom conversion is defined on that event. Reused per ad account (Meta caps
 // custom conversions at 100/account). Returns its id, or null if it can't be set up.
 export const SPOTIFY_CLICK_CONVERSION_NAME = 'Promohit Spotify Click';
+// The custom pixel event our smart-link page fires when someone taps "Listen on
+// Spotify". The custom conversion is defined on THIS event (Hypeddit/Kickons
+// style) — a custom event name + URL match with custom_event_type OTHER. Using a
+// custom event (not the standard 'Lead') is what makes the conversion valid and
+// keeps it out of the "Leads" bucket entirely.
+export const SPOTIFY_CLICK_EVENT = 'PromohitSpotifyClick';
 
 export async function ensureSpotifyClickConversion(
   adAccountId: string,
@@ -105,6 +111,16 @@ export async function ensureSpotifyClickConversion(
       }
     }
 
+    // Mirror the proven Kickons/Hypeddit rule shape: match our custom event, and
+    // (when we know the host) narrow to our smart-link /go/ pages via a URL clause.
+    const host = (process.env.NEXTAUTH_URL ?? '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const rule: Record<string, unknown> = {
+      and: [
+        { event: { eq: SPOTIFY_CLICK_EVENT } },
+        ...(host ? [{ or: [{ URL: { i_contains: `${host}/go/` } }] }] : []),
+      ],
+    };
+
     const createRes = await fetch(`${META_API}/act_${adAccountId}/customconversions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -113,7 +129,7 @@ export async function ensureSpotifyClickConversion(
         // Meta's Datasets model wants event_source_id (the pixel/dataset id).
         event_source_id: pixelId,
         custom_event_type: 'OTHER',
-        rule: JSON.stringify({ and: [{ event: { eq: 'Lead' } }] }),
+        rule: JSON.stringify(rule),
         access_token: token,
       }),
     });

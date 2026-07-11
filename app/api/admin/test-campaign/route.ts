@@ -38,26 +38,36 @@ async function getJson(id: string, fields: string, token: string): Promise<any> 
   }
 }
 
-// Generate a tiny placeholder video + thumbnail with ffmpeg (available in the
-// deployed environment via nixpacks). Avoids committing binary fixtures.
-function generateSampleMedia(dir: string): Promise<{ videoPath: string; imagePath: string }> {
+// Resolve a committed still image to use as the placeholder. Avoids the lavfi
+// virtual input device, which isn't compiled into every ffmpeg build (Railway's
+// isn't) — so we loop a real image into the sample video instead.
+function resolveSampleImage(): string {
+  const candidates = [
+    path.join(process.cwd(), 'public', 'og-image.jpg'),
+    path.join(process.cwd(), 'promohit-logo-square.png'),
+  ];
+  const found = candidates.find((p) => fs.existsSync(p));
+  if (!found) throw new Error('No placeholder image found for the test campaign');
+  return found;
+}
+
+// Loop a still image into a tiny silent MP4 with ffmpeg. Uses only file input +
+// libx264 (no lavfi), so it works on any ffmpeg build.
+function generateSampleVideo(dir: string, sourceImage: string): Promise<string> {
   const videoPath = path.join(dir, 'sample.mp4');
-  const imagePath = path.join(dir, 'sample.jpg');
   return new Promise((resolve, reject) => {
-    ffmpeg()
-      .input('color=c=0x1DB954:s=1080x1080:d=2')
-      .inputFormat('lavfi')
-      .input('anullsrc=channel_layout=stereo:sample_rate=44100')
-      .inputFormat('lavfi')
-      .outputOptions(['-shortest', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-c:a', 'aac', '-t', '2'])
+    ffmpeg(sourceImage)
+      .inputOptions(['-loop', '1'])
+      .outputOptions([
+        '-t', '2',
+        '-r', '30',
+        '-c:v', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        // Force even dimensions — libx264 with yuv420p requires them.
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+      ])
       .save(videoPath)
-      .on('end', () => {
-        ffmpeg(videoPath)
-          .frames(1)
-          .save(imagePath)
-          .on('end', () => resolve({ videoPath, imagePath }))
-          .on('error', reject);
-      })
+      .on('end', () => resolve(videoPath))
       .on('error', reject);
   });
 }
@@ -109,11 +119,12 @@ export async function POST() {
     );
     createdIds.campaignId = campaign.id;
 
-    // 3. Placeholder media.
+    // 3. Placeholder media — loop a committed still into a short silent MP4.
+    const sampleImage = resolveSampleImage();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promohit-test-'));
-    const { videoPath, imagePath } = await generateSampleMedia(tmpDir);
+    const videoPath = await generateSampleVideo(tmpDir, sampleImage);
     const videoId = await uploadVideoToMeta(videoPath, token, adAccountId, 'Promohit test clip');
-    const imageHash = await uploadImageToMeta(imagePath, token, adAccountId);
+    const imageHash = await uploadImageToMeta(sampleImage, token, adAccountId);
 
     // 4. Ad creative (POSTed with the Page token).
     const creative = await metaPost(

@@ -1,3 +1,11 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description: 'How Promohit collects, uses, and protects your personal information.',
+  alternates: { canonical: '/privacy' },
+};
+
 export default function PrivacyPolicy() {
   return (
     <div className="max-w-3xl mx-auto py-12 space-y-8 text-gray-300">

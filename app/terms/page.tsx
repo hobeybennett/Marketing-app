@@ -1,3 +1,11 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Terms & Conditions',
+  description: 'The terms and conditions for using Promohit.',
+  alternates: { canonical: '/terms' },
+};
+
 export default function TermsAndConditions() {
   return (
     <div className="max-w-3xl mx-auto py-12 space-y-8 text-gray-300">

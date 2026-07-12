@@ -6,8 +6,11 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/discover', '/guides', '/go', '/privacy', '/terms'],
-        disallow: ['/campaigns', '/settings', '/onboarding', '/admin', '/api/', '/auth/'],
+        allow: ['/', '/guides', '/privacy', '/terms'],
+        // /go smart-links are deliberately NOT indexed: they're thin per-song
+        // redirect pages, and letting JS-running crawlers load them would pollute
+        // campaign reach/pixel counts.
+        disallow: ['/go', '/discover', '/campaigns', '/settings', '/onboarding', '/admin', '/api/', '/auth/'],
       },
     ],
     sitemap: `${base}/sitemap.xml`,

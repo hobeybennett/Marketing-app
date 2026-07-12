@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { SmartLinkClickRecorder } from './SmartLinkClickRecorder';
 import { MetaPixelScript } from './MetaPixelScript';
@@ -33,7 +32,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
-    alternates: { canonical: `/go/${params.campaignId}` },
+    // Smart-links are for ad traffic + social previews, not search indexing.
+    // Keeping them out of the index avoids thin-content dilution and stops
+    // crawlers from firing the page-load pixel/click tracking.
+    robots: { index: false, follow: false },
     openGraph: {
       title,
       description,
@@ -79,23 +81,6 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
   const pixelId = campaign.user?.metaConnection?.pixelId ?? null;
 
-  // MusicRecording structured data so search engines understand the song + artist
-  // (and can show rich results). Mirrors the Linkfire/SmartURL pattern.
-  const base = process.env.NEXTAUTH_URL ?? '';
-  const absoluteCover = campaign.coverArtUrl?.startsWith('http')
-    ? campaign.coverArtUrl
-    : `${base}/api/covers/${campaign.id}`;
-  const streamingUrl = campaign.spotifyUrl ?? campaign.spotifyPlaylistUrl ?? undefined;
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'MusicRecording',
-    name: campaign.songTitle,
-    byArtist: { '@type': 'MusicGroup', name: campaign.artistName },
-    image: absoluteCover,
-    url: `${base}/go/${campaign.id}`,
-    ...(streamingUrl ? { sameAs: streamingUrl } : {}),
-  };
-
   const buildClickUrl = (platform: string, recordOnly = false) => {
     const p = new URLSearchParams({
       platform,
@@ -110,10 +95,6 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-4 relative overflow-hidden">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
       {pixelId && (
         <MetaPixelScript
           pixelId={pixelId}
@@ -193,21 +174,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
           )}
         </div>
 
-        {/* Crawlable descriptive copy + internal link — turns the smart-link into
-            a real SEO asset instead of a bare button page. */}
-        <p className="text-center text-xs text-gray-500 mt-8 leading-relaxed">
-          Stream {campaign.songTitle} by {campaign.artistName} on Spotify — the
-          latest release from {campaign.artistName}, promoted with Promohit.
-        </p>
-        <p className="text-center text-xs mt-4">
-          <Link href="/discover" className="text-gray-500 hover:text-gray-300 underline underline-offset-2 transition">
-            Discover more new music →
-          </Link>
-        </p>
-
-        <p className="text-center text-xs text-gray-600 mt-6 tracking-widest uppercase">
-          <Link href="/" className="hover:text-gray-400 transition">Powered by Promohit</Link>
-        </p>
+        <p className="text-center text-xs text-gray-600 mt-8 tracking-widest uppercase">Powered by Promohit</p>
       </div>
     </div>
   );

@@ -3,9 +3,20 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+// Crawlers, link-preview scrapers, and generic bots would otherwise inflate
+// smart-link reach counts (page_view records) with non-human traffic.
+const BOT_UA = /bot|crawler|spider|crawling|facebookexternalhit|facebot|slurp|bingpreview|whatsapp|telegrambot|discordbot|embedly|quora link preview|redditbot|applebot|petalbot|semrush|ahrefs|mj12bot|dotbot|headlesschrome|python-requests|axios|curl|wget|node-fetch|go-http-client/i;
+
+function isBot(req: NextRequest): boolean {
+  const ua = req.headers.get('user-agent') ?? '';
+  return ua === '' || BOT_UA.test(ua);
+}
+
 async function recordClick(req: NextRequest, campaignId: string): Promise<string> {
   const { searchParams } = req.nextUrl;
   const platform = searchParams.get('platform') ?? 'unknown';
+  // Don't record bot/crawler traffic — keeps campaign reach/click counts human.
+  if (isBot(req)) return platform;
   try {
     await prisma.smartLinkClick.create({
       data: {

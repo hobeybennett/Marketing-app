@@ -4,7 +4,21 @@ declare global {
   interface Window { fbq?: (...args: unknown[]) => void }
 }
 
-function firePixel(platform: string, songTitle: string, artistName: string) {
+// Unique id per click so the client pixel event and the server-side Conversions
+// API event dedupe against each other in Meta (no double counting).
+function newEventId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function withEventId(url: string, id: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}event_id=${encodeURIComponent(id)}`;
+}
+
+function firePixel(platform: string, songTitle: string, artistName: string, eventId?: string) {
   if (typeof window !== 'undefined' && window.fbq) {
     const params = {
       content_type: 'music',
@@ -16,23 +30,29 @@ function firePixel(platform: string, songTitle: string, artistName: string) {
     // Custom event our "Promohit Spotify Click" custom conversion optimizes on.
     // Fired for Spotify taps — that's the conversion we're buying. Using a custom
     // event (not Lead) is what keeps this a "custom pixel event", not a lead.
+    // The client fire is best-effort (the browser often navigates away before it
+    // sends); the server-side Conversions API is the reliable path. eventID lets
+    // Meta dedupe if both land.
     if (platform.startsWith('spotify')) {
-      window.fbq('trackCustom', 'PromohitSpotifyClick', params);
+      window.fbq('trackCustom', 'PromohitSpotifyClick', params, eventId ? { eventID: eventId } : undefined);
     }
   }
 }
 
 export function SpotifyButton({ recordUrl, destination, songTitle, artistName }: { recordUrl: string; destination: string; songTitle: string; artistName: string }) {
   function handleClick() {
-    firePixel('spotify', songTitle, artistName);
+    const eventId = newEventId();
+    firePixel('spotify', songTitle, artistName, eventId);
     // Record with a beacon so the click is captured even when the browser (e.g.
     // Meta's in-app browser) jumps straight to the Spotify app and skips our
-    // redirect route. Fire-and-forget; survives the navigation.
+    // redirect route. This also triggers the server-side Conversions API event.
+    // Fire-and-forget; survives the navigation.
+    const url = withEventId(recordUrl, eventId);
     try {
       if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-        navigator.sendBeacon(recordUrl);
+        navigator.sendBeacon(url);
       } else {
-        fetch(recordUrl, { keepalive: true }).catch(() => {});
+        fetch(url, { keepalive: true }).catch(() => {});
       }
     } catch { /* best-effort tracking */ }
   }
@@ -49,9 +69,10 @@ export function SpotifyPlaylistButton({ href, destination, songTitle, artistName
   href: string; destination: string; songTitle: string; artistName: string; primary?: boolean;
 }) {
   function handleClick() {
-    firePixel('spotify_playlist', songTitle, artistName);
+    const eventId = newEventId();
+    firePixel('spotify_playlist', songTitle, artistName, eventId);
     if (primary) {
-      window.location.href = href;
+      window.location.href = withEventId(href, eventId);
     } else {
       window.location.href = destination;
     }

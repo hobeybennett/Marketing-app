@@ -6,7 +6,7 @@ import SessionProvider from '@/components/SessionProvider';
 import UserNav from '@/components/UserNav';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://promohit.app'),
+  metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://promohit.marketing'),
   title: {
     default: 'Promohit — Automated Music Promotion on Facebook & Instagram',
     template: '%s | Promohit',
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   },
 };
 
-const SITE_URL = process.env.NEXTAUTH_URL || 'https://promohit.app';
+const SITE_URL = process.env.NEXTAUTH_URL || 'https://promohit.marketing';
 
 // Brand-entity structured data. Organization gives Google a knowledge-graph
 // anchor for "Promohit"; WebSite marks the canonical site name/URL.

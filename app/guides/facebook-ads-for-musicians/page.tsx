@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-const SITE_URL = process.env.NEXTAUTH_URL || 'https://promohit.app';
+const SITE_URL = process.env.NEXTAUTH_URL || 'https://promohit.marketing';
 const PATH = '/guides/facebook-ads-for-musicians';
 
 export const metadata: Metadata = {

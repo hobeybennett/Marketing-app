@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXTAUTH_URL || 'https://promohit.app';
+  const base = process.env.NEXTAUTH_URL || 'https://promohit.marketing';
   return {
     rules: [
       {

@@ -99,8 +99,8 @@ export default function PrivacyPolicy() {
         <h2 className="text-xl font-semibold text-white">9. Contact</h2>
         <p>
           For privacy questions or data requests, email us at{' '}
-          <a href="mailto:privacy@promohit.app" className="text-blue-400 hover:underline">
-            privacy@promohit.app
+          <a href="mailto:privacy@promohit.marketing" className="text-blue-400 hover:underline">
+            privacy@promohit.marketing
           </a>.
         </p>
       </section>

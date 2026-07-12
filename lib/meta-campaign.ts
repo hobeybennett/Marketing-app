@@ -111,13 +111,14 @@ export async function ensureSpotifyClickConversion(
       }
     }
 
-    // Mirror the proven Kickons/Hypeddit rule shape: match our custom event, and
-    // (when we know the host) narrow to our smart-link /go/ pages via a URL clause.
-    const host = (process.env.NEXTAUTH_URL ?? '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    // Match our custom event, narrowed to smart-link /go/ pages. We intentionally
+    // match only the PATH ("/go/"), not the full host — the event name is already
+    // unique to us, and a host-specific rule would silently stop counting if the
+    // domain ever changes (e.g. moving to a custom domain).
     const rule: Record<string, unknown> = {
       and: [
         { event: { eq: SPOTIFY_CLICK_EVENT } },
-        ...(host ? [{ or: [{ URL: { i_contains: `${host}/go/` } }] }] : []),
+        { or: [{ URL: { i_contains: '/go/' } }] },
       ],
     };
 

@@ -120,8 +120,8 @@ export default function TermsAndConditions() {
         <h2 className="text-xl font-semibold text-white">11. Contact</h2>
         <p>
           For questions about these Terms, email{' '}
-          <a href="mailto:legal@promohit.app" className="text-blue-400 hover:underline">
-            legal@promohit.app
+          <a href="mailto:legal@promohit.marketing" className="text-blue-400 hover:underline">
+            legal@promohit.marketing
           </a>.
         </p>
       </section>

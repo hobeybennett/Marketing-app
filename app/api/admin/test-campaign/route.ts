@@ -16,6 +16,7 @@ import {
   buildAdSetBody,
   buildAdCreativeBody,
   makeCreateAdSet,
+  resolveInterests,
 } from '@/lib/meta-campaign';
 import { evaluateCriteria, type CriterionContext } from '@/lib/meta-test-criteria';
 
@@ -147,6 +148,9 @@ export async function POST() {
 
     // 5. Ad set (synthetic audience — buildTargeting ignores it).
     const createAdSet = makeCreateAdSet(adAccountId, token);
+    // Exercise interest resolution with well-known artists so the readback shows
+    // the flexible_spec targeting (verifies similar-artist targeting end-to-end).
+    const testInterests = await resolveInterests(['Drake', 'The Weeknd'], token);
     const adSet = await createAdSet(buildAdSetBody({
       name: 'Promohit test ad set',
       campaignId: campaign.id,
@@ -156,7 +160,8 @@ export async function POST() {
       // Comfortably above Meta's per-currency minimum daily budget. The campaign
       // never leaves PAUSED, so this is never actually spent.
       dailyBudgetCents: 500,
-      audience: { type: 'INTEREST', interests: [] },
+      audience: { type: 'INTEREST', interests: ['Drake', 'The Weeknd'] },
+      interests: testInterests,
       artistName: 'Promohit Test',
     }));
     createdIds.adSetId = adSet.id;

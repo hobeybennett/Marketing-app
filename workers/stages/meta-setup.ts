@@ -10,6 +10,7 @@ import {
   buildAdSetBody,
   buildAdCreativeBody,
   makeCreateAdSet,
+  resolveInterests,
 } from '../../lib/meta-campaign';
 
 export async function runMetaSetup(campaignId: string) {
@@ -187,6 +188,16 @@ export async function runMetaSetup(campaignId: string) {
       continue;
     }
 
+    // Resolve similar-artist / genre names into Meta interest IDs so we target
+    // fans of those artists instead of running pure-broad. Falls back to broad
+    // if none resolve. INTEREST audiences only.
+    const interests = audience.type === 'INTEREST' && audience.interests.length
+      ? await resolveInterests(audience.interests, token)
+      : [];
+    if (interests.length) {
+      console.log(`[meta-setup] Resolved ${interests.length} interests for ${audience.name}: ${interests.map((i) => i.name).join(', ')}`);
+    }
+
     const adSet = await createAdSet(buildAdSetBody({
       name: audience.name,
       campaignId: metaCampaignId,
@@ -195,6 +206,7 @@ export async function runMetaSetup(campaignId: string) {
       customConversionId,
       dailyBudgetCents: Math.round((campaign.dailyBudget ?? 10) / adSetCount * 100),
       audience,
+      interests,
       artistName: campaign.artistName,
     }));
 

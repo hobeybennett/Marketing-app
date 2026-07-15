@@ -39,6 +39,7 @@ model Campaign {
   insights            AdInsight[]
   smartLinkClicks     SmartLinkClick[]
   optimisationLogs    OptimisationLog[]
+  popularitySnapshots PopularitySnapshot[]
 }
 
 enum CampaignStatus {
@@ -218,6 +219,22 @@ model AdInsight {
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, metaAdSetId, metaAdId, date])
+  @@index([campaignId])
+}
+
+// Daily snapshot of a track's Spotify popularity score (0-100). Append-only
+// time series so we can chart popularity against ad spend — the metric that
+// signals whether ads are actually moving Spotify's algorithm.
+model PopularitySnapshot {
+  id         String   @id @default(uuid())
+  campaignId String
+  date       DateTime
+  popularity Int
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
   @@index([campaignId])
 }
 

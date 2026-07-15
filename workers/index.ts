@@ -9,6 +9,7 @@ import { runCopyGen } from './stages/copy-gen';
 import { runAudienceGen } from './stages/audience-gen';
 import { runMetaSetup } from './stages/meta-setup';
 import { runInsightsSync } from './stages/insights-sync';
+import { takePopularitySnapshot } from './stages/popularity-snapshot';
 import { runOptimisation } from './stages/optimise';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -76,6 +77,13 @@ const insightsSyncWorker = new Worker(
         await runInsightsSync(c.id);
       } catch (err) {
         console.error(`[insights-sync] failed for campaign ${c.id}:`, err instanceof Error ? err.message : err);
+      }
+      // Snapshot Spotify popularity on the same cadence (separate try — a Spotify
+      // hiccup must not affect insights).
+      try {
+        await takePopularitySnapshot(c.id);
+      } catch (err) {
+        console.error(`[popularity] snapshot failed for campaign ${c.id}:`, err instanceof Error ? err.message : err);
       }
     }
   },

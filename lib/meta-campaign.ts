@@ -176,8 +176,37 @@ export const SPOTIFY_MARKETS = [
   'AM', 'GE', 'AZ', 'KZ',
 ];
 
-export function buildTargeting(_audience: { type: string; interests: string[] }): Record<string, unknown> {
-  return {
+export type ResolvedInterest = { id: string; name: string };
+
+// Resolve free-text similar-artist / genre names into Meta ad-interest IDs via
+// the targeting search API. Best-effort: unresolved names are skipped, and if
+// nothing resolves the caller falls back to broad targeting.
+export async function resolveInterests(names: string[], token: string): Promise<ResolvedInterest[]> {
+  const out: ResolvedInterest[] = [];
+  const seen = new Set<string>();
+  for (const raw of names.slice(0, 10)) {
+    const q = raw.trim();
+    if (!q) continue;
+    try {
+      const res = await fetch(
+        `${META_API}/search?type=adinterest&limit=1&q=${encodeURIComponent(q)}&access_token=${token}`
+      );
+      const json = await res.json();
+      const top = Array.isArray(json.data) ? json.data[0] : null;
+      if (top?.id && !seen.has(String(top.id))) {
+        seen.add(String(top.id));
+        out.push({ id: String(top.id), name: top.name ?? q });
+      }
+    } catch { /* skip unresolved */ }
+  }
+  return out;
+}
+
+export function buildTargeting(
+  _audience: { type: string; interests: string[] },
+  resolvedInterests?: ResolvedInterest[],
+): Record<string, unknown> {
+  const base: Record<string, unknown> = {
     geo_locations: { countries: SPOTIFY_MARKETS },
     age_min: 18,
     age_max: 65,
@@ -188,6 +217,12 @@ export function buildTargeting(_audience: { type: string; interests: string[] })
     // Detailed targeting expansion OFF — keep delivery within our defined audience.
     targeting_automation: { advantage_audience: 0 },
   };
+  // Narrow to fans of similar artists / genres when we resolved interest IDs —
+  // consistently cheaper than pure broad. Falls back to broad if none resolved.
+  if (resolvedInterests && resolvedInterests.length > 0) {
+    base.flexible_spec = [{ interests: resolvedInterests.map((i) => ({ id: i.id, name: i.name })) }];
+  }
+  return base;
 }
 
 // ── Request-body builders ───────────────────────────────────────────────────
@@ -216,6 +251,7 @@ export function buildAdSetBody(params: {
   customConversionId: string | null;
   dailyBudgetCents: number;
   audience: { type: string; interests: string[] };
+  interests?: ResolvedInterest[];
   artistName: string;
 }): Record<string, unknown> {
   return {
@@ -237,7 +273,7 @@ export function buildAdSetBody(params: {
     // "Highest volume" (no bid cap).
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     daily_budget: params.dailyBudgetCents,
-    targeting: buildTargeting(params.audience),
+    targeting: buildTargeting(params.audience, params.interests),
     // EU/Brazil/etc. DSA transparency — filled in automatically.
     dsa_beneficiary: params.artistName,
     dsa_payor: params.artistName,

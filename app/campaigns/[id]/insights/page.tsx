@@ -57,10 +57,18 @@ interface CreativeStat {
   hasData: boolean;
 }
 
+interface PopularityPoint {
+  date: string;
+  value: number;
+}
+
 interface InsightsPayload {
   totals: Totals;
   budget: Budget;
   daily: DailyRow[];
+  popularity: PopularityPoint[];
+  currentPopularity: number | null;
+  popularityDelta: number | null;
   adsetBreakdown: AdsetBreakdownRow[];
   smartLinkClicks: SmartLinkClicks;
   lastSyncAt: string | null;
@@ -209,6 +217,9 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
   const totals = insights?.totals ?? { spend: 0, impressions: 0, videoViews: 0, outboundClicks: 0, avgCtr: 0, avgCpc: 0, costPerConversion: null };
   const budget = insights?.budget ?? { daily: null, todaySpend: 0, remaining: null };
   const daily = insights?.daily ?? [];
+  const popularity = insights?.popularity ?? [];
+  const currentPopularity = insights?.currentPopularity ?? null;
+  const popularityDelta = insights?.popularityDelta ?? null;
   const adsetBreakdown = insights?.adsetBreakdown ?? [];
   const smartLink = insights?.smartLinkClicks ?? { total: 0, byPlatform: {} };
   const lastSyncAt = insights?.lastSyncAt ?? null;
@@ -438,6 +449,16 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
+          {/* Spotify popularity vs spend */}
+          {popularity.length > 0 && (
+            <PopularityChart
+              popularity={popularity}
+              daily={daily}
+              current={currentPopularity}
+              delta={popularityDelta}
+            />
+          )}
+
           {/* Daily spend chart */}
           {daily.length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
@@ -488,6 +509,78 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Popularity (0-100 green line) charted against daily spend (grey bars) on a
+// shared date axis — the "is my spend actually moving Spotify's algorithm?" view.
+function PopularityChart({ popularity, daily, current, delta }: {
+  popularity: PopularityPoint[];
+  daily: DailyRow[];
+  current: number | null;
+  delta: number | null;
+}) {
+  const dayKey = (d: string) => new Date(d).toISOString().split('T')[0];
+  const spendByDate = new Map(daily.map((d) => [dayKey(d.date), d.spend]));
+  const popByDate = new Map(popularity.map((p) => [dayKey(p.date), p.value]));
+  const dates = Array.from(new Set([...spendByDate.keys(), ...popByDate.keys()])).sort();
+  const maxSpend = Math.max(...daily.map((d) => d.spend), 0.001);
+
+  const W = 100, H = 100, padT = 6, padB = 6, padL = 2, padR = 2;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = dates.length;
+  const x = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const yPop = (v: number) => padT + (1 - v / 100) * innerH;
+  const barW = n > 0 ? Math.max((innerW / n) * 0.55, 0.6) : 0.6;
+
+  const popPts = dates
+    .map((d, i) => (popByDate.has(d) ? { i, v: popByDate.get(d) as number } : null))
+    .filter((p): p is { i: number; v: number } => p !== null);
+  const linePath = popPts
+    .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${x(p.i).toFixed(1)} ${yPop(p.v).toFixed(1)}`)
+    .join(' ');
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="font-display font-700 text-base">Spotify Popularity</h2>
+        <div className="text-right">
+          <span className="text-2xl font-700 tabular-nums text-[#1DB954]">{current ?? '—'}</span>
+          <span className="text-sm text-gray-500">/100</span>
+          {delta != null && delta !== 0 && (
+            <span className={`ml-2 text-xs font-600 ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}
+            </span>
+          )}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="120" preserveAspectRatio="none">
+        {dates.map((d, i) => {
+          const s = spendByDate.get(d) ?? 0;
+          const h = (s / maxSpend) * innerH;
+          return (
+            <rect key={d} x={x(i) - barW / 2} y={padT + innerH - h} width={barW} height={Math.max(h, 0)}
+              fill="#4b5563" opacity="0.5" />
+          );
+        })}
+        {linePath && (
+          <path d={linePath} fill="none" stroke="#1DB954" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        )}
+      </svg>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-[#1DB954]" /> Popularity</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-gray-600" /> Daily spend</span>
+        </div>
+        {dates.length > 1 && (
+          <span className="text-xs text-gray-600">{fmtDate(dates[0])} → {fmtDate(dates[dates.length - 1])}</span>
+        )}
+      </div>
+      <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+        Popularity is Spotify&apos;s 0–100 score that feeds Discover Weekly &amp; Release Radar. If ad spend is
+        working, this should trend up.
+      </p>
     </div>
   );
 }

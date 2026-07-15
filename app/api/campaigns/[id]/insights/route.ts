@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 import { fetchCampaignInsights, storeInsights } from '@/lib/meta-insights';
+import { fetchTrackPopularity } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,17 @@ export async function GET(
   const audiences = await prisma.audience.findMany({
     where: { campaignId: params.id },
   });
+
+  // Spotify popularity time series (0-100) to chart against spend.
+  const popularitySnapshots = await prisma.popularitySnapshot.findMany({
+    where: { campaignId: params.id },
+    orderBy: { date: 'asc' },
+  });
+  const popularity = popularitySnapshots.map((s) => ({ date: s.date, value: s.popularity }));
+  const currentPopularity = popularity.length ? popularity[popularity.length - 1].value : null;
+  const popularityDelta = popularity.length > 1
+    ? popularity[popularity.length - 1].value - popularity[0].value
+    : null;
 
   // Campaign-level rows (no adset/ad breakdown)
   const campaignRows = allInsights.filter(r => r.metaAdSetId === null && r.metaAdId === null);
@@ -167,6 +179,9 @@ export async function GET(
       remaining: campaign.dailyBudget != null ? Math.max(0, campaign.dailyBudget - todaySpend) : null,
     },
     daily,
+    popularity,
+    currentPopularity,
+    popularityDelta,
     adsetBreakdown,
     smartLinkClicks: {
       total: smartLinkTotal,
@@ -213,6 +228,22 @@ export async function POST(
 
     const insights = await fetchCampaignInsights(campaign.metaCampaignId, token);
     await storeInsights(prisma, params.id, insights);
+
+    // Refresh the Spotify popularity snapshot on manual sync too (best-effort).
+    if (campaign.spotifyUrl) {
+      try {
+        const popularity = await fetchTrackPopularity(campaign.spotifyUrl);
+        if (popularity != null) {
+          const day = new Date();
+          day.setUTCHours(0, 0, 0, 0);
+          await prisma.popularitySnapshot.upsert({
+            where: { campaignId_date: { campaignId: params.id, date: day } },
+            create: { campaignId: params.id, date: day, popularity },
+            update: { popularity },
+          });
+        }
+      } catch { /* non-fatal */ }
+    }
 
     // Fetch adset daily budgets and store total on the campaign
     let totalDailyBudgetCents = 0;

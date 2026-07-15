@@ -1,31 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { extractTrackId, extractPlaylistId, getSpotifyToken } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';
-
-function extractTrackId(url: string): string | null {
-  const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
-  return match ? match[1] : null;
-}
-
-function extractPlaylistId(url: string): string | null {
-  const match = url.match(/spotify\.com\/playlist\/([a-zA-Z0-9]+)/);
-  return match ? match[1] : null;
-}
-
-async function getSpotifyToken(): Promise<string> {
-  const credentials = Buffer.from(
-    `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
-  ).toString('base64');
-
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials',
-  });
-
-  if (!res.ok) throw new Error('Failed to get Spotify token');
-  return (await res.json()).access_token;
-}
 
 export async function POST(req: NextRequest) {
   const { url } = await req.json();

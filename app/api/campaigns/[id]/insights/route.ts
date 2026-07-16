@@ -62,11 +62,12 @@ export async function GET(
     where: { campaignId: params.id },
   });
 
-  // Spotify popularity time series (0-100) to chart against spend.
+  // Spotify popularity time series (0-100) to chart against spend. Defensive —
+  // during a deploy the table may briefly not exist; never break the page for it.
   const popularitySnapshots = await prisma.popularitySnapshot.findMany({
     where: { campaignId: params.id },
     orderBy: { date: 'asc' },
-  });
+  }).catch(() => [] as { date: Date; popularity: number }[]);
   const popularity = popularitySnapshots.map((s) => ({ date: s.date, value: s.popularity }));
   const currentPopularity = popularity.length ? popularity[popularity.length - 1].value : null;
   const popularityDelta = popularity.length > 1

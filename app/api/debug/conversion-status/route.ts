@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 import { SPOTIFY_CLICK_CONVERSION_NAME } from '@/lib/meta-campaign';
+import { fetchTrackPopularity } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';
 const META = 'https://graph.facebook.com/v22.0';
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     id: true,
     songTitle: true,
     metaCampaignId: true,
+    spotifyUrl: true,
     user: { select: { metaConnection: { select: { pixelId: true, adAccountId: true, accessToken: true } } } },
   } as const;
 
@@ -58,6 +60,35 @@ export async function GET(req: NextRequest) {
       note: 'What Promohit recorded directly — every tap on Listen on Spotify.',
     },
   };
+
+  // Spotify popularity diagnostics — and seed today's snapshot right now so the
+  // dashboard chart has a data point (saves waiting for the 2h sync).
+  try {
+    const existingSnaps = await prisma.popularitySnapshot.count({ where: { campaignId: campaign.id } });
+    const liveFetch = campaign.spotifyUrl ? await fetchTrackPopularity(campaign.spotifyUrl) : null;
+    let seeded = false;
+    if (liveFetch != null) {
+      const day = new Date();
+      day.setUTCHours(0, 0, 0, 0);
+      await prisma.popularitySnapshot.upsert({
+        where: { campaignId_date: { campaignId: campaign.id, date: day } },
+        create: { campaignId: campaign.id, date: day, popularity: liveFetch },
+        update: { popularity: liveFetch },
+      });
+      seeded = true;
+    }
+    out.popularity = {
+      spotifyUrlSet: !!campaign.spotifyUrl,
+      liveScore: liveFetch,
+      existingSnapshots: existingSnaps,
+      seededToday: seeded,
+      note: liveFetch == null
+        ? 'Could not fetch popularity — check the campaign has a Spotify TRACK url and SPOTIFY_CLIENT_ID/SECRET are set.'
+        : 'Seeded — reload the campaign Insights page to see the Popularity chart.',
+    };
+  } catch (err) {
+    out.popularity = { error: err instanceof Error ? err.message : String(err) };
+  }
 
   const ago = (t?: string) => {
     if (!t) return 'never';

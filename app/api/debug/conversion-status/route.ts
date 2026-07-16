@@ -73,31 +73,32 @@ export async function GET(req: NextRequest) {
 
     if (trackId && probe.credsSet) {
       const token = await getSpotifyToken();
-      probe.tokenLen = token ? String(token).length : 0;
-      const r = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const raw = await r.text();
-      let body: any = null;
-      try { body = JSON.parse(raw); } catch { probe.rawTextSample = raw.slice(0, 200); }
-      probe.trackFetchStatus = r.status;
-      probe.hasBody = !!body;
-      probe.bodyKeys = body && typeof body === 'object' ? Object.keys(body).slice(0, 40) : null;
-      probe.rawPopularity = body?.popularity ?? null;
-      probe.rawPopularityType = typeof body?.popularity;
-      probe.spotifyApiError = body?.error?.message ?? null;
-      const popularity = typeof body?.popularity === 'number' ? body.popularity : null;
-      probe.liveScore = popularity;
-      if (popularity != null) {
+      const auth = { headers: { Authorization: `Bearer ${token}` } };
+      const t = await (await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, auth)).json().catch(() => null);
+      const tm = await (await fetch(`https://api.spotify.com/v1/tracks/${trackId}?market=US`, auth)).json().catch(() => null);
+      probe.trackPopularity = typeof t?.popularity === 'number' ? t.popularity : null;
+      probe.trackUSPopularity = typeof tm?.popularity === 'number' ? tm.popularity : null;
+      const artistId = t?.artists?.[0]?.id ?? tm?.artists?.[0]?.id ?? null;
+      probe.artistId = artistId;
+      if (artistId) {
+        const a = await (await fetch(`https://api.spotify.com/v1/artists/${artistId}`, auth)).json().catch(() => null);
+        probe.artistPopularity = typeof a?.popularity === 'number' ? a.popularity : null;
+        probe.artistFollowers = a?.followers?.total ?? null;
+      }
+      const chosen = (probe.trackPopularity ?? probe.trackUSPopularity ?? probe.artistPopularity ?? null) as number | null;
+      probe.liveScore = chosen;
+      if (chosen != null) {
         const day = new Date();
         day.setUTCHours(0, 0, 0, 0);
         await prisma.popularitySnapshot.upsert({
           where: { campaignId_date: { campaignId: campaign.id, date: day } },
-          create: { campaignId: campaign.id, date: day, popularity },
-          update: { popularity },
+          create: { campaignId: campaign.id, date: day, popularity: chosen },
+          update: { popularity: chosen },
         });
         probe.seededToday = true;
         probe.note = 'Seeded — reload the campaign Insights page to see the Popularity chart.';
+      } else {
+        probe.note = 'Neither track nor artist popularity was returned by Spotify.';
       }
     } else {
       probe.note = !trackId ? 'Could not extract a track id from the Spotify URL.' : 'SPOTIFY_CLIENT_ID/SECRET not set on this service.';

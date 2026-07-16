@@ -29,21 +29,39 @@ export async function getSpotifyToken(): Promise<string> {
   return (await res.json()).access_token;
 }
 
-// Current Spotify popularity (0-100) for the track behind a Spotify URL, or null
-// if it can't be resolved. Best-effort — never throws, so a snapshot job or the
-// worker loop can't be broken by a transient Spotify hiccup.
+// Current Spotify popularity (0-100) behind a Spotify URL, or null if it can't be
+// resolved. Prefers the track's own popularity, but Spotify now strips that field
+// from track responses for some app/token types — so it falls back to the primary
+// artist's popularity (a coarser but reliable momentum signal). Best-effort:
+// never throws, so a snapshot job or the worker loop can't be broken by it.
 export async function fetchTrackPopularity(spotifyUrl: string): Promise<number | null> {
   const trackId = extractTrackId(spotifyUrl);
   if (!trackId) return null;
   if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) return null;
   try {
     const token = await getSpotifyToken();
-    const res = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return null;
-    const track = await res.json();
-    return typeof track.popularity === 'number' ? track.popularity : null;
+    const auth = { headers: { Authorization: `Bearer ${token}` } };
+    let artistId: string | null = null;
+
+    for (const url of [
+      `https://api.spotify.com/v1/tracks/${trackId}`,
+      `https://api.spotify.com/v1/tracks/${trackId}?market=US`,
+    ]) {
+      const res = await fetch(url, auth);
+      if (!res.ok) continue;
+      const track = await res.json();
+      if (typeof track?.popularity === 'number') return track.popularity;
+      if (!artistId && track?.artists?.[0]?.id) artistId = track.artists[0].id;
+    }
+
+    if (artistId) {
+      const res = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, auth);
+      if (res.ok) {
+        const artist = await res.json();
+        if (typeof artist?.popularity === 'number') return artist.popularity;
+      }
+    }
+    return null;
   } catch {
     return null;
   }

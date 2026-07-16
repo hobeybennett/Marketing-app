@@ -176,6 +176,128 @@ export const SPOTIFY_MARKETS = [
   'AM', 'GE', 'AZ', 'KZ',
 ];
 
+// ── Lookalike audiences ──────────────────────────────────────────────────────
+
+// A lookalike needs ~100 matched people in its seed. We gate on our own
+// first-party Spotify-click count (a reliable proxy we fully control) before
+// even attempting creation, then self-heal if Meta still says it's too small.
+export const LOOKALIKE_MIN_CLICKS = 100;
+export const CLICK_AUDIENCE_NAME = 'Promohit Spotify Clickers';
+export const LOOKALIKE_AUDIENCE_NAME = 'Promohit Lookalike (Spotify Clickers)';
+
+// Find-or-create a website Custom Audience seeded on the user's pixel: everyone
+// who visited a /go/ smart-link in the last 180 days. Per-user, reused across
+// their campaigns. Returns its id, or null on failure (best-effort).
+export async function ensureClickAudience(
+  adAccountId: string,
+  token: string,
+  pixelId: string,
+  existingId: string | null,
+  diag?: string[],
+): Promise<string | null> {
+  try {
+    if (existingId) return existingId;
+    const listRes = await fetch(
+      `${META_API}/act_${adAccountId}/customaudiences?fields=id,name&limit=200&access_token=${token}`
+    );
+    const list = await listRes.json();
+    if (!list.error && Array.isArray(list.data)) {
+      const found = list.data.find((a: { id: string; name: string }) => a.name === CLICK_AUDIENCE_NAME);
+      if (found) { diag?.push(`found click audience ${found.id}`); return found.id; }
+    }
+    const rule = {
+      inclusions: {
+        operator: 'or',
+        rules: [
+          {
+            event_sources: [{ type: 'pixel', id: pixelId }],
+            retention_seconds: 15552000, // 180 days
+            filter: { operator: 'and', filters: [{ field: 'url', operator: 'i_contains', value: '/go/' }] },
+          },
+        ],
+      },
+    };
+    const createRes = await fetch(`${META_API}/act_${adAccountId}/customaudiences`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: CLICK_AUDIENCE_NAME,
+        subtype: 'WEBSITE',
+        description: 'People who visited a Promohit smart link',
+        rule,
+        prefill: true,
+        access_token: token,
+      }),
+    });
+    const created = await createRes.json();
+    if (created.error) {
+      diag?.push(`click audience create failed: ${created.error.message} (code ${created.error.code} subcode ${created.error.error_subcode})`);
+      return null;
+    }
+    diag?.push(`created click audience ${created.id}`);
+    return created.id ?? null;
+  } catch (err) {
+    diag?.push(`click audience exception: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// Find-or-create a 1% Lookalike from the click audience. Returns null (not an
+// error) if the seed is still too small — the caller just skips the lookalike
+// ad set until there's enough data. Falls back to a US-only lookalike if the
+// multi-country spec is rejected.
+export async function ensureLookalike(
+  adAccountId: string,
+  token: string,
+  seedAudienceId: string,
+  existingId: string | null,
+  diag?: string[],
+): Promise<string | null> {
+  try {
+    if (existingId) return existingId;
+    const listRes = await fetch(
+      `${META_API}/act_${adAccountId}/customaudiences?fields=id,name&limit=200&access_token=${token}`
+    );
+    const list = await listRes.json();
+    if (!list.error && Array.isArray(list.data)) {
+      const found = list.data.find((a: { id: string; name: string }) => a.name === LOOKALIKE_AUDIENCE_NAME);
+      if (found) { diag?.push(`found lookalike ${found.id}`); return found.id; }
+    }
+
+    const create = async (lookalikeSpec: Record<string, unknown>) => {
+      const res = await fetch(`${META_API}/act_${adAccountId}/customaudiences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: LOOKALIKE_AUDIENCE_NAME,
+          subtype: 'LOOKALIKE',
+          origin_audience_id: seedAudienceId,
+          lookalike_spec: JSON.stringify(lookalikeSpec),
+          access_token: token,
+        }),
+      });
+      return res.json();
+    };
+
+    // Primary: multi-country lookalike across our markets.
+    let created = await create({ type: 'similarity', ratio: 0.01, location_spec: { geo_locations: { countries: SPOTIFY_MARKETS } } });
+    if (created.error) {
+      diag?.push(`lookalike (multi-country) failed: ${created.error.message} (subcode ${created.error.error_subcode}) — retrying US-only`);
+      // Fallback: single-country lookalike (highest-value market).
+      created = await create({ type: 'similarity', ratio: 0.01, country: 'US' });
+    }
+    if (created.error) {
+      diag?.push(`lookalike create failed: ${created.error.message} (code ${created.error.code} subcode ${created.error.error_subcode})`);
+      return null;
+    }
+    diag?.push(`created lookalike ${created.id}`);
+    return created.id ?? null;
+  } catch (err) {
+    diag?.push(`lookalike exception: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 export type ResolvedInterest = { id: string; name: string };
 
 // Resolve free-text similar-artist / genre names into Meta ad-interest IDs via
@@ -204,7 +326,7 @@ export async function resolveInterests(names: string[], token: string): Promise<
 
 export function buildTargeting(
   _audience: { type: string; interests: string[] },
-  resolvedInterests?: ResolvedInterest[],
+  opts?: { interests?: ResolvedInterest[]; customAudiences?: string[] },
 ): Record<string, unknown> {
   const base: Record<string, unknown> = {
     geo_locations: { countries: SPOTIFY_MARKETS },
@@ -217,10 +339,13 @@ export function buildTargeting(
     // Detailed targeting expansion OFF — keep delivery within our defined audience.
     targeting_automation: { advantage_audience: 0 },
   };
-  // Narrow to fans of similar artists / genres when we resolved interest IDs —
-  // consistently cheaper than pure broad. Falls back to broad if none resolved.
-  if (resolvedInterests && resolvedInterests.length > 0) {
-    base.flexible_spec = [{ interests: resolvedInterests.map((i) => ({ id: i.id, name: i.name })) }];
+  // Lookalike ad set: target the custom/lookalike audience (no interests).
+  if (opts?.customAudiences && opts.customAudiences.length > 0) {
+    base.custom_audiences = opts.customAudiences.map((id) => ({ id }));
+  } else if (opts?.interests && opts.interests.length > 0) {
+    // Narrow to fans of similar artists / genres when we resolved interest IDs —
+    // consistently cheaper than pure broad. Falls back to broad if none resolved.
+    base.flexible_spec = [{ interests: opts.interests.map((i) => ({ id: i.id, name: i.name })) }];
   }
   return base;
 }
@@ -252,6 +377,7 @@ export function buildAdSetBody(params: {
   dailyBudgetCents: number;
   audience: { type: string; interests: string[] };
   interests?: ResolvedInterest[];
+  customAudiences?: string[];
   artistName: string;
 }): Record<string, unknown> {
   return {
@@ -273,7 +399,7 @@ export function buildAdSetBody(params: {
     // "Highest volume" (no bid cap).
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     daily_budget: params.dailyBudgetCents,
-    targeting: buildTargeting(params.audience, params.interests),
+    targeting: buildTargeting(params.audience, { interests: params.interests, customAudiences: params.customAudiences }),
     // EU/Brazil/etc. DSA transparency — filled in automatically.
     dsa_beneficiary: params.artistName,
     dsa_payor: params.artistName,

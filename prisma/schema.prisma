@@ -308,6 +308,11 @@ model MetaConnection {
   instagramUserId            String?
   instagramUsername          String?
   availableInstagramAccounts Json?
+  // Reusable per-user audiences for lookalike targeting: a website custom
+  // audience seeded on the pixel, and the lookalike built from it. Created once,
+  // reused across all of this customer's campaigns.
+  clickAudienceId            String?
+  lookalikeAudienceId        String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

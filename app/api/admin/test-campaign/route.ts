@@ -17,6 +17,8 @@ import {
   buildAdCreativeBody,
   makeCreateAdSet,
   resolveInterests,
+  ensureClickAudience,
+  ensureLookalike,
 } from '@/lib/meta-campaign';
 import { evaluateCriteria, type CriterionContext } from '@/lib/meta-test-criteria';
 
@@ -175,6 +177,20 @@ export async function POST() {
     });
     createdIds.adId = ad.id;
 
+    // 6b. Verify the lookalike audience plumbing against real Meta (find-or-create
+    // the click audience + lookalike). The lookalike will report "seed too small"
+    // until the pixel has ~100 clicks — that's expected; we're verifying the API
+    // shapes are accepted.
+    const lookalikeDiag: string[] = [];
+    if (pixelId) {
+      const clickAud = await ensureClickAudience(adAccountId, token, pixelId, conn.clickAudienceId ?? null, lookalikeDiag);
+      if (clickAud) {
+        await ensureLookalike(adAccountId, token, clickAud, conn.lookalikeAudienceId ?? null, lookalikeDiag);
+      }
+    } else {
+      lookalikeDiag.push('no pixel — lookalike skipped');
+    }
+
     // 7. Read everything back.
     const [campaignRb, adsetRb, creativeRb, adRb] = await Promise.all([
       getJson(campaign.id, 'objective,status,special_ad_categories,buying_type', token),
@@ -213,6 +229,7 @@ export async function POST() {
       useConversions,
       customConversionId,
       customConversionDiag,
+      lookalikeDiag,
       results,
       createdIds,
       adsManagerUrl,

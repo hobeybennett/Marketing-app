@@ -11,6 +11,9 @@ import {
   buildAdCreativeBody,
   makeCreateAdSet,
   resolveInterests,
+  ensureClickAudience,
+  ensureLookalike,
+  LOOKALIKE_MIN_CLICKS,
 } from '../../lib/meta-campaign';
 
 export async function runMetaSetup(campaignId: string) {
@@ -168,10 +171,41 @@ export async function runMetaSetup(campaignId: string) {
 
   const createAdSet = makeCreateAdSet(adAccountId, token);
 
+  // Lookalike audience: seeded from this customer's own pixel, reused across their
+  // campaigns. Auto-activates once they've accumulated enough Spotify clicks to
+  // build a seed — gated on our first-party click count (a signal we control),
+  // then self-heals if Meta still finds the seed too small.
+  let lookalikeAudienceId: string | null = metaConn?.lookalikeAudienceId ?? null;
+  if (!lookalikeAudienceId && pixelId && adAccountId && token && campaign.userId) {
+    const clickCount = await prisma.smartLinkClick.count({
+      where: { campaign: { userId: campaign.userId }, platform: { in: ['spotify', 'spotify_playlist'] } },
+    });
+    if (clickCount >= LOOKALIKE_MIN_CLICKS) {
+      const clickAud = await ensureClickAudience(adAccountId, token, pixelId, metaConn?.clickAudienceId ?? null);
+      const lookalike = clickAud
+        ? await ensureLookalike(adAccountId, token, clickAud, metaConn?.lookalikeAudienceId ?? null)
+        : null;
+      if (clickAud || lookalike) {
+        await prisma.metaConnection.update({
+          where: { userId: campaign.userId },
+          data: {
+            ...(clickAud ? { clickAudienceId: clickAud } : {}),
+            ...(lookalike ? { lookalikeAudienceId: lookalike } : {}),
+          },
+        }).catch(() => {});
+      }
+      lookalikeAudienceId = lookalike;
+    } else {
+      console.log(`[meta-setup] Lookalike gated: ${clickCount}/${LOOKALIKE_MIN_CLICKS} Spotify clicks`);
+    }
+  }
+
   // Split the daily budget across the ad sets that will actually run (PENDING_DATA
-  // audiences are skipped). With a single interest audience this is the full budget.
+  // audiences are skipped), plus the lookalike ad set when it's available.
+  const alreadyHasLookalikeAdSet = campaign.audiences.some((a) => a.type === 'LOOKALIKE' && a.metaAdSetId);
   const adSetCount = Math.max(
-    campaign.audiences.filter((a) => (a as any).dataStatus !== 'PENDING_DATA').length,
+    campaign.audiences.filter((a) => (a as any).dataStatus !== 'PENDING_DATA' && a.type !== 'LOOKALIKE').length
+      + (lookalikeAudienceId && !alreadyHasLookalikeAdSet ? 1 : 0),
     1,
   );
 
@@ -226,6 +260,51 @@ export async function runMetaSetup(campaignId: string) {
         status: 'ACTIVE',
         creative: { creative_id: adCreativeId },
       });
+    }
+  }
+
+  // Lookalike ad set — an extra ad set targeting people similar to the customer's
+  // Spotify clickers. Only when a lookalike is ready and one isn't already built.
+  if (lookalikeAudienceId && !alreadyHasLookalikeAdSet) {
+    try {
+      const laName = 'Lookalike — Spotify fans';
+      const laAdSet = await createAdSet(buildAdSetBody({
+        name: laName,
+        campaignId: metaCampaignId,
+        useConversions,
+        pixelId: pixelId ?? null,
+        customConversionId,
+        dailyBudgetCents: Math.round((campaign.dailyBudget ?? 10) / adSetCount * 100),
+        audience: { type: 'LOOKALIKE', interests: [] },
+        customAudiences: [lookalikeAudienceId],
+        artistName: campaign.artistName,
+      }));
+      await prisma.audience.create({
+        data: {
+          campaignId,
+          name: laName,
+          type: 'LOOKALIKE',
+          interests: [],
+          lookalikeSeed: lookalikeAudienceId,
+          metaAdSetId: laAdSet.id,
+          dataStatus: 'AVAILABLE',
+        },
+      });
+      for (const creative of campaign.creatives) {
+        const adCreativeId = adCreativeIds.get(creative.id);
+        if (!adCreativeId) continue;
+        const clipNum = campaign.creatives.indexOf(creative) + 1;
+        await metaPost(`/act_${adAccountId}/ads`, token, {
+          name: `${campaign.songTitle} — Clip ${clipNum} — ${laName}`,
+          adset_id: laAdSet.id,
+          status: 'ACTIVE',
+          creative: { creative_id: adCreativeId },
+        });
+      }
+      console.log(`[meta-setup] Added lookalike ad set ${laAdSet.id}`);
+    } catch (err) {
+      // Never let the lookalike (an enhancement) break a campaign — skip on error.
+      console.warn('[meta-setup] Lookalike ad set skipped:', err instanceof Error ? err.message : err);
     }
   }
 

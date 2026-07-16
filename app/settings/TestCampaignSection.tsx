@@ -8,6 +8,7 @@ type Report = {
   useConversions?: boolean;
   customConversionId?: string | null;
   customConversionDiag?: string[];
+  lookalikeDiag?: string[];
   results?: Result[];
   createdIds?: Record<string, string>;
   adsManagerUrl?: string;
@@ -45,6 +46,10 @@ export default function TestCampaignSection() {
     if (report.customConversionDiag?.length) {
       lines.push('customConversion:');
       report.customConversionDiag.forEach((d) => lines.push(`  - ${d}`));
+    }
+    if (report.lookalikeDiag?.length) {
+      lines.push('lookalike:');
+      report.lookalikeDiag.forEach((d) => lines.push(`  - ${d}`));
     }
     if (report.results?.length) {
       lines.push('criteria:');
@@ -124,6 +129,18 @@ export default function TestCampaignSection() {
               )}
             </div>
           )}
+
+          {report.lookalikeDiag?.length ? (
+            <div className="rounded-lg border border-gray-700 bg-gray-800/40 px-4 py-3 text-xs text-gray-300">
+              <p className="font-semibold mb-1 text-gray-200">Lookalike audience</p>
+              <ul className="list-disc pl-4 space-y-0.5 text-gray-400">
+                {report.lookalikeDiag.map((d, i) => (
+                  <li key={i} className="font-mono break-words">{d}</li>
+                ))}
+              </ul>
+              <p className="text-gray-500 mt-1">&quot;Seed too small&quot; is expected until ~100 Spotify clicks.</p>
+            </div>
+          ) : null}
 
           {report.results && (
             <>

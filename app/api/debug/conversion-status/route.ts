@@ -73,11 +73,18 @@ export async function GET(req: NextRequest) {
 
     if (trackId && probe.credsSet) {
       const token = await getSpotifyToken();
+      probe.tokenLen = token ? String(token).length : 0;
       const r = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const body = await r.json().catch(() => null);
+      const raw = await r.text();
+      let body: any = null;
+      try { body = JSON.parse(raw); } catch { probe.rawTextSample = raw.slice(0, 200); }
       probe.trackFetchStatus = r.status;
+      probe.hasBody = !!body;
+      probe.bodyKeys = body && typeof body === 'object' ? Object.keys(body).slice(0, 40) : null;
+      probe.rawPopularity = body?.popularity ?? null;
+      probe.rawPopularityType = typeof body?.popularity;
       probe.spotifyApiError = body?.error?.message ?? null;
       const popularity = typeof body?.popularity === 'number' ? body.popularity : null;
       probe.liveScore = popularity;

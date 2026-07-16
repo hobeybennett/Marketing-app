@@ -1,13 +1,16 @@
 // Shared Spotify Web API helpers. Lives in lib/ (not an app/api route) so the
 // BullMQ worker can import them too — workers can't import from Next route files.
 
+// Handles all Spotify link shapes: open.spotify.com/track/<id>, locale-prefixed
+// open.spotify.com/intl-pt/track/<id>, trailing ?si=… query params, and the
+// spotify:track:<id> URI form.
 export function extractTrackId(url: string): string | null {
-  const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
+  const match = url.match(/track[/:]([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
 }
 
 export function extractPlaylistId(url: string): string | null {
-  const match = url.match(/spotify\.com\/playlist\/([a-zA-Z0-9]+)/);
+  const match = url.match(/playlist[/:]([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
 }
 

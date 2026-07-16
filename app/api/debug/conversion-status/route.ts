@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
 import { SPOTIFY_CLICK_CONVERSION_NAME } from '@/lib/meta-campaign';
-import { fetchTrackPopularity } from '@/lib/spotify';
+import { extractTrackId, getSpotifyToken } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';
 const META = 'https://graph.facebook.com/v22.0';
@@ -61,34 +61,44 @@ export async function GET(req: NextRequest) {
     },
   };
 
-  // Spotify popularity diagnostics — and seed today's snapshot right now so the
-  // dashboard chart has a data point (saves waiting for the 2h sync).
+  // Detailed Spotify popularity probe — shows exactly where the fetch breaks,
+  // and seeds today's snapshot when it works so the dashboard chart has a point.
+  const probe: Record<string, unknown> = {};
   try {
-    const existingSnaps = await prisma.popularitySnapshot.count({ where: { campaignId: campaign.id } });
-    const liveFetch = campaign.spotifyUrl ? await fetchTrackPopularity(campaign.spotifyUrl) : null;
-    let seeded = false;
-    if (liveFetch != null) {
-      const day = new Date();
-      day.setUTCHours(0, 0, 0, 0);
-      await prisma.popularitySnapshot.upsert({
-        where: { campaignId_date: { campaignId: campaign.id, date: day } },
-        create: { campaignId: campaign.id, date: day, popularity: liveFetch },
-        update: { popularity: liveFetch },
+    probe.existingSnapshots = await prisma.popularitySnapshot.count({ where: { campaignId: campaign.id } });
+    probe.spotifyUrl = campaign.spotifyUrl ?? null;
+    const trackId = campaign.spotifyUrl ? extractTrackId(campaign.spotifyUrl) : null;
+    probe.extractedTrackId = trackId;
+    probe.credsSet = !!process.env.SPOTIFY_CLIENT_ID && !!process.env.SPOTIFY_CLIENT_SECRET;
+
+    if (trackId && probe.credsSet) {
+      const token = await getSpotifyToken();
+      const r = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      seeded = true;
+      const body = await r.json().catch(() => null);
+      probe.trackFetchStatus = r.status;
+      probe.spotifyApiError = body?.error?.message ?? null;
+      const popularity = typeof body?.popularity === 'number' ? body.popularity : null;
+      probe.liveScore = popularity;
+      if (popularity != null) {
+        const day = new Date();
+        day.setUTCHours(0, 0, 0, 0);
+        await prisma.popularitySnapshot.upsert({
+          where: { campaignId_date: { campaignId: campaign.id, date: day } },
+          create: { campaignId: campaign.id, date: day, popularity },
+          update: { popularity },
+        });
+        probe.seededToday = true;
+        probe.note = 'Seeded — reload the campaign Insights page to see the Popularity chart.';
+      }
+    } else {
+      probe.note = !trackId ? 'Could not extract a track id from the Spotify URL.' : 'SPOTIFY_CLIENT_ID/SECRET not set on this service.';
     }
-    out.popularity = {
-      spotifyUrlSet: !!campaign.spotifyUrl,
-      liveScore: liveFetch,
-      existingSnapshots: existingSnaps,
-      seededToday: seeded,
-      note: liveFetch == null
-        ? 'Could not fetch popularity — check the campaign has a Spotify TRACK url and SPOTIFY_CLIENT_ID/SECRET are set.'
-        : 'Seeded — reload the campaign Insights page to see the Popularity chart.',
-    };
   } catch (err) {
-    out.popularity = { error: err instanceof Error ? err.message : String(err) };
+    probe.exception = err instanceof Error ? err.message : String(err);
   }
+  out.popularity = probe;
 
   const ago = (t?: string) => {
     if (!t) return 'never';

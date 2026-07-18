@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import DeleteCampaignButton from '@/components/DeleteCampaignButton';
+import AiVideoUpgrade from './AiVideoUpgrade';
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
@@ -358,6 +359,16 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
             </div>
           )}
         </div>
+      )}
+
+      {/* AI video upsell — appears once the initial creatives exist */}
+      {campaign.creatives?.length > 0 && (
+        <AiVideoUpgrade
+          campaignId={params.id}
+          status={(campaign as any).aiVideoStatus}
+          options={(campaign as any).aiVideoOptions as string[] | null}
+          choiceUrl={(campaign as any).aiVideoChoiceUrl}
+        />
       )}
 
       {/* Ad copy picker — appears as soon as copy is ready, even mid-render */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
+import { dispatchStage } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,13 +34,29 @@ export async function POST(req: NextRequest) {
     }
 
     if (session.mode === 'payment' && session.payment_status === 'paid') {
-      try {
-        await prisma.$transaction([
-          prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
-          prisma.stripeEvent.create({ data: { id: session.id, userId } }),
-        ]);
-      } catch (e: any) {
-        if (e?.code !== 'P2002') throw e; // P2002 = unique constraint — already processed
+      // AI-video add-on: don't grant a campaign credit — flip the campaign to PAID
+      // and kick off generation. Deduped via StripeEvent on the session id.
+      if (session.metadata?.type === 'ai_video') {
+        const campaignId = session.metadata.campaignId;
+        try {
+          await prisma.stripeEvent.create({ data: { id: session.id, userId } });
+          if (campaignId) {
+            await prisma.campaign.update({ where: { id: campaignId }, data: { aiVideoStatus: 'PAID' } });
+            await dispatchStage(campaignId, 'AI_VIDEO_GEN');
+          }
+        } catch (e: any) {
+          if (e?.code !== 'P2002') throw e; // already processed
+        }
+      } else {
+        // Standard campaign-credit purchase.
+        try {
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: userId }, data: { campaignCredits: { increment: 1 } } }),
+            prisma.stripeEvent.create({ data: { id: session.id, userId } }),
+          ]);
+        } catch (e: any) {
+          if (e?.code !== 'P2002') throw e; // P2002 = unique constraint — already processed
+        }
       }
     }
 

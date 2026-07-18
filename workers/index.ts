@@ -8,6 +8,7 @@ import { runVideoGen } from './stages/video-gen';
 import { runCopyGen } from './stages/copy-gen';
 import { runAudienceGen } from './stages/audience-gen';
 import { runMetaSetup } from './stages/meta-setup';
+import { runAiVideoGen } from './stages/ai-video-gen';
 import { runInsightsSync } from './stages/insights-sync';
 import { takePopularitySnapshot } from './stages/popularity-snapshot';
 import { runOptimisation } from './stages/optimise';
@@ -145,6 +146,7 @@ const worker = new Worker<StageJob>(
         case 'COPY_GEN':     await runCopyGen(campaignId);      break;
         case 'AUDIENCE_GEN': await runAudienceGen(campaignId);  break;
         case 'META_SETUP':   await runMetaSetup(campaignId);    break;
+        case 'AI_VIDEO_GEN': await runAiVideoGen(campaignId);   break;
       }
 
       await prisma.campaignJob.updateMany({

@@ -29,6 +29,12 @@ model Campaign {
   promoteType     String         @default("track")
   lastSyncAt      DateTime?
   dailyBudget     Float?
+  // Paid "AI video" upsell. status: NONE | PAID | GENERATING | READY | SELECTED | FAILED.
+  // aiVideoOptions holds the generated clip URLs to choose from; aiVideoChoiceUrl
+  // is the one the user picked (used as the looped background in video-gen).
+  aiVideoStatus   String    @default("NONE")
+  aiVideoOptions  Json?
+  aiVideoChoiceUrl String?
 
   jobs                CampaignJob[]
   segments            AudioSegment[]
@@ -72,6 +78,7 @@ enum JobStage {
   COPY_GEN
   AUDIENCE_GEN
   META_SETUP
+  AI_VIDEO_GEN
 }
 
 enum JobStatus {

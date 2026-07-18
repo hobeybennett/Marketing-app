@@ -195,6 +195,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+async function downloadToFile(url: string, dest: string): Promise<void> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`download failed: ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, buf);
+}
+
 function esc(text: string): string {
   return text
     .replace(/\\/g, '/')
@@ -224,6 +232,21 @@ export async function runVideoGen(campaignId: string) {
 
   const bgPath = visualConfig?.backgroundPath as string | undefined;
   const coverArtPath = campaign.coverArtUrl;
+
+  // Paid AI video: download the chosen clip once and use it as the looped
+  // background for every creative. Falls back to the normal background on failure.
+  let aiBgPath: string | undefined;
+  const c = campaign as any;
+  if (c.aiVideoStatus === 'SELECTED' && c.aiVideoChoiceUrl) {
+    const dest = path.join(uploadDir, campaignId, 'ai_bg.mp4');
+    try {
+      await downloadToFile(c.aiVideoChoiceUrl as string, dest);
+      aiBgPath = dest;
+      console.log(`[video-gen] using AI background for campaign ${campaignId}`);
+    } catch (err) {
+      console.warn('[video-gen] AI background download failed, using default:', err instanceof Error ? err.message : err);
+    }
+  }
 
   // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's small CPU
   // (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The 'fast'
@@ -258,6 +281,7 @@ export async function runVideoGen(campaignId: string) {
         artistName: campaign.artistName ?? undefined,
         visualConfig,
         presetIndex: segment.index,
+        aiBgPath,
       }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 
       const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
@@ -429,9 +453,11 @@ function generateVideo(opts: {
   artistName?: string;
   visualConfig: VisualConfig | null;
   presetIndex: number;
+  aiBgPath?: string;
 }): Promise<void> {
-  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig } = opts;
+  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, aiBgPath } = opts;
   const vc = visualConfig ?? {};
+  const useAiBg = !!aiBgPath;
 
   const ACCENT = '0x1DB954'; // Spotify green
   const hookText = vc.hookText?.trim()
@@ -445,11 +471,20 @@ function generateVideo(opts: {
   const CARD_Y = 285;
   const B = 3; // cover border thickness
 
+  // Background chain: an AI-generated video loop (paid upsell) gets scaled/darkened
+  // but keeps its own motion (no Ken Burns); the default cover-art background gets
+  // blurred + a slow zoom. Both feed [bg].
+  const bgChain = useAiBg
+    ? [`[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},eq=brightness=-0.18:saturation=1.15,setsar=1[bg]`]
+    : [
+        `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
+        `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
+      ];
+
   const fc = [
     `[2:a]asplit=2[aw][ao]`,
     `[aw]showfreqs=s=${W}x210:mode=bar:ascale=log:fscale=log:win_size=1024:colors=${ACCENT},format=rgba,colorchannelmixer=aa=0.9[wave]`,
-    `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
-    `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
+    ...bgChain,
     `[bg]drawbox=x=0:y=0:w=${W}:h=250:color=black@0.35:t=fill,drawbox=x=0:y=830:w=${W}:h=250:color=black@0.45:t=fill[bgsc]`,
     `[1:v]scale=${CARD}:${CARD}:force_original_aspect_ratio=increase,crop=${CARD}:${CARD},setsar=1[card]`,
     `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.85:t=${B}[bgb2]`,
@@ -460,8 +495,14 @@ function generateVideo(opts: {
   ].join(';');
 
   return new Promise((resolve, reject) => {
-    ffmpeg()
-      .input(bgSrc).inputOptions(['-loop', '1', '-framerate', '30'])
+    const cmd = ffmpeg();
+    // Input 0 = background. AI video loops itself; a still image is looped as frames.
+    if (useAiBg) {
+      cmd.input(aiBgPath as string).inputOptions(['-stream_loop', '-1']);
+    } else {
+      cmd.input(bgSrc).inputOptions(['-loop', '1', '-framerate', '30']);
+    }
+    cmd
       .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
       .input(audio)
       .outputOptions([

@@ -11,7 +11,7 @@ export const campaignQueue = new Queue('campaign', { connection });
 
 export type StageJob = {
   campaignId: string;
-  stage: 'SEGMENTATION' | 'VIDEO_GEN' | 'COPY_GEN' | 'AUDIENCE_GEN' | 'META_SETUP';
+  stage: 'SEGMENTATION' | 'VIDEO_GEN' | 'COPY_GEN' | 'AUDIENCE_GEN' | 'META_SETUP' | 'AI_VIDEO_GEN';
 };
 
 export async function dispatchStage(campaignId: string, stage: StageJob['stage']) {

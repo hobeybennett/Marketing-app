@@ -368,6 +368,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
           status={(campaign as any).aiVideoStatus}
           options={(campaign as any).aiVideoOptions as string[] | null}
           choiceUrl={(campaign as any).aiVideoChoiceUrl}
+          isOwner={(campaign as any).isOwner}
         />
       )}
 

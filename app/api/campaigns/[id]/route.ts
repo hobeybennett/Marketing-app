@@ -77,6 +77,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     ...rest,
     hasMetaConnection: !!user?.metaConnection,
     adAccountId: user?.metaConnection?.adAccountId ?? null,
+    isOwner: session?.user?.email === 'hobeybennett@gmail.com',
   });
 }
 

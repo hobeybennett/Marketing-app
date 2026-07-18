@@ -6,9 +6,10 @@ type Props = {
   status?: string | null;         // NONE | PAID | GENERATING | READY | SELECTED | FAILED
   options?: string[] | null;      // generated clip URLs
   choiceUrl?: string | null;
+  isOwner?: boolean;
 };
 
-export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl }: Props) {
+export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl, isOwner }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const s = status ?? 'NONE';
@@ -29,6 +30,19 @@ export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl 
       const json = await res.json();
       if (json.url) window.location.href = json.url;
       else setError(json.error || 'Could not start checkout');
+    } catch {
+      setError('Network error');
+    }
+    setBusy(false);
+  }
+
+  async function testGenerate() {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/ai-video/test-generate`, { method: 'POST' });
+      if (res.ok) window.location.reload();
+      else setError((await res.json().catch(() => ({})))?.error || 'Could not start test generation');
     } catch {
       setError('Network error');
     }
@@ -115,6 +129,16 @@ export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl 
       )}
 
       {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+
+      {isOwner && (
+        <button
+          onClick={testGenerate}
+          disabled={busy}
+          className="mt-3 w-full py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 transition disabled:opacity-50"
+        >
+          {busy ? '…' : '🛠 Owner: test-generate (free, regenerates 3 options)'}
+        </button>
+      )}
     </div>
   );
 }

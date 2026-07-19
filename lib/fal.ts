@@ -4,9 +4,11 @@
 // there's no SDK dependency. Requires FAL_KEY.
 
 const FAL_QUEUE = 'https://queue.fal.run';
-// Text-to-video: genre/mood-driven abstract motion for the background. Centralised
-// here so the exact model + params are easy to tune once we see output quality.
-const KLING_TEXT_TO_VIDEO = 'fal-ai/kling-video/v2/standard/text-to-video';
+// Text-to-video: genre/mood-driven abstract motion for the background. Default is
+// the cheap Kling "standard" tier (~$0.03/s); override with FAL_VIDEO_MODEL to try
+// a higher-quality model (e.g. fal-ai/kling-video/v3/standard/text-to-video)
+// without a deploy.
+const KLING_TEXT_TO_VIDEO = process.env.FAL_VIDEO_MODEL || 'fal-ai/kling-video/v1.6/standard/text-to-video';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

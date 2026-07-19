@@ -175,7 +175,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             </div>
 
             {/* Performance link */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
               <h3 className="font-semibold mb-1">Performance</h3>
               <p className="text-sm text-gray-400 mb-3">View ad spend, CTR, and optimisation actions.</p>
               <a
@@ -185,6 +185,16 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
                 View Performance
               </a>
             </div>
+
+            {/* AI video (owner can test-generate here; picking "Use this" on a live
+                campaign would rebuild its videos, so only the owner test path). */}
+            <AiVideoUpgrade
+              campaignId={params.id}
+              status={(campaign as any).aiVideoStatus}
+              options={(campaign as any).aiVideoOptions as string[] | null}
+              choiceUrl={(campaign as any).aiVideoChoiceUrl}
+              isOwner={(campaign as any).isOwner}
+            />
           </>
         )}
       </div>

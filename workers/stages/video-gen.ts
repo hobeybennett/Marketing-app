@@ -34,7 +34,7 @@ interface VisualConfig {
 }
 
 const W = 1080;
-const H = 1080;
+const H = 1920; // 9:16 — Instagram Reels/Stories vertical (mobile) format
 const ART_SIZE = 860;
 const ART_X = Math.round((W - ART_SIZE) / 2); // 110
 const ART_Y = 110;
@@ -443,7 +443,7 @@ function generateTextureVideo(opts: {
   }
 }
 
-function generateVideo(opts: {
+export function generateVideo(opts: {
   bgSrc: string;
   coverArtPath: string;
   audio: string;
@@ -463,35 +463,44 @@ function generateVideo(opts: {
   const hookText = vc.hookText?.trim()
     || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : 'Wanna hear something great?');
 
-  // Single clean template: a framed cover on a blurred/darkened version of itself,
-  // a Spotify-green audio equalizer that pulses with the track, legibility scrims
-  // top + bottom, and crisp hook + CTA. Input 0 = background, 1 = cover, 2 = audio.
-  const CARD = 520;
-  const CARD_X = Math.round((W - CARD) / 2);
-  const CARD_Y = 285;
-  const B = 3; // cover border thickness
+  // 9:16 vertical template (1080×1920). Content kept in the safe middle band so
+  // Reels/Stories UI (top ~250px, bottom ~340px) doesn't cover it: hook near top,
+  // framed cover in the upper-middle, audio equaliser + CTA below.
+  const CARD = 760;
+  const CARD_X = Math.round((W - CARD) / 2); // 160
+  const CARD_Y = 560;                        // card spans 560–1320
+  const B = 4;                               // cover border thickness
+  const HOOK_Y = 360;
+  const HOOK_SIZE = 62;
+  const WAVE_H = 260;
+  const WAVE_Y = 1360;                        // just below the card
+  const CTA_Y = 1660;
+  const CTA_SIZE = 68;
+  const TOP_SCRIM_H = 520;                    // darken behind the hook
+  const BOT_SCRIM_Y = 1300;                   // darken behind waveform + CTA
+  const BOT_SCRIM_H = H - BOT_SCRIM_Y;
 
-  // Background chain: an AI-generated video loop (paid upsell) gets scaled/darkened
-  // but keeps its own motion (no Ken Burns); the default cover-art background gets
-  // blurred + a slow zoom. Both feed [bg].
+  // Background chain: an AI-generated 9:16 video loop (paid upsell) fills the frame
+  // and keeps its own motion (no Ken Burns); the default square cover-art gets
+  // scaled to a 9:16 frame, blurred, and slowly zoomed. Both feed [bg].
   const bgChain = useAiBg
     ? [`[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},eq=brightness=-0.18:saturation=1.15,setsar=1[bg]`]
     : [
-        `[0:v]scale=1512:1512:force_original_aspect_ratio=increase,crop=1512:1512,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
+        `[0:v]scale=1512:2688:force_original_aspect_ratio=increase,crop=1512:2688,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
         `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
       ];
 
   const fc = [
     `[2:a]asplit=2[aw][ao]`,
-    `[aw]showfreqs=s=${W}x210:mode=bar:ascale=log:fscale=log:win_size=1024:colors=${ACCENT},format=rgba,colorchannelmixer=aa=0.9[wave]`,
+    `[aw]showfreqs=s=${W}x${WAVE_H}:mode=bar:ascale=log:fscale=log:win_size=1024:colors=${ACCENT},format=rgba,colorchannelmixer=aa=0.9[wave]`,
     ...bgChain,
-    `[bg]drawbox=x=0:y=0:w=${W}:h=250:color=black@0.35:t=fill,drawbox=x=0:y=830:w=${W}:h=250:color=black@0.45:t=fill[bgsc]`,
+    `[bg]drawbox=x=0:y=0:w=${W}:h=${TOP_SCRIM_H}:color=black@0.35:t=fill,drawbox=x=0:y=${BOT_SCRIM_Y}:w=${W}:h=${BOT_SCRIM_H}:color=black@0.45:t=fill[bgsc]`,
     `[1:v]scale=${CARD}:${CARD}:force_original_aspect_ratio=increase,crop=${CARD}:${CARD},setsar=1[card]`,
     `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.85:t=${B}[bgb2]`,
     `[bgb2][card]overlay=${CARD_X}:${CARD_Y}[c1]`,
-    `[c1][wave]overlay=0:820[c2]`,
-    `[c2]drawtext=fontfile='${FONTS.montserrat}':text='${esc(hookText)}':fontsize=46:fontcolor=white:x=(w-text_w)/2:y=95:shadowcolor=black@0.5:shadowx=2:shadowy=2:fix_bounds=true[c3]`,
-    `[c3]drawtext=fontfile='${FONTS.oswald}':text='${esc(ctaText)}':fontsize=54:fontcolor=white:x=(w-text_w)/2:y=985:shadowcolor=black@0.6:shadowx=2:shadowy=2:fix_bounds=true[vout]`,
+    `[c1][wave]overlay=0:${WAVE_Y}[c2]`,
+    `[c2]drawtext=fontfile='${FONTS.montserrat}':text='${esc(hookText)}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.5:shadowx=2:shadowy=2:fix_bounds=true[c3]`,
+    `[c3]drawtext=fontfile='${FONTS.oswald}':text='${esc(ctaText)}':fontsize=${CTA_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.6:shadowx=2:shadowy=2:fix_bounds=true[vout]`,
   ].join(';');
 
   return new Promise((resolve, reject) => {

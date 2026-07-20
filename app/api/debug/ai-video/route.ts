@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
 
   const campaignId = req.nextUrl.searchParams.get('campaign');
   const go = req.nextUrl.searchParams.get('go') === '1';
+  const preview = req.nextUrl.searchParams.get('preview') === '1';
 
   const campaign = campaignId
     ? await prisma.campaign.findUnique({
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest) {
     videoModel: process.env.FAL_VIDEO_MODEL || 'fal-ai/kling-video/v1.6/standard/text-to-video (default)',
   };
 
+  const base = process.env.NEXTAUTH_URL || 'https://promohit.marketing';
+
   if (go) {
     await prisma.campaign.update({
       where: { id: campaign.id },
@@ -51,6 +54,13 @@ export async function GET(req: NextRequest) {
     await dispatchStage(campaign.id, 'AI_VIDEO_GEN');
     out.triggered = true;
     out.note = 'Generation dispatched. Wait ~1-2 min, then reopen this URL WITHOUT &go=1 to see aiVideoOptions.';
+  } else if (preview) {
+    // Render one composited sample creative (first AI option) — doesn't touch the
+    // live campaign. Viewable at the previewUrl once done (~30-60s).
+    await dispatchStage(campaign.id, 'AI_VIDEO_PREVIEW');
+    out.previewTriggered = true;
+    out.previewUrl = `${base}/api/videos/${campaign.id}/preview.mp4`;
+    out.note = 'Preview render dispatched. Wait ~30-60s, then open previewUrl to see the composited 9:16 ad.';
   } else {
     out.note = campaign.aiVideoStatus === 'READY'
       ? 'Ready — open the aiVideoOptions URLs to view the 3 clips.'

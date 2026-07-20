@@ -79,6 +79,7 @@ enum JobStage {
   AUDIENCE_GEN
   META_SETUP
   AI_VIDEO_GEN
+  AI_VIDEO_PREVIEW
 }
 
 enum JobStatus {

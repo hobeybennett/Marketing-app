@@ -39,7 +39,8 @@ async function generateOne(key: string, prompt: string, durationSec: number): Pr
       body: JSON.stringify({
         prompt,
         duration: String(durationSec),
-        aspect_ratio: '1:1',
+        // Vertical 9:16 — native Instagram Reels/Stories mobile format.
+        aspect_ratio: '9:16',
       }),
     });
     const submit = await submitRes.json();

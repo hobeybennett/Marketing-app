@@ -463,22 +463,23 @@ export function generateVideo(opts: {
   const hookText = vc.hookText?.trim()
     || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : 'Wanna hear something great?');
 
-  // 9:16 vertical template (1080×1920). Content kept in the safe middle band so
-  // Reels/Stories UI (top ~250px, bottom ~340px) doesn't cover it: hook near top,
-  // framed cover in the upper-middle, audio equaliser + CTA below.
+  // 9:16 vertical template (1080×1920). Clean + modern: no waveform, Bebas Neue
+  // caption text with a padded box, everything kept in the safe middle band away
+  // from Reels/Stories UI (top ~250px, bottom ~340px).
   const CARD = 760;
   const CARD_X = Math.round((W - CARD) / 2); // 160
-  const CARD_Y = 560;                        // card spans 560–1320
+  const CARD_Y = 620;                        // card spans 620–1380
   const B = 4;                               // cover border thickness
-  const HOOK_Y = 360;
-  const HOOK_SIZE = 62;
-  const WAVE_H = 260;
-  const WAVE_Y = 1360;                        // just below the card
-  const CTA_Y = 1660;
-  const CTA_SIZE = 68;
-  const TOP_SCRIM_H = 520;                    // darken behind the hook
-  const BOT_SCRIM_Y = 1300;                   // darken behind waveform + CTA
+  const HOOK_Y = 330;
+  const HOOK_SIZE = 78;
+  const CTA_Y = 1560;
+  const CTA_SIZE = 74;
+  const TOP_SCRIM_H = 520;                    // subtle darken behind the hook
+  const BOT_SCRIM_Y = 1420;                   // subtle darken behind the CTA
   const BOT_SCRIM_H = H - BOT_SCRIM_Y;
+  const FADE = `alpha='if(lt(t,0.6),t/0.6,1)'`; // smooth text fade-in
+  const hookUpper = esc(hookText.toUpperCase());
+  const ctaUpper = esc(ctaText.toUpperCase());
 
   // Background chain: an AI-generated 9:16 video loop (paid upsell) fills the frame
   // and keeps its own motion (no Ken Burns); the default square cover-art gets
@@ -491,16 +492,13 @@ export function generateVideo(opts: {
       ];
 
   const fc = [
-    `[2:a]asplit=2[aw][ao]`,
-    `[aw]showfreqs=s=${W}x${WAVE_H}:mode=bar:ascale=log:fscale=log:win_size=1024:colors=${ACCENT},format=rgba,colorchannelmixer=aa=0.9[wave]`,
     ...bgChain,
-    `[bg]drawbox=x=0:y=0:w=${W}:h=${TOP_SCRIM_H}:color=black@0.35:t=fill,drawbox=x=0:y=${BOT_SCRIM_Y}:w=${W}:h=${BOT_SCRIM_H}:color=black@0.45:t=fill[bgsc]`,
+    `[bg]drawbox=x=0:y=0:w=${W}:h=${TOP_SCRIM_H}:color=black@0.28:t=fill,drawbox=x=0:y=${BOT_SCRIM_Y}:w=${W}:h=${BOT_SCRIM_H}:color=black@0.38:t=fill[bgsc]`,
     `[1:v]scale=${CARD}:${CARD}:force_original_aspect_ratio=increase,crop=${CARD}:${CARD},setsar=1[card]`,
-    `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.85:t=${B}[bgb2]`,
+    `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.9:t=${B}[bgb2]`,
     `[bgb2][card]overlay=${CARD_X}:${CARD_Y}[c1]`,
-    `[c1][wave]overlay=0:${WAVE_Y}[c2]`,
-    `[c2]drawtext=fontfile='${FONTS.montserrat}':text='${esc(hookText)}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:shadowcolor=black@0.5:shadowx=2:shadowy=2:fix_bounds=true[c3]`,
-    `[c3]drawtext=fontfile='${FONTS.oswald}':text='${esc(ctaText)}':fontsize=${CTA_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${CTA_Y}:shadowcolor=black@0.6:shadowx=2:shadowy=2:fix_bounds=true[vout]`,
+    `[c1]drawtext=fontfile='${FONTS.bebas}':text='${hookUpper}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:box=1:boxcolor=black@0.35:boxborderw=24:${FADE}[c2]`,
+    `[c2]drawtext=fontfile='${FONTS.bebas}':text='${ctaUpper}':fontsize=${CTA_SIZE}:fontcolor=${ACCENT}:x=(w-text_w)/2:y=${CTA_Y}:box=1:boxcolor=black@0.55:boxborderw=28:${FADE}[vout]`,
   ].join(';');
 
   return new Promise((resolve, reject) => {
@@ -517,7 +515,7 @@ export function generateVideo(opts: {
       .outputOptions([
         '-filter_complex', fc,
         '-map', '[vout]',
-        '-map', '[ao]',
+        '-map', '2:a',
         '-c:v', 'libx264',
         '-preset', 'fast',
         '-crf', '19',

@@ -455,7 +455,7 @@ export function generateVideo(opts: {
   presetIndex: number;
   aiBgPath?: string;
 }): Promise<void> {
-  const { bgSrc, coverArtPath, audio, output, ctaText, genre, artistName, visualConfig, aiBgPath } = opts;
+  const { bgSrc, audio, output, ctaText, genre, artistName, visualConfig, aiBgPath } = opts;
   const vc = visualConfig ?? {};
   const useAiBg = !!aiBgPath;
 
@@ -463,20 +463,13 @@ export function generateVideo(opts: {
   const hookText = vc.hookText?.trim()
     || (genre ? `Do you like ${genre}?` : artistName ? `Do you like ${artistName}?` : 'Wanna hear something great?');
 
-  // 9:16 vertical template (1080×1920). Clean + modern: no waveform, Bebas Neue
-  // caption text with a padded box, everything kept in the safe middle band away
-  // from Reels/Stories UI (top ~250px, bottom ~340px).
-  const CARD = 760;
-  const CARD_X = Math.round((W - CARD) / 2); // 160
-  const CARD_Y = 620;                        // card spans 620–1380
-  const B = 4;                               // cover border thickness
-  const HOOK_Y = 330;
-  const HOOK_SIZE = 78;
+  // 9:16 vertical template (1080×1920). AI visual is the hero — no album-art card,
+  // just a bold hook and CTA over it, kept in the safe middle band away from
+  // Reels/Stories UI. Text sits in a padded caption box with a smooth fade-in.
+  const HOOK_Y = 780;
+  const HOOK_SIZE = 76;
   const CTA_Y = 1560;
   const CTA_SIZE = 74;
-  const TOP_SCRIM_H = 520;                    // subtle darken behind the hook
-  const BOT_SCRIM_Y = 1420;                   // subtle darken behind the CTA
-  const BOT_SCRIM_H = H - BOT_SCRIM_Y;
   const FADE = `alpha='if(lt(t,0.6),t/0.6,1)'`; // smooth text fade-in
   const hookUpper = esc(hookText.toUpperCase());
   const ctaUpper = esc(ctaText.toUpperCase());
@@ -485,7 +478,7 @@ export function generateVideo(opts: {
   // and keeps its own motion (no Ken Burns); the default square cover-art gets
   // scaled to a 9:16 frame, blurred, and slowly zoomed. Both feed [bg].
   const bgChain = useAiBg
-    ? [`[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},eq=brightness=-0.18:saturation=1.15,setsar=1[bg]`]
+    ? [`[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},eq=brightness=-0.12:saturation=1.15,setsar=1[bg]`]
     : [
         `[0:v]scale=1512:2688:force_original_aspect_ratio=increase,crop=1512:2688,boxblur=28:2,eq=brightness=-0.24:saturation=1.2[bgb]`,
         `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
@@ -493,12 +486,10 @@ export function generateVideo(opts: {
 
   const fc = [
     ...bgChain,
-    `[bg]drawbox=x=0:y=0:w=${W}:h=${TOP_SCRIM_H}:color=black@0.28:t=fill,drawbox=x=0:y=${BOT_SCRIM_Y}:w=${W}:h=${BOT_SCRIM_H}:color=black@0.38:t=fill[bgsc]`,
-    `[1:v]scale=${CARD}:${CARD}:force_original_aspect_ratio=increase,crop=${CARD}:${CARD},setsar=1[card]`,
-    `[bgsc]drawbox=x=${CARD_X - B}:y=${CARD_Y - B}:w=${CARD + B * 2}:h=${CARD + B * 2}:color=white@0.9:t=${B}[bgb2]`,
-    `[bgb2][card]overlay=${CARD_X}:${CARD_Y}[c1]`,
-    `[c1]drawtext=fontfile='${FONTS.bebas}':text='${hookUpper}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:box=1:boxcolor=black@0.35:boxborderw=24:${FADE}[c2]`,
-    `[c2]drawtext=fontfile='${FONTS.bebas}':text='${ctaUpper}':fontsize=${CTA_SIZE}:fontcolor=${ACCENT}:x=(w-text_w)/2:y=${CTA_Y}:box=1:boxcolor=black@0.55:boxborderw=28:${FADE}[vout]`,
+    // Light top + bottom darken for legibility without hiding the visual.
+    `[bg]drawbox=x=0:y=0:w=${W}:h=220:color=black@0.22:t=fill,drawbox=x=0:y=${H - 380}:w=${W}:h=380:color=black@0.30:t=fill[bgsc]`,
+    `[bgsc]drawtext=fontfile='${FONTS.bebas}':text='${hookUpper}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:box=1:boxcolor=black@0.4:boxborderw=28:${FADE}[c1]`,
+    `[c1]drawtext=fontfile='${FONTS.bebas}':text='${ctaUpper}':fontsize=${CTA_SIZE}:fontcolor=${ACCENT}:x=(w-text_w)/2:y=${CTA_Y}:box=1:boxcolor=black@0.55:boxborderw=28:${FADE}[vout]`,
   ].join(';');
 
   return new Promise((resolve, reject) => {
@@ -510,12 +501,11 @@ export function generateVideo(opts: {
       cmd.input(bgSrc).inputOptions(['-loop', '1', '-framerate', '30']);
     }
     cmd
-      .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
-      .input(audio)
+      .input(audio) // input 1 (no cover-art input — the AI/blurred visual is the hero)
       .outputOptions([
         '-filter_complex', fc,
         '-map', '[vout]',
-        '-map', '2:a',
+        '-map', '1:a',
         '-c:v', 'libx264',
         '-preset', 'fast',
         '-crf', '19',

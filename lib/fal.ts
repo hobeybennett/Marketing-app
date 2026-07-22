@@ -71,6 +71,57 @@ async function generateOne(key: string, prompt: string, durationSec: number): Pr
   }
 }
 
+// ── Lyric transcription (Whisper on fal) ─────────────────────────────────────
+
+const WHISPER_MODEL = process.env.FAL_WHISPER_MODEL || 'fal-ai/whisper';
+
+export type LyricChunk = { text: string; start: number; end: number };
+
+// Transcribe an audio URL into timed line chunks (for lyric-video overlays).
+// Returns null on failure. NOTE: accuracy on sung music (vocals over a full mix)
+// is variable — validate output before relying on it.
+export async function transcribeAudio(
+  audioUrl: string,
+): Promise<{ text: string; chunks: LyricChunk[] } | null> {
+  const key = process.env.FAL_KEY;
+  if (!key) throw new Error('FAL_KEY not set');
+  try {
+    const submitRes = await fetch(`${FAL_QUEUE}/${WHISPER_MODEL}`, {
+      method: 'POST',
+      headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio_url: audioUrl, task: 'transcribe', chunk_level: 'segment' }),
+    });
+    const submit = await submitRes.json();
+    const statusUrl: string | undefined = submit.status_url;
+    const responseUrl: string | undefined = submit.response_url;
+    if (!statusUrl || !responseUrl) {
+      console.warn('[fal-whisper] no status/response url:', JSON.stringify(submit).slice(0, 400));
+      return null;
+    }
+    for (let i = 0; i < 80; i++) {
+      await sleep(3000);
+      const st = await (await fetch(statusUrl, { headers: { Authorization: `Key ${key}` } })).json();
+      if (st.status === 'COMPLETED') break;
+      if (st.status === 'FAILED' || st.status === 'ERROR') {
+        console.warn('[fal-whisper] failed:', JSON.stringify(st).slice(0, 400));
+        return null;
+      }
+    }
+    const result = await (await fetch(responseUrl, { headers: { Authorization: `Key ${key}` } })).json();
+    const chunks: LyricChunk[] = Array.isArray(result?.chunks)
+      ? result.chunks.map((c: any) => ({
+          text: String(c.text ?? '').trim(),
+          start: Number(c.timestamp?.[0] ?? 0),
+          end: Number(c.timestamp?.[1] ?? 0),
+        })).filter((c: LyricChunk) => c.text)
+      : [];
+    return { text: String(result?.text ?? ''), chunks };
+  } catch (err) {
+    console.warn('[fal-whisper] exception:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // Generate `count` background clips in parallel. Returns the URLs that succeeded
 // (best-effort — a partial set is still usable as options).
 export async function generateAiVideoClips(opts: {

@@ -40,12 +40,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // ?save=1 stores the timed lyrics on the campaign so we can render/edit them.
+  const save = req.nextUrl.searchParams.get('save') === '1';
+  if (save) {
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: { lyrics: result.chunks },
+    });
+  }
+
   return NextResponse.json({
     campaign: campaign.songTitle,
     audioUrl,
+    saved: save,
     lineCount: result.chunks.length,
     fullText: result.text,
     lines: result.chunks.map((c) => ({ t: `${c.start.toFixed(1)}–${c.end.toFixed(1)}s`, text: c.text })),
-    note: 'Read the lines: are the lyrics accurate and the timing sensible? That decides auto vs paste-lyrics.',
+    note: save ? 'Saved. Now render a lyric-video preview.' : 'Add &save=1 to store these for rendering.',
   });
 }

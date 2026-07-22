@@ -35,6 +35,9 @@ model Campaign {
   aiVideoStatus   String    @default("NONE")
   aiVideoOptions  Json?
   aiVideoChoiceUrl String?
+  // Timed lyric lines for lyric-video creatives: [{ text, start, end }] (seconds,
+  // relative to the full track). Auto-transcribed, editable by the artist.
+  lyrics          Json?
 
   jobs                CampaignJob[]
   segments            AudioSegment[]

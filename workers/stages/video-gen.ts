@@ -517,8 +517,9 @@ export function generateVideo(opts: {
     lyrics!.forEach((l, i) => {
       const prev = i === 0 ? '[bgsc]' : `[ly${i - 1}]`;
       const out = i === lyrics!.length - 1 ? '[txt]' : `[ly${i}]`;
-      // Commas inside between() must be escaped in a filtergraph.
-      const enable = `enable='between(t\\,${l.start.toFixed(2)}\\,${l.end.toFixed(2)})'`;
+      // Single quotes protect the commas inside between() — no backslashes (same
+      // pattern as the zoompan expressions above).
+      const enable = `enable='between(t,${l.start.toFixed(2)},${l.end.toFixed(2)})'`;
       textChain.push(
         `${prev}drawtext=fontfile='${FONTS.bebas}':text='${esc(l.text.toUpperCase())}':fontsize=${LYRIC_SIZE}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.42:boxborderw=26:${enable}${out}`,
       );

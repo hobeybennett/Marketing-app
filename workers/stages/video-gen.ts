@@ -284,15 +284,15 @@ export async function runVideoGen(campaignId: string) {
   const tAll = Date.now();
   const failures: string[] = [];
   let created = 0;
-  // AI applied → 3 backgrounds × 3 audio clips = 9 A/B variants (uses the first 3
-  // clips). Otherwise the default template, one video per clip (all 5).
-  const bgVariants: (string | undefined)[] = aiBgPaths.length ? aiBgPaths : [undefined];
-  const segmentsToUse = aiBgPaths.length ? campaign.segments.slice(0, 3) : campaign.segments;
+  // One video per clip. If AI is applied, every clip uses the single generated AI
+  // background (+ lyrics if transcribed); otherwise the default cover-art template.
+  const aiBgPath = aiBgPaths.length ? aiBgPaths[0] : undefined;
 
-  for (const segment of segmentsToUse) {
+  for (const segment of campaign.segments) {
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
+    const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
 
     if (!fs.existsSync(segment.fileUrl)) {
       failures.push(`segment ${segment.index}: audio file missing at ${segment.fileUrl}`);
@@ -303,51 +303,42 @@ export async function runVideoGen(campaignId: string) {
       continue;
     }
 
-    const lyrics = clipLyrics(allLyrics, segment.startSec, segment.endSec);
+    const t0 = Date.now();
+    console.log(`[video-gen] campaign ${campaignId} segment ${segment.index} starting`);
+    try {
+      await withTimeout(generateVideo({
+        bgSrc,
+        coverArtPath,
+        audio: segment.fileUrl,
+        output: outputFile,
+        ctaText,
+        genre: (campaign as any).genre as string | undefined,
+        artistName: campaign.artistName ?? undefined,
+        visualConfig,
+        presetIndex: segment.index,
+        aiBgPath,
+        lyrics: clipLyrics(allLyrics, segment.startSec, segment.endSec),
+      }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 
-    for (let b = 0; b < bgVariants.length; b++) {
-      const aiBgPath = bgVariants[b];
-      const outputFile = aiBgPaths.length
-        ? path.join(videoDir, `creative_${segment.index}_${b}.mp4`)
-        : path.join(videoDir, `creative_${segment.index}.mp4`);
-      const label = aiBgPaths.length ? `${segment.index}/bg${b}` : `${segment.index}`;
-      const t0 = Date.now();
-      console.log(`[video-gen] campaign ${campaignId} creative ${label} starting`);
-      try {
-        await withTimeout(generateVideo({
-          bgSrc,
-          coverArtPath,
-          audio: segment.fileUrl,
-          output: outputFile,
-          ctaText,
-          genre: (campaign as any).genre as string | undefined,
-          artistName: campaign.artistName ?? undefined,
-          visualConfig,
-          presetIndex: segment.index,
-          aiBgPath,
-          lyrics,
-        }), 3 * 60 * 1000, `video-gen ${label}`);
+      const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
+      await withTimeout(new Promise<void>((resolve) => {
+        ffmpeg(outputFile)
+          .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
+          .output(thumbFile)
+          .on('end', () => resolve())
+          .on('error', () => resolve())
+          .run();
+      }), 30 * 1000, `thumbnail segment ${segment.index}`).catch(() => {});
 
-        const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
-        await withTimeout(new Promise<void>((resolve) => {
-          ffmpeg(outputFile)
-            .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
-            .output(thumbFile)
-            .on('end', () => resolve())
-            .on('error', () => resolve())
-            .run();
-        }), 30 * 1000, `thumbnail ${label}`).catch(() => {});
-
-        await prisma.videoCreative.create({
-          data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
-        });
-        created++;
-        console.log(`[video-gen] creative ${label} done in ${Math.round((Date.now() - t0) / 1000)}s`);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[video-gen] creative ${label} failed:`, msg);
-        failures.push(`${label}: ${msg}`);
-      }
+      await prisma.videoCreative.create({
+        data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
+      });
+      created++;
+      console.log(`[video-gen] segment ${segment.index} done in ${Math.round((Date.now() - t0) / 1000)}s`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[video-gen] segment ${segment.index} failed:`, msg);
+      failures.push(`segment ${segment.index}: ${msg}`);
     }
   }
   console.log(`[video-gen] created ${created} creatives in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);

@@ -61,9 +61,9 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
       {(s === 'NONE' || s === 'FAILED') && (
         <>
           <p className="text-sm text-gray-400 mb-4">
-            Upgrade your creatives with an <strong className="text-gray-200">AI-generated video background</strong> —
-            dynamic, cinematic motion instead of the static template. You&apos;ll get{' '}
-            <strong className="text-gray-200">3 options to choose from</strong>.
+            Turn your ads into a <strong className="text-gray-200">cinematic AI lyric video</strong> — a
+            dynamic AI-generated background with your <strong className="text-gray-200">lyrics popping up in time
+            with the music</strong>, instead of the static template.
           </p>
           {s === 'FAILED' && <p className="text-xs text-amber-400 mb-3">Last attempt failed — you can try again.</p>}
           <button
@@ -78,25 +78,22 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
 
       {(s === 'PAID' || s === 'GENERATING') && (
         <div className="text-sm text-gray-300 py-2">
-          <p className="font-medium">Generating your AI videos…</p>
-          <p className="text-xs text-gray-500 mt-1">This takes ~1–2 minutes. This page refreshes automatically.</p>
+          <p className="font-medium">Creating your AI lyric video…</p>
+          <p className="text-xs text-gray-500 mt-1">Transcribing lyrics + generating the AI background (~1–2 min). This page refreshes automatically.</p>
         </div>
       )}
 
       {(s === 'APPLIED' || s === 'READY' || s === 'SELECTED') && options && options.length > 0 && (
         <>
-          <p className="text-sm text-green-300 font-medium mb-1">✓ All {options.length} AI videos are in your campaign</p>
+          <p className="text-sm text-green-300 font-medium mb-1">✓ AI lyric video applied</p>
           <p className="text-xs text-gray-400 mb-3">
-            We run every version and let Meta A/B test them — budget automatically shifts to your
-            best-performing creative. No picking needed.
+            Your ads now use a cinematic AI background with your lyrics popping up in time with the music.
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            {options.map((url, i) => (
-              <div key={i} className="rounded-lg overflow-hidden border border-gray-700 bg-black">
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video src={url} className="w-full aspect-[9/16] object-cover" autoPlay muted loop playsInline />
-              </div>
-            ))}
+          <div className="flex justify-center">
+            <div className="w-1/2 rounded-lg overflow-hidden border border-gray-700 bg-black">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video src={options[0]} className="w-full aspect-[9/16] object-cover" autoPlay muted loop playsInline />
+            </div>
           </div>
         </>
       )}
@@ -109,7 +106,7 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
           disabled={busy}
           className="mt-3 w-full py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 transition disabled:opacity-50"
         >
-          {busy ? '…' : '🛠 Owner: test-generate (free, regenerates 3 options)'}
+          {busy ? '…' : '🛠 Owner: test-generate AI lyric video (free)'}
         </button>
       )}
     </div>

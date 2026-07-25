@@ -371,8 +371,9 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
         </div>
       )}
 
-      {/* AI video upsell — appears once the initial creatives exist */}
-      {campaign.creatives?.length > 0 && (
+      {/* AI video upsell — offered early (once the audio is sliced) so the choice
+          appears before the free videos finish generating. */}
+      {campaign.segments?.length > 0 && (
         <AiVideoUpgrade
           campaignId={params.id}
           status={(campaign as any).aiVideoStatus}

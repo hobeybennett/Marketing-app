@@ -284,11 +284,12 @@ export async function runVideoGen(campaignId: string) {
   const tAll = Date.now();
   const failures: string[] = [];
   let created = 0;
-  // AI applied → full matrix: each background × each clip (e.g. 3 × 5 = 15).
-  // Otherwise a single default-template video per clip.
+  // AI applied → 3 backgrounds × 3 audio clips = 9 A/B variants (uses the first 3
+  // clips). Otherwise the default template, one video per clip (all 5).
   const bgVariants: (string | undefined)[] = aiBgPaths.length ? aiBgPaths : [undefined];
+  const segmentsToUse = aiBgPaths.length ? campaign.segments.slice(0, 3) : campaign.segments;
 
-  for (const segment of campaign.segments) {
+  for (const segment of segmentsToUse) {
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;

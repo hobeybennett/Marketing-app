@@ -2,12 +2,69 @@ import { prisma } from '../prisma';
 import { scoreAdSets } from '../../lib/optimisation-engine';
 import type { AdSetMetrics } from '../../lib/optimisation-engine';
 
+const META_API = 'https://graph.facebook.com/v22.0';
+// Spend guard: once a campaign has spent this much with poor conversion results,
+// pause it. Conversions are our reliable first-party Spotify-click count.
+const SPEND_GUARD_USD = Number(process.env.OPTIMISE_SPEND_GUARD ?? 15);
+const CPA_CEILING_USD = Number(process.env.OPTIMISE_CPA_CEILING ?? 1.5);
+
+// Returns true if the campaign was paused (caller should stop further work).
+async function applySpendGuard(
+  campaign: { id: string; status: string; metaCampaignId: string | null },
+  token: string | null,
+): Promise<boolean> {
+  if (campaign.status !== 'LIVE' || !campaign.metaCampaignId) return false;
+
+  const campaignRows = await prisma.adInsight.findMany({
+    where: { campaignId: campaign.id, metaAdSetId: null, metaAdId: null },
+  });
+  const totalSpend = campaignRows.reduce((s, r) => s + r.spend, 0);
+  if (totalSpend < SPEND_GUARD_USD) return false;
+
+  const conversions = await prisma.smartLinkClick.count({
+    where: { campaignId: campaign.id, platform: { in: ['spotify', 'spotify_playlist'] } },
+  });
+  const cpa = conversions > 0 ? totalSpend / conversions : Infinity;
+  const bad = conversions === 0 || cpa > CPA_CEILING_USD;
+  if (!bad) return false;
+
+  if (token) {
+    try {
+      const res = await fetch(`${META_API}/${campaign.metaCampaignId}?access_token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'PAUSED' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.error('[optimise] spend-guard pause failed:', err instanceof Error ? err.message : err);
+    }
+  }
+  await prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'PAUSED' } });
+  await prisma.optimisationLog.create({
+    data: {
+      campaignId: campaign.id,
+      action: 'PAUSE_CAMPAIGN',
+      reason: `Spend guard: $${totalSpend.toFixed(2)} spent, ${conversions} conversion${conversions === 1 ? '' : 's'}` +
+        `${conversions ? ` (CPA $${cpa.toFixed(2)})` : ''} — paused${!token ? ' (mock)' : ''}`,
+      previousValue: totalSpend,
+    },
+  });
+  console.log(`[optimise] Spend guard paused campaign ${campaign.id} ($${totalSpend.toFixed(2)}, ${conversions} conv)`);
+  return true;
+}
+
 export async function runOptimisation(campaignId: string): Promise<void> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id: campaignId },
+    include: { user: { include: { metaConnection: true } } },
   });
+
+  // Conversion-based kill-switch first — if it pauses the campaign, stop here.
+  const guardToken = campaign.user?.metaConnection?.accessToken ?? process.env.META_ACCESS_TOKEN ?? null;
+  if (await applySpendGuard(campaign, guardToken)) return;
 
   const insights = await prisma.adInsight.findMany({
     where: {

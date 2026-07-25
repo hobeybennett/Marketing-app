@@ -283,10 +283,14 @@ export async function runVideoGen(campaignId: string) {
   // preset (crf 19) keeps each render well under the per-clip timeout.
   const tAll = Date.now();
   const failures: string[] = [];
+  let created = 0;
+  // AI applied → full matrix: each background × each clip (e.g. 3 × 5 = 15).
+  // Otherwise a single default-template video per clip.
+  const bgVariants: (string | undefined)[] = aiBgPaths.length ? aiBgPaths : [undefined];
+
   for (const segment of campaign.segments) {
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
-    const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
 
     if (!fs.existsSync(segment.fileUrl)) {
@@ -298,51 +302,60 @@ export async function runVideoGen(campaignId: string) {
       continue;
     }
 
-    const t0 = Date.now();
-    console.log(`[video-gen] campaign ${campaignId} segment ${segment.index} starting`);
-    try {
-      await withTimeout(generateVideo({
-        bgSrc,
-        coverArtPath,
-        audio: segment.fileUrl,
-        output: outputFile,
-        ctaText,
-        genre: (campaign as any).genre as string | undefined,
-        artistName: campaign.artistName ?? undefined,
-        visualConfig,
-        presetIndex: segment.index,
-        // Round-robin the AI backgrounds across clips so all variants run.
-        aiBgPath: aiBgPaths.length ? aiBgPaths[segment.index % aiBgPaths.length] : undefined,
-        lyrics: clipLyrics(allLyrics, segment.startSec, segment.endSec),
-      }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
+    const lyrics = clipLyrics(allLyrics, segment.startSec, segment.endSec);
 
-      const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
-      await withTimeout(new Promise<void>((resolve) => {
-        ffmpeg(outputFile)
-          .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
-          .output(thumbFile)
-          .on('end', () => resolve())
-          .on('error', () => resolve())
-          .run();
-      }), 30 * 1000, `thumbnail segment ${segment.index}`).catch(() => {});
+    for (let b = 0; b < bgVariants.length; b++) {
+      const aiBgPath = bgVariants[b];
+      const outputFile = aiBgPaths.length
+        ? path.join(videoDir, `creative_${segment.index}_${b}.mp4`)
+        : path.join(videoDir, `creative_${segment.index}.mp4`);
+      const label = aiBgPaths.length ? `${segment.index}/bg${b}` : `${segment.index}`;
+      const t0 = Date.now();
+      console.log(`[video-gen] campaign ${campaignId} creative ${label} starting`);
+      try {
+        await withTimeout(generateVideo({
+          bgSrc,
+          coverArtPath,
+          audio: segment.fileUrl,
+          output: outputFile,
+          ctaText,
+          genre: (campaign as any).genre as string | undefined,
+          artistName: campaign.artistName ?? undefined,
+          visualConfig,
+          presetIndex: segment.index,
+          aiBgPath,
+          lyrics,
+        }), 3 * 60 * 1000, `video-gen ${label}`);
 
-      await prisma.videoCreative.create({
-        data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
-      });
-      console.log(`[video-gen] segment ${segment.index} done in ${Math.round((Date.now() - t0) / 1000)}s`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[video-gen] segment ${segment.index} failed:`, msg);
-      failures.push(`segment ${segment.index}: ${msg}`);
+        const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
+        await withTimeout(new Promise<void>((resolve) => {
+          ffmpeg(outputFile)
+            .outputOptions(['-ss 00:00:01', '-vframes 1', '-q:v 3'])
+            .output(thumbFile)
+            .on('end', () => resolve())
+            .on('error', () => resolve())
+            .run();
+        }), 30 * 1000, `thumbnail ${label}`).catch(() => {});
+
+        await prisma.videoCreative.create({
+          data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
+        });
+        created++;
+        console.log(`[video-gen] creative ${label} done in ${Math.round((Date.now() - t0) / 1000)}s`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[video-gen] creative ${label} failed:`, msg);
+        failures.push(`${label}: ${msg}`);
+      }
     }
   }
-  console.log(`[video-gen] all segments done in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);
+  console.log(`[video-gen] created ${created} creatives in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);
 
-  if (failures.length === campaign.segments.length) {
-    throw new Error(`All ${failures.length} video segments failed:\n${failures.join('\n')}`);
+  if (created === 0) {
+    throw new Error(`All video creatives failed:\n${failures.join('\n')}`);
   }
   if (failures.length > 0) {
-    console.warn(`[video-gen] ${failures.length}/${campaign.segments.length} segments failed but continuing:\n${failures.join('\n')}`);
+    console.warn(`[video-gen] ${failures.length} creative(s) failed but continuing:\n${failures.join('\n')}`);
   }
 
   // Video gen is the last content stage. Copy + audiences are already done by now.

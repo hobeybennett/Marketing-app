@@ -72,12 +72,24 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
+  // Suggest duplicating to add a lookalike once the artist has enough click data
+  // and this campaign doesn't already have a lookalike ad set.
+  const hasLookalike = campaign.audiences.some((a) => a.type === 'LOOKALIKE' && a.metaAdSetId);
+  let suggestLookalike = false;
+  if (!hasLookalike && campaign.userId) {
+    const clicks = await prisma.smartLinkClick.count({
+      where: { campaign: { userId: campaign.userId }, platform: { in: ['spotify', 'spotify_playlist'] } },
+    });
+    suggestLookalike = clicks >= 100;
+  }
+
   const { user, ...rest } = campaign;
   return NextResponse.json({
     ...rest,
     hasMetaConnection: !!user?.metaConnection,
     adAccountId: user?.metaConnection?.adAccountId ?? null,
     isOwner: session?.user?.email === 'hobeybennett@gmail.com',
+    suggestLookalike,
   });
 }
 

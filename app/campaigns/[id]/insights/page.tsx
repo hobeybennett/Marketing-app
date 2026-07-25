@@ -82,6 +82,7 @@ interface CampaignBasic {
   status: string;
   metaCampaignId: string | null;
   adAccountId: string | null;
+  suggestLookalike?: boolean;
 }
 
 function timeSince(dateStr: string | null): string {
@@ -154,7 +155,7 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
     if (iRes.ok) setInsights(await iRes.json());
     if (cRes.ok) {
       const c = await cRes.json();
-      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName, status: c.status, metaCampaignId: c.metaCampaignId ?? null, adAccountId: c.adAccountId ?? null });
+      setCampaign({ id: c.id, songTitle: c.songTitle, artistName: c.artistName, status: c.status, metaCampaignId: c.metaCampaignId ?? null, adAccountId: c.adAccountId ?? null, suggestLookalike: c.suggestLookalike });
     }
     setLoading(false);
   }, [params.id]);
@@ -265,6 +266,26 @@ export default function InsightsPage({ params }: { params: { id: string } }) {
           </button>
         </div>
       </div>
+
+      {/* Lookalike nudge — you've got enough click data to build one */}
+      {campaign?.suggestLookalike && (
+        <div className="mb-4 rounded-xl border border-violet-700/50 bg-violet-900/20 px-4 py-3">
+          <p className="text-sm font-semibold text-violet-200 mb-1">🎯 You&apos;ve hit 100+ Spotify clicks</p>
+          <p className="text-xs text-violet-300/80 mb-3">
+            You now have enough listener data to build a <strong>lookalike audience</strong> — people similar to
+            those already clicking through. Duplicate this campaign to launch a fresh one with the lookalike added,
+            then pause this one.
+          </p>
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg transition disabled:opacity-50"
+          >
+            {duplicating ? 'Duplicating…' : 'Duplicate with lookalike'}
+          </button>
+        </div>
+      )}
 
       {/* Title + controls */}
       <div className="mb-4">

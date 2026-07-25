@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import LyricsEditor from './LyricsEditor';
 
 type Props = {
   campaignId: string;
@@ -76,10 +77,12 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
         </>
       )}
 
+      {s === 'LYRICS' && <LyricsEditor campaignId={campaignId} />}
+
       {(s === 'PAID' || s === 'GENERATING') && (
         <div className="text-sm text-gray-300 py-2">
           <p className="font-medium">Creating your AI lyric video…</p>
-          <p className="text-xs text-gray-500 mt-1">Transcribing lyrics + generating the AI background (~1–2 min). This page refreshes automatically.</p>
+          <p className="text-xs text-gray-500 mt-1">Generating the AI background + rendering your ads (~2–3 min). This page refreshes automatically.</p>
         </div>
       )}
 

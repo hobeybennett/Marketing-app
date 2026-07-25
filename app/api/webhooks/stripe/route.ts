@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
-import { dispatchStage } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,8 +40,8 @@ export async function POST(req: NextRequest) {
         try {
           await prisma.stripeEvent.create({ data: { id: session.id, userId } });
           if (campaignId) {
-            await prisma.campaign.update({ where: { id: campaignId }, data: { aiVideoStatus: 'PAID' } });
-            await dispatchStage(campaignId, 'AI_VIDEO_GEN');
+            // Land on the lyrics step — the artist confirms lyrics, then generates.
+            await prisma.campaign.update({ where: { id: campaignId }, data: { aiVideoStatus: 'LYRICS' } });
           }
         } catch (e: any) {
           if (e?.code !== 'P2002') throw e; // already processed

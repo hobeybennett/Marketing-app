@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { dispatchStage } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +19,12 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   });
   if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
+  // Land on the lyrics step (same as a real purchase) so the owner tests the full
+  // scan/edit → generate flow.
   await prisma.campaign.update({
     where: { id: params.id },
-    data: { aiVideoStatus: 'PAID', aiVideoChoiceUrl: null },
+    data: { aiVideoStatus: 'LYRICS', aiVideoChoiceUrl: null },
   });
-  await dispatchStage(params.id, 'AI_VIDEO_GEN');
 
   return NextResponse.json({ ok: true });
 }

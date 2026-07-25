@@ -9,7 +9,7 @@ type Props = {
   isOwner?: boolean;
 };
 
-export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl, isOwner }: Props) {
+export default function AiVideoUpgrade({ campaignId, status, options, isOwner }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const s = status ?? 'NONE';
@@ -43,23 +43,6 @@ export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl,
       const res = await fetch(`/api/campaigns/${campaignId}/ai-video/test-generate`, { method: 'POST' });
       if (res.ok) window.location.reload();
       else setError((await res.json().catch(() => ({})))?.error || 'Could not start test generation');
-    } catch {
-      setError('Network error');
-    }
-    setBusy(false);
-  }
-
-  async function choose(url: string) {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await fetch(`/api/campaigns/${campaignId}/ai-video/select`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choiceUrl: url }),
-      });
-      if (res.ok) window.location.reload();
-      else setError((await res.json().catch(() => ({})))?.error || 'Could not apply choice');
     } catch {
       setError('Network error');
     }
@@ -100,32 +83,22 @@ export default function AiVideoUpgrade({ campaignId, status, options, choiceUrl,
         </div>
       )}
 
-      {s === 'READY' && options && options.length > 0 && (
+      {(s === 'APPLIED' || s === 'READY' || s === 'SELECTED') && options && options.length > 0 && (
         <>
-          <p className="text-sm text-gray-300 mb-3">Pick your favourite — we&apos;ll rebuild your 5 ads with it:</p>
+          <p className="text-sm text-green-300 font-medium mb-1">✓ All {options.length} AI videos are in your campaign</p>
+          <p className="text-xs text-gray-400 mb-3">
+            We run every version and let Meta A/B test them — budget automatically shifts to your
+            best-performing creative. No picking needed.
+          </p>
           <div className="grid grid-cols-3 gap-2">
             {options.map((url, i) => (
               <div key={i} className="rounded-lg overflow-hidden border border-gray-700 bg-black">
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video src={url} className="w-full aspect-square object-cover" autoPlay muted loop playsInline />
-                <button
-                  onClick={() => choose(url)}
-                  disabled={busy}
-                  className="w-full py-1.5 text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white transition disabled:opacity-50"
-                >
-                  Use this
-                </button>
+                <video src={url} className="w-full aspect-[9/16] object-cover" autoPlay muted loop playsInline />
               </div>
             ))}
           </div>
         </>
-      )}
-
-      {s === 'SELECTED' && (
-        <p className="text-sm text-green-300 py-2">
-          ✓ AI video applied — your creatives are being rebuilt with it.
-          {choiceUrl && <span className="block text-xs text-gray-500 mt-1">You can review the new videos shortly.</span>}
-        </p>
       )}
 
       {error && <p className="text-xs text-red-400 mt-2">{error}</p>}

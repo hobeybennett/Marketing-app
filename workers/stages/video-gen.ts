@@ -250,20 +250,28 @@ export async function runVideoGen(campaignId: string) {
   const bgPath = visualConfig?.backgroundPath as string | undefined;
   const coverArtPath = campaign.coverArtUrl;
 
-  // Paid AI video: download the chosen clip once and use it as the looped
-  // background for every creative. Falls back to the normal background on failure.
-  let aiBgPath: string | undefined;
+  // Paid AI video: download the generated background clips and A/B test them by
+  // round-robining across the creatives. Falls back to the normal background on
+  // any failure. (Legacy single-choice campaigns still work via aiVideoChoiceUrl.)
   const c = campaign as any;
-  if (c.aiVideoStatus === 'SELECTED' && c.aiVideoChoiceUrl) {
-    const dest = path.join(uploadDir, campaignId, 'ai_bg.mp4');
-    try {
-      await downloadToFile(c.aiVideoChoiceUrl as string, dest);
-      aiBgPath = dest;
-      console.log(`[video-gen] using AI background for campaign ${campaignId}`);
-    } catch (err) {
-      console.warn('[video-gen] AI background download failed, using default:', err instanceof Error ? err.message : err);
+  const aiBgPaths: string[] = [];
+  const aiOptions = Array.isArray(c.aiVideoOptions) ? (c.aiVideoOptions as string[]) : [];
+  if ((c.aiVideoStatus === 'APPLIED' || c.aiVideoStatus === 'SELECTED') && aiOptions.length) {
+    for (let i = 0; i < Math.min(aiOptions.length, 3); i++) {
+      const dest = path.join(uploadDir, campaignId, `ai_bg_${i}.mp4`);
+      try {
+        await downloadToFile(aiOptions[i], dest);
+        aiBgPaths.push(dest);
+      } catch (err) {
+        console.warn('[video-gen] AI bg download failed:', err instanceof Error ? err.message : err);
+      }
     }
   }
+  if (!aiBgPaths.length && c.aiVideoChoiceUrl) {
+    const dest = path.join(uploadDir, campaignId, 'ai_bg.mp4');
+    try { await downloadToFile(c.aiVideoChoiceUrl as string, dest); aiBgPaths.push(dest); } catch { /* fall back */ }
+  }
+  if (aiBgPaths.length) console.log(`[video-gen] A/B testing ${aiBgPaths.length} AI background(s) for ${campaignId}`);
 
   // Timed lyrics for the whole track (if transcribed) — sliced per clip below.
   const allLyrics = Array.isArray((campaign as any).lyrics)
@@ -303,7 +311,8 @@ export async function runVideoGen(campaignId: string) {
         artistName: campaign.artistName ?? undefined,
         visualConfig,
         presetIndex: segment.index,
-        aiBgPath,
+        // Round-robin the AI backgrounds across clips so all variants run.
+        aiBgPath: aiBgPaths.length ? aiBgPaths[segment.index % aiBgPaths.length] : undefined,
         lyrics: clipLyrics(allLyrics, segment.startSec, segment.endSec),
       }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 

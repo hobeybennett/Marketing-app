@@ -1,5 +1,6 @@
 import { prisma } from '../prisma';
 import { buildVideoPrompt, generateAiVideoClips } from '../../lib/fal';
+import { dispatchStage } from '../../lib/queue';
 
 // Generate the 3 AI background options for a paid campaign, store them, and mark
 // the campaign READY so the UI can show the chooser. Best-effort: on failure the
@@ -31,8 +32,12 @@ export async function runAiVideoGen(campaignId: string): Promise<void> {
     throw new Error('AI video generation returned no clips');
   }
 
+  // Use ALL generated clips as A/B variants (no manual pick) and re-render the
+  // creatives — round-robined across the clips in video-gen. Meta then optimises
+  // delivery to the best-performing creative.
   await prisma.campaign.update({
     where: { id: campaignId },
-    data: { aiVideoStatus: 'READY', aiVideoOptions: clips },
+    data: { aiVideoStatus: 'APPLIED', aiVideoOptions: clips },
   });
+  await dispatchStage(campaignId, 'VIDEO_GEN');
 }

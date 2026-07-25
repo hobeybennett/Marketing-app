@@ -50,31 +50,45 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
     setBusy(false);
   }
 
-  return (
-    <div className="bg-gradient-to-br from-violet-900/30 to-blue-900/20 border border-violet-800/40 rounded-xl p-5 mb-4">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="font-display font-700 text-base">✨ AI Video</h2>
-        <span className="text-xs bg-violet-900/50 text-violet-200 border border-violet-700/50 px-2 py-0.5 rounded-full">
-          Premium
-        </span>
-      </div>
+  const isOffer = s === 'NONE' || s === 'FAILED';
 
-      {(s === 'NONE' || s === 'FAILED') && (
+  return (
+    <div
+      className={`rounded-xl p-5 mb-4 ${
+        isOffer
+          ? 'bg-gradient-to-br from-violet-600/25 to-blue-600/15 border border-violet-500/50 ring-1 ring-violet-500/25 shadow-lg shadow-violet-950/40'
+          : 'bg-gray-900 border border-gray-800'
+      }`}
+    >
+      {isOffer ? (
         <>
-          <p className="text-sm text-gray-400 mb-4">
-            Turn your ads into a <strong className="text-gray-200">cinematic AI lyric video</strong> — a
-            dynamic AI-generated background with your <strong className="text-gray-200">lyrics popping up in time
-            with the music</strong>, instead of the static template.
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">✨</span>
+            <h2 className="font-display font-700 text-lg leading-tight">Make it an AI Lyric Video</h2>
+            <span className="ml-auto text-[10px] font-semibold bg-violet-500/30 text-violet-100 border border-violet-400/40 px-2 py-0.5 rounded-full uppercase tracking-wide">
+              Popular
+            </span>
+          </div>
+          <p className="text-sm text-violet-100/80 mb-4">
+            A cinematic AI background with your <strong className="text-white">lyrics popping up in time with the
+            music</strong> — instead of the static template.
           </p>
-          {s === 'FAILED' && <p className="text-xs text-amber-400 mb-3">Last attempt failed — you can try again.</p>}
+          {s === 'FAILED' && <p className="text-xs text-amber-300 mb-3">Last attempt failed — you can try again.</p>}
           <button
             onClick={buy}
             disabled={busy}
-            className="w-full py-2.5 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition disabled:opacity-50"
+            className="w-full py-3 rounded-lg text-sm font-bold bg-white text-violet-700 hover:bg-violet-50 transition disabled:opacity-50 shadow"
           >
-            {busy ? 'Starting checkout…' : 'Upgrade to AI video — $1.99'}
+            {busy ? 'Starting checkout…' : 'Upgrade — $1.99'}
           </button>
         </>
+      ) : (
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-display font-700 text-base">✨ AI Lyric Video</h2>
+          <span className="text-xs bg-violet-900/50 text-violet-200 border border-violet-700/50 px-2 py-0.5 rounded-full">
+            Premium
+          </span>
+        </div>
       )}
 
       {s === 'LYRICS' && <LyricsEditor campaignId={campaignId} />}

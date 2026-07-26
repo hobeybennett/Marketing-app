@@ -151,8 +151,12 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
     if (existsSync(uploadDir)) await rm(uploadDir, { recursive: true, force: true });
   });
 
-  it('completes all 5 pipeline stages within 90s', async () => {
-    const deadline = Date.now() + 90_000;
+  it('completes all 5 pipeline stages', async () => {
+    // Generous budget: CI's real ffmpeg renders the blurred 9:16 template at
+    // ~8-11s/segment (~40s for VIDEO_GEN alone) on a shared single-worker runner,
+    // so the full SEG→COPY→AUD→VIDEO→META chain needs well over 90s. The loop
+    // returns the moment it reaches LIVE, so the happy path stays fast.
+    const deadline = Date.now() + 180_000;
     let lastStatus = '';
     while (Date.now() < deadline) {
       const c = await prisma.campaign.findUnique({
@@ -176,13 +180,14 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
       await new Promise((r) => setTimeout(r, 1000));
     }
     throw new Error(`Pipeline timed out at status=${lastStatus}`);
-  }, 100_000);
+  }, 200_000);
 
   it('non-autoLaunch: ad copy is ready BEFORE videos finish, ends at READY', async () => {
     const id = uuidv4();
     await seedCampaign(id, false);
 
-    const deadline = Date.now() + 90_000;
+    // Same CI-ffmpeg headroom as the first e2e test (returns early on READY).
+    const deadline = Date.now() + 180_000;
     let copyReadyBeforeVideos = false;
     let lastStatus = '';
 
@@ -216,5 +221,5 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
       await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error(`Pipeline timed out at status=${lastStatus} (copyReadyBeforeVideos=${copyReadyBeforeVideos})`);
-  }, 100_000);
+  }, 200_000);
 });

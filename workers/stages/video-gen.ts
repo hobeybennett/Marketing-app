@@ -197,18 +197,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 export type Lyric = { text: string; start: number; end: number };
 
-// The lyric lines that fall inside a clip's [segStart, segEnd] window, re-based
-// to the clip's own 0-based timeline (clips start at t=0 in ffmpeg).
-export function clipLyrics(all: Lyric[] | null, segStart: number, segEnd: number): Lyric[] | undefined {
+// The artist types/pastes plain lyric lines (their hook/chorus). We no longer
+// depend on per-line timestamps from unreliable transcription — instead the
+// lines are evenly distributed across each clip's 0-based timeline (clips start
+// at t=0 in ffmpeg), each line held on screen for an equal slice.
+export function clipLyrics(all: string[] | null, segStart: number, segEnd: number): Lyric[] | undefined {
   if (!all || all.length === 0) return undefined;
-  const out = all
-    .filter((l) => l.end > segStart && l.start < segEnd)
-    .map((l) => ({
-      text: l.text,
-      start: Math.max(0, l.start - segStart),
-      end: Math.min(segEnd - segStart, l.end - segStart),
-    }))
-    .filter((l) => l.end > l.start && l.text.trim());
+  const lines = all.map((t) => t.trim()).filter(Boolean);
+  if (!lines.length) return undefined;
+  const dur = segEnd - segStart;
+  if (dur <= 0) return undefined;
+  const span = dur / lines.length;
+  const out = lines.map((text, i) => ({
+    text,
+    start: i * span,
+    end: (i + 1) * span,
+  }));
   return out.length ? out : undefined;
 }
 
@@ -273,9 +277,11 @@ export async function runVideoGen(campaignId: string) {
   }
   if (aiBgPaths.length) console.log(`[video-gen] A/B testing ${aiBgPaths.length} AI background(s) for ${campaignId}`);
 
-  // Timed lyrics for the whole track (if transcribed) — sliced per clip below.
-  const allLyrics = Array.isArray((campaign as any).lyrics)
-    ? ((campaign as any).lyrics as Lyric[])
+  // Lyric lines the artist typed/pasted — evenly distributed per clip below.
+  // Normalise: current shape is string[]; tolerate the legacy [{ text }] objects.
+  const rawLyrics = (campaign as any).lyrics;
+  const allLyrics: string[] | null = Array.isArray(rawLyrics)
+    ? rawLyrics.map((l: any) => (typeof l === 'string' ? l : String(l?.text ?? ''))).filter((s: string) => s.trim())
     : null;
 
   // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's small CPU

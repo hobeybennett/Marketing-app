@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateVideo, clipLyrics, type Lyric } from './video-gen';
+import { generateVideo, clipLyrics } from './video-gen';
 
 // Owner tuning aid: render ONE sample creative using the first AI option (or the
 // chosen one) WITHOUT touching campaign status or the real creatives. Output goes
@@ -32,7 +32,9 @@ export async function runAiVideoPreview(campaignId: string): Promise<void> {
 
   const visualConfig = campaign.visualConfig ? (campaign.visualConfig as any) : null;
   const ctaText = visualConfig?.ctaText || 'Listen Now';
-  const allLyrics = Array.isArray(c.lyrics) ? (c.lyrics as Lyric[]) : null;
+  const allLyrics: string[] | null = Array.isArray(c.lyrics)
+    ? (c.lyrics as any[]).map((l) => (typeof l === 'string' ? l : String(l?.text ?? ''))).filter((s) => s.trim())
+    : null;
 
   await generateVideo({
     bgSrc: campaign.coverArtUrl,

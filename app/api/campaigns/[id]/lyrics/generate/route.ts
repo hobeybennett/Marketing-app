@@ -5,8 +5,6 @@ import { dispatchStage } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 
-type Line = { text: string; start: number; end: number };
-
 // Save the confirmed lyrics and kick off AI-video generation with them.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession();
@@ -26,19 +24,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const body = await req.json().catch(() => ({}));
-  const raw: unknown = body?.lyrics;
-  const lyrics: Line[] = Array.isArray(raw)
-    ? raw
-        .map((l: any) => ({ text: String(l?.text ?? '').trim(), start: Number(l?.start ?? 0), end: Number(l?.end ?? 0) }))
-        .filter((l) => l.text && l.end > l.start)
+  // Primary path: the artist types/pastes plain lyric lines. We store them as a
+  // simple string[] and evenly distribute them per clip at render time (music
+  // transcription is unreliable, so we no longer depend on per-line timestamps).
+  // Tolerate the legacy shape ({ lyrics: [{ text }] }) for older clients.
+  const rawLines: unknown = body?.lines ?? (Array.isArray(body?.lyrics) ? body.lyrics.map((l: any) => l?.text) : undefined);
+  const lines: string[] = Array.isArray(rawLines)
+    ? rawLines.map((l: any) => String(l ?? '').trim()).filter(Boolean)
     : [];
 
   await prisma.campaign.update({
     where: { id: params.id },
     // Empty lyrics is allowed (they can generate an AI background with no lyrics).
-    data: { lyrics: lyrics.length ? lyrics : undefined, aiVideoStatus: 'GENERATING' },
+    data: { lyrics: lines.length ? lines : undefined, aiVideoStatus: 'GENERATING' },
   });
   await dispatchStage(params.id, 'AI_VIDEO_GEN');
 
-  return NextResponse.json({ ok: true, lines: lyrics.length });
+  return NextResponse.json({ ok: true, lines: lines.length });
 }

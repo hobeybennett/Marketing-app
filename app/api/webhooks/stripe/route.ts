@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
         try {
           await prisma.stripeEvent.create({ data: { id: session.id, userId } });
           if (campaignId) {
-            // Land on the lyrics step — the artist confirms lyrics, then generates.
-            await prisma.campaign.update({ where: { id: campaignId }, data: { aiVideoStatus: 'LYRICS' } });
+            // Land on the prompt step — the artist describes the AI background, then generates.
+            await prisma.campaign.update({ where: { id: campaignId }, data: { aiVideoStatus: 'PROMPT' } });
           }
         } catch (e: any) {
           if (e?.code !== 'P2002') throw e; // already processed

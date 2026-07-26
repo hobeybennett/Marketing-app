@@ -29,14 +29,15 @@ model Campaign {
   promoteType     String         @default("track")
   lastSyncAt      DateTime?
   dailyBudget     Float?
-  // Paid "AI video" upsell. status: NONE | PAID | GENERATING | READY | SELECTED | FAILED.
-  // aiVideoOptions holds the generated clip URLs to choose from; aiVideoChoiceUrl
-  // is the one the user picked (used as the looped background in video-gen).
+  // Paid "AI video" upsell. status: NONE | PROMPT | GENERATING | APPLIED | FAILED.
+  // aiVideoOptions holds the generated clip URL(s); aiVideoChoiceUrl is the legacy
+  // single pick. The AI clip loops as the background behind the normal overlay.
   aiVideoStatus   String    @default("NONE")
   aiVideoOptions  Json?
   aiVideoChoiceUrl String?
-  // Timed lyric lines for lyric-video creatives: [{ text, start, end }] (seconds,
-  // relative to the full track). Auto-transcribed, editable by the artist.
+  // The artist's optional text prompt describing the AI background they want.
+  aiVideoPrompt   String?
+  // Deprecated (lyric-video feature shelved) — kept nullable to avoid a drop.
   lyrics          Json?
 
   jobs                CampaignJob[]

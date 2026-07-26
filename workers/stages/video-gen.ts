@@ -195,27 +195,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-export type Lyric = { text: string; start: number; end: number };
-
-// The artist types/pastes plain lyric lines (their hook/chorus). We no longer
-// depend on per-line timestamps from unreliable transcription — instead the
-// lines are evenly distributed across each clip's 0-based timeline (clips start
-// at t=0 in ffmpeg), each line held on screen for an equal slice.
-export function clipLyrics(all: string[] | null, segStart: number, segEnd: number): Lyric[] | undefined {
-  if (!all || all.length === 0) return undefined;
-  const lines = all.map((t) => t.trim()).filter(Boolean);
-  if (!lines.length) return undefined;
-  const dur = segEnd - segStart;
-  if (dur <= 0) return undefined;
-  const span = dur / lines.length;
-  const out = lines.map((text, i) => ({
-    text,
-    start: i * span,
-    end: (i + 1) * span,
-  }));
-  return out.length ? out : undefined;
-}
-
 async function downloadToFile(url: string, dest: string): Promise<void> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`download failed: ${res.status}`);
@@ -277,13 +256,6 @@ export async function runVideoGen(campaignId: string) {
   }
   if (aiBgPaths.length) console.log(`[video-gen] A/B testing ${aiBgPaths.length} AI background(s) for ${campaignId}`);
 
-  // Lyric lines the artist typed/pasted — evenly distributed per clip below.
-  // Normalise: current shape is string[]; tolerate the legacy [{ text }] objects.
-  const rawLyrics = (campaign as any).lyrics;
-  const allLyrics: string[] | null = Array.isArray(rawLyrics)
-    ? rawLyrics.map((l: any) => (typeof l === 'string' ? l : String(l?.text ?? ''))).filter((s: string) => s.trim())
-    : null;
-
   // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's 1-2 vCPU
   // instance (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The
   // ultrafast preset keeps each render well under the per-clip timeout.
@@ -291,7 +263,7 @@ export async function runVideoGen(campaignId: string) {
   const failures: string[] = [];
   let created = 0;
   // One video per clip. If AI is applied, every clip uses the single generated AI
-  // background (+ lyrics if transcribed); otherwise the default cover-art template.
+  // background; otherwise the default cover-art template.
   const aiBgPath = aiBgPaths.length ? aiBgPaths[0] : undefined;
 
   for (const segment of campaign.segments) {
@@ -323,7 +295,6 @@ export async function runVideoGen(campaignId: string) {
         visualConfig,
         presetIndex: segment.index,
         aiBgPath,
-        lyrics: clipLyrics(allLyrics, segment.startSec, segment.endSec),
       }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 
       const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
@@ -497,12 +468,10 @@ export function generateVideo(opts: {
   visualConfig: VisualConfig | null;
   presetIndex: number;
   aiBgPath?: string;
-  lyrics?: { text: string; start: number; end: number }[];
 }): Promise<void> {
-  const { bgSrc, audio, output, ctaText, genre, artistName, visualConfig, aiBgPath, lyrics } = opts;
+  const { bgSrc, audio, output, ctaText, genre, artistName, visualConfig, aiBgPath } = opts;
   const vc = visualConfig ?? {};
   const useAiBg = !!aiBgPath;
-  const useLyrics = !!(lyrics && lyrics.length > 0);
 
   const ACCENT = '0x1DB954'; // Spotify green
   const hookText = vc.hookText?.trim()
@@ -529,26 +498,10 @@ export function generateVideo(opts: {
         `[bgb]zoompan=z='min(1+0.00018*on,1.06)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1800:s=${W}x${H}:fps=30[bg]`,
       ];
 
-  // Text chain ends at [txt]. Lyric mode: each timed line pops in centered during
-  // its window (karaoke-style). Otherwise the static hook.
-  const LYRIC_SIZE = 66;
-  const textChain: string[] = [];
-  if (useLyrics) {
-    lyrics!.forEach((l, i) => {
-      const prev = i === 0 ? '[bgsc]' : `[ly${i - 1}]`;
-      const out = i === lyrics!.length - 1 ? '[txt]' : `[ly${i}]`;
-      // Single quotes protect the commas inside between() — no backslashes (same
-      // pattern as the zoompan expressions above).
-      const enable = `enable='between(t,${l.start.toFixed(2)},${l.end.toFixed(2)})'`;
-      textChain.push(
-        `${prev}drawtext=fontfile='${FONTS.bebas}':text='${esc(l.text.toUpperCase())}':fontsize=${LYRIC_SIZE}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.42:boxborderw=26:${enable}${out}`,
-      );
-    });
-  } else {
-    textChain.push(
-      `[bgsc]drawtext=fontfile='${FONTS.bebas}':text='${hookUpper}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:box=1:boxcolor=black@0.4:boxborderw=28:${FADE}[txt]`,
-    );
-  }
+  // Text chain ends at [txt]: a bold hook over the (AI or blurred) background.
+  const textChain: string[] = [
+    `[bgsc]drawtext=fontfile='${FONTS.bebas}':text='${hookUpper}':fontsize=${HOOK_SIZE}:fontcolor=white:x=(w-text_w)/2:y=${HOOK_Y}:box=1:boxcolor=black@0.4:boxborderw=28:${FADE}[txt]`,
+  ];
 
   const fc = [
     ...bgChain,

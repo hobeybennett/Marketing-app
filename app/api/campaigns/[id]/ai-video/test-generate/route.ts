@@ -19,11 +19,11 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   });
   if (!campaign) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  // Land on the lyrics step (same as a real purchase) so the owner tests the full
-  // scan/edit → generate flow.
+  // Land on the prompt step (same as a real purchase) so the owner tests the full
+  // prompt → generate flow.
   await prisma.campaign.update({
     where: { id: params.id },
-    data: { aiVideoStatus: 'LYRICS', aiVideoChoiceUrl: null },
+    data: { aiVideoStatus: 'PROMPT', aiVideoChoiceUrl: null },
   });
 
   return NextResponse.json({ ok: true });

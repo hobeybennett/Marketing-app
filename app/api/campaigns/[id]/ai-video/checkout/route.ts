@@ -40,7 +40,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
           currency: 'aud',
           product_data: {
             name: 'AI Video — Promohit',
-            description: '3 AI-generated video backgrounds to choose from for your campaign',
+            description: 'A cinematic AI-generated video background for your campaign ads',
           },
           unit_amount: 199,
         },

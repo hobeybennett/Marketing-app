@@ -5,7 +5,9 @@ import { dispatchStage } from '@/lib/queue';
 
 export const dynamic = 'force-dynamic';
 
-// Save the confirmed lyrics and kick off AI-video generation with them.
+// Save the artist's (optional) background prompt and kick off AI-video generation.
+// The prompt describes the cinematic AI background; empty is fine — we fall back to
+// an auto-built prompt from the track's genre/mood.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession();
   if (!session?.user?.id) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -18,27 +20,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (campaign.userId && campaign.userId !== session.user.id) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
-  // Must be paid (on the lyrics step) — or a retry after a failed run.
-  if (!['LYRICS', 'FAILED'].includes(campaign.aiVideoStatus)) {
+  // Must be paid (on the prompt step) — or a retry after a failed run.
+  if (!['PROMPT', 'FAILED'].includes(campaign.aiVideoStatus)) {
     return NextResponse.json({ error: 'AI video not purchased for this campaign' }, { status: 400 });
   }
 
   const body = await req.json().catch(() => ({}));
-  // Primary path: the artist types/pastes plain lyric lines. We store them as a
-  // simple string[] and evenly distribute them per clip at render time (music
-  // transcription is unreliable, so we no longer depend on per-line timestamps).
-  // Tolerate the legacy shape ({ lyrics: [{ text }] }) for older clients.
-  const rawLines: unknown = body?.lines ?? (Array.isArray(body?.lyrics) ? body.lyrics.map((l: any) => l?.text) : undefined);
-  const lines: string[] = Array.isArray(rawLines)
-    ? rawLines.map((l: any) => String(l ?? '').trim()).filter(Boolean)
-    : [];
+  const prompt = String(body?.prompt ?? '').trim().slice(0, 500);
 
   await prisma.campaign.update({
     where: { id: params.id },
-    // Empty lyrics is allowed (they can generate an AI background with no lyrics).
-    data: { lyrics: lines.length ? lines : undefined, aiVideoStatus: 'GENERATING' },
+    data: { aiVideoPrompt: prompt || null, aiVideoStatus: 'GENERATING' },
   });
   await dispatchStage(params.id, 'AI_VIDEO_GEN');
 
-  return NextResponse.json({ ok: true, lines: lines.length });
+  return NextResponse.json({ ok: true });
 }

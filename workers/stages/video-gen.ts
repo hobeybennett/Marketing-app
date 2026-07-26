@@ -284,9 +284,9 @@ export async function runVideoGen(campaignId: string) {
     ? rawLyrics.map((l: any) => (typeof l === 'string' ? l : String(l?.text ?? ''))).filter((s: string) => s.trim())
     : null;
 
-  // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's small CPU
-  // (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The 'fast'
-  // preset (crf 19) keeps each render well under the per-clip timeout.
+  // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's 1-2 vCPU
+  // instance (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The
+  // ultrafast preset keeps each render well under the per-clip timeout.
   const tAll = Date.now();
   const failures: string[] = [];
   let created = 0;
@@ -432,7 +432,7 @@ function generateTextureVideo(opts: {
         .input(coverArtPath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '2:a',
-          '-c:v', 'libx264', '-preset', 'fast', '-crf', '19', '-c:a', 'aac', '-b:a', '192k',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output)
         .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
@@ -472,7 +472,7 @@ function generateTextureVideo(opts: {
         .input(texturePath).inputOptions(['-loop', '1', '-framerate', '30'])
         .input(audio)
         .outputOptions(['-filter_complex', filters.join(';'), '-map', '[vout]', '-map', '1:a',
-          '-c:v', 'libx264', '-preset', 'fast', '-crf', '19', '-c:a', 'aac', '-b:a', '192k',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k',
           '-t', '30', '-shortest', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart'])
         .output(output)
         .on('start' as any, (cmd: string) => console.log(`[ffmpeg] ${cmd.slice(0, 300)}`))
@@ -573,8 +573,8 @@ export function generateVideo(opts: {
         '-map', '[vout]',
         '-map', '1:a',
         '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '19',
+        '-preset', 'ultrafast',
+        '-crf', '23',
         '-c:a', 'aac',
         '-b:a', '192k',
         '-t', '30',

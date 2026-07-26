@@ -176,9 +176,9 @@ const worker = new Worker<StageJob>(
   {
     connection: makeConn(),
     concurrency: 1,
-    // Video generation can take a while — up to 15 clips (3 AI backgrounds × 5
-    // audio) × FFmpeg on a small CPU. Bump lockDuration well above the worst case
-    // so the job can't stall mid-render, especially across a deploy restart.
+    // Video generation can take a while — 5 clips × FFmpeg plus an AI-background
+    // download on a small CPU. Bump lockDuration well above the worst case so the
+    // job can't stall mid-render, especially across a deploy restart.
     lockDuration: 30 * 60 * 1000,
     stalledInterval: 60 * 1000,
   },

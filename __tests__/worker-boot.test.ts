@@ -20,9 +20,18 @@ describe('worker boot', () => {
       return;
     }
 
+    // Point the boot worker at an ISOLATED Redis DB (index 9). Vitest runs test
+    // files in parallel, and this worker listens on the same 'campaign' queue as
+    // the pipeline e2e — on a shared DB it steals the e2e's first job and dies
+    // holding the lock (lockDuration 30min), stranding that campaign at
+    // PROCESSING until the e2e times out. Boot only needs Redis reachable, not
+    // any particular DB, so an empty DB is fine.
+    const isolatedRedis = new URL(process.env.REDIS_URL);
+    isolatedRedis.pathname = '/9';
+
     const workerPath = path.resolve(__dirname, '../workers/index.ts');
     const proc = spawn('npx', ['tsx', workerPath], {
-      env: { ...process.env, NODE_ENV: 'test' },
+      env: { ...process.env, NODE_ENV: 'test', REDIS_URL: isolatedRedis.toString() },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

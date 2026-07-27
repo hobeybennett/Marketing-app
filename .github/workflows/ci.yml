@@ -65,3 +65,38 @@ jobs:
 
       - name: Run all tests (unit + boot + e2e)
         run: npm test
+
+  # Deploys main to Railway via the CLI — a reliable fallback that doesn't depend
+  # on Railway's GitHub webhook integration. Intentionally NOT gated on the test
+  # job (matches Railway's own behavior of deploying regardless of CI); add
+  # `needs: test` here once CI has a stable green streak.
+  #
+  # Setup (one-time, in GitHub repo settings):
+  #   Secrets → RAILWAY_TOKEN          a Railway PROJECT token (Railway project →
+  #                                    Settings → Tokens) for the production env
+  #   Variables → RAILWAY_WEB_SERVICE     name of the web service in Railway
+  #   Variables → RAILWAY_WORKER_SERVICE  name of the worker service in Railway
+  # Until RAILWAY_TOKEN is set, this job skips with a notice.
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      WEB_SERVICE: ${{ vars.RAILWAY_WEB_SERVICE }}
+      WORKER_SERVICE: ${{ vars.RAILWAY_WORKER_SERVICE }}
+    steps:
+      - name: Redeploy Railway services
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::notice::RAILWAY_TOKEN secret not set — skipping deploy (Railway's own GitHub integration is assumed to handle it)."
+            exit 0
+          fi
+          npm i -g @railway/cli
+          for svc in "$WEB_SERVICE" "$WORKER_SERVICE"; do
+            if [ -z "$svc" ]; then
+              echo "::warning::RAILWAY_WEB_SERVICE / RAILWAY_WORKER_SERVICE repo variable not set — skipping that service."
+              continue
+            fi
+            echo "Redeploying service: $svc"
+            railway redeploy --service "$svc" --yes
+          done

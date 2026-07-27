@@ -66,6 +66,13 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
   beforeAll(async () => {
     prisma = new PrismaClient();
 
+    // Set up the queue FIRST and wipe any leftover jobs (e.g. from a stalled
+    // prior run or another test's worker) so this run starts from a clean slate.
+    // Must happen before our worker spawns — obliterate fails on an active queue.
+    conn = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
+    queue = new Queue('campaign', { connection: conn });
+    await queue.obliterate({ force: true }).catch(() => {});
+
     // Generate a 35-second tone (long enough for 5x30s segments with auto-spacing
     // when track is < 150s — 35s / 5 = 7s step, plenty of overlap is fine for test)
     await mkdir(campaignDir, { recursive: true });
@@ -124,8 +131,6 @@ describe.skipIf(SKIP)('pipeline e2e', () => {
     await new Promise((r) => setTimeout(r, 3000));
 
     // Dispatch first stage
-    conn = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
-    queue = new Queue('campaign', { connection: conn });
     await queue.add('SEGMENTATION', { campaignId, stage: 'SEGMENTATION' }, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },

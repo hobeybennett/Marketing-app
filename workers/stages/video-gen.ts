@@ -327,6 +327,18 @@ export async function runVideoGen(campaignId: string) {
     console.warn(`[video-gen] ${failures.length} creative(s) failed but continuing:\n${failures.join('\n')}`);
   }
 
+  // If this render was an AI-background refresh on a campaign that's already
+  // launched, leave the campaign exactly where it is — don't re-dispatch
+  // META_SETUP (would duplicate ads) or knock a LIVE campaign back to READY.
+  const fresh = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: { status: true },
+  });
+  if (fresh && ['LIVE', 'LAUNCHING', 'PAUSED'].includes(fresh.status)) {
+    console.log(`[video-gen] campaign ${campaignId} is ${fresh.status} — creatives refreshed, status untouched`);
+    return;
+  }
+
   // Video gen is the last content stage. Copy + audiences are already done by now.
   if (campaign.autoLaunch) {
     // Fully automatic: dispatch META_SETUP before flipping status so it only

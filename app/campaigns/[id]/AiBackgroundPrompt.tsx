@@ -12,7 +12,14 @@ const IDEAS = [
   'Abstract liquid ink, vibrant colour',
 ];
 
-export default function AiBackgroundPrompt({ campaignId }: { campaignId: string }) {
+export default function AiBackgroundPrompt({
+  campaignId,
+  onStarted,
+}: {
+  campaignId: string;
+  // Tells the parent to refetch — the card flips to GENERATING in place.
+  onStarted?: () => void;
+}) {
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -26,8 +33,11 @@ export default function AiBackgroundPrompt({ campaignId }: { campaignId: string 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt.trim() }),
       });
-      if (res.ok) window.location.reload();
-      else setError((await res.json().catch(() => ({})))?.error || 'Could not start generation.');
+      if (res.ok) {
+        onStarted?.();
+        return; // stay "Starting…" until the parent's refetch swaps this view out
+      }
+      setError((await res.json().catch(() => ({})))?.error || 'Could not start generation.');
     } catch {
       setError('Network error.');
     }

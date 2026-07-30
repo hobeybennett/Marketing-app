@@ -57,8 +57,12 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   useEffect(() => { fetchCampaign(); }, [fetchCampaign]);
 
   useEffect(() => {
-    if (!campaign || !POLLING_STATUSES.has(campaign.status)) return;
-    const interval = setInterval(fetchCampaign, 2000);
+    // Poll during pipeline activity AND while the paid AI background is
+    // generating (which doesn't change campaign.status) — the AI card updates
+    // in place from these refetches instead of reloading the page.
+    const aiBusy = campaign?.aiVideoStatus === 'GENERATING';
+    if (!campaign || (!POLLING_STATUSES.has(campaign.status) && !aiBusy)) return;
+    const interval = setInterval(fetchCampaign, aiBusy ? 4000 : 2000);
     return () => clearInterval(interval);
   }, [campaign, fetchCampaign]);
 
@@ -88,6 +92,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         actionLoading={actionLoading}
         router={router}
         now={now}
+        onRefresh={fetchCampaign}
       />
     );
   }
@@ -194,6 +199,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               options={(campaign as any).aiVideoOptions as string[] | null}
               choiceUrl={(campaign as any).aiVideoChoiceUrl}
               isOwner={(campaign as any).isOwner}
+              onRefresh={fetchCampaign}
             />
           </>
         )}
@@ -243,13 +249,14 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 // ── Progressive workspace ─────────────────────────────────────────────────────
 // One page that reveals each piece as it's ready: ad copy + audiences are ready
 // in seconds (so the user can start picking) while videos render in the background.
-function CampaignWorkspace({ campaign, params, handleAction, actionLoading, router, now }: {
+function CampaignWorkspace({ campaign, params, handleAction, actionLoading, router, now, onRefresh }: {
   campaign: any;
   params: { id: string };
   handleAction: (action: string) => Promise<void>;
   actionLoading: boolean;
   router: ReturnType<typeof useRouter>;
   now: number;
+  onRefresh: () => void;
 }) {
   const jobs: any[] = campaign.jobs ?? [];
   const jobStatus = (stage: string) => jobs.find((j) => j.stage === stage)?.status;
@@ -380,6 +387,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
           options={(campaign as any).aiVideoOptions as string[] | null}
           choiceUrl={(campaign as any).aiVideoChoiceUrl}
           isOwner={(campaign as any).isOwner}
+          onRefresh={onRefresh}
         />
       )}
 

@@ -1,27 +1,22 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AiBackgroundPrompt from './AiBackgroundPrompt';
 
 type Props = {
   campaignId: string;
-  status?: string | null;         // NONE | PAID | GENERATING | READY | SELECTED | FAILED
+  status?: string | null;         // NONE | PROMPT | GENERATING | APPLIED | FAILED
   options?: string[] | null;      // generated clip URLs
   choiceUrl?: string | null;
   isOwner?: boolean;
+  // Parent refetches campaign data; the card updates in place from new props
+  // (the page polls while aiVideoStatus is GENERATING — no reloads needed).
+  onRefresh?: () => void;
 };
 
-export default function AiVideoUpgrade({ campaignId, status, options, isOwner }: Props) {
+export default function AiVideoUpgrade({ campaignId, status, options, isOwner, onRefresh }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const s = status ?? 'NONE';
-
-  // While generating, refresh so the options appear when ready.
-  useEffect(() => {
-    if (s === 'GENERATING') {
-      const t = setInterval(() => window.location.reload(), 15000);
-      return () => clearInterval(t);
-    }
-  }, [s]);
 
   async function buy() {
     setBusy(true);
@@ -42,7 +37,7 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
     setError('');
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/ai-video/test-generate`, { method: 'POST' });
-      if (res.ok) window.location.reload();
+      if (res.ok) onRefresh?.();
       else setError((await res.json().catch(() => ({})))?.error || 'Could not start test generation');
     } catch {
       setError('Network error');
@@ -91,12 +86,15 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
         </div>
       )}
 
-      {s === 'PROMPT' && <AiBackgroundPrompt campaignId={campaignId} />}
+      {s === 'PROMPT' && <AiBackgroundPrompt campaignId={campaignId} onStarted={onRefresh} />}
 
       {s === 'GENERATING' && (
         <div className="text-sm text-gray-300 py-2">
-          <p className="font-medium">Creating your AI video…</p>
-          <p className="text-xs text-gray-500 mt-1">Generating the AI background + rendering your ads (~2–3 min). This page refreshes automatically.</p>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+            <p className="font-medium">Creating your AI video…</p>
+          </div>
+          <p className="text-xs text-gray-500 mt-1.5">Generating the AI background, then re-rendering your ads with it (~2–5 min). It&apos;ll appear here when ready.</p>
         </div>
       )}
 
@@ -104,7 +102,7 @@ export default function AiVideoUpgrade({ campaignId, status, options, isOwner }:
         <>
           <p className="text-sm text-green-300 font-medium mb-1">✓ AI background applied</p>
           <p className="text-xs text-gray-400 mb-3">
-            Your ads now use a cinematic AI-generated background.
+            Here&apos;s your AI background — your ads below re-render with it over the next few minutes.
           </p>
           <div className="flex justify-center">
             <div className="w-1/2 rounded-lg overflow-hidden border border-gray-700 bg-black">

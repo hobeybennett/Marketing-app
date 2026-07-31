@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { AI_VIDEO_ENABLED } from '@/lib/flags';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,11 @@ export const dynamic = 'force-dynamic';
 // campaign via metadata. Inline price_data means no pre-created Stripe product is
 // needed. The webhook flips aiVideoStatus → PAID and kicks off generation.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+  // Feature is hidden — refuse payment even from a stale tab that still shows the button.
+  if (!AI_VIDEO_ENABLED) {
+    return NextResponse.json({ error: 'AI video is not available right now' }, { status: 404 });
+  }
+
   const session = await getServerSession();
   if (!session?.user?.id) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

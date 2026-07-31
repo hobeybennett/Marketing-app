@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 import AiVideoUpgrade from './AiVideoUpgrade';
+import { AI_VIDEO_ENABLED } from '@/lib/flags';
 
 function videoApiUrl(fileUrl: string): string {
   const filename = fileUrl.split('/').pop() ?? '';
@@ -193,14 +194,16 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
             {/* AI video (owner can test-generate here; picking "Use this" on a live
                 campaign would rebuild its videos, so only the owner test path). */}
-            <AiVideoUpgrade
-              campaignId={params.id}
-              status={(campaign as any).aiVideoStatus}
-              options={(campaign as any).aiVideoOptions as string[] | null}
-              choiceUrl={(campaign as any).aiVideoChoiceUrl}
-              isOwner={(campaign as any).isOwner}
-              onRefresh={fetchCampaign}
-            />
+            {AI_VIDEO_ENABLED && (
+              <AiVideoUpgrade
+                campaignId={params.id}
+                status={(campaign as any).aiVideoStatus}
+                options={(campaign as any).aiVideoOptions as string[] | null}
+                choiceUrl={(campaign as any).aiVideoChoiceUrl}
+                isOwner={(campaign as any).isOwner}
+                onRefresh={fetchCampaign}
+              />
+            )}
           </>
         )}
       </div>
@@ -380,7 +383,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
 
       {/* AI video upsell — offered early (once the audio is sliced) so the choice
           appears before the free videos finish generating. */}
-      {campaign.segments?.length > 0 && (
+      {AI_VIDEO_ENABLED && campaign.segments?.length > 0 && (
         <AiVideoUpgrade
           campaignId={params.id}
           status={(campaign as any).aiVideoStatus}

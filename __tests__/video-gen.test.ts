@@ -5,6 +5,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   campaign: {
     findUniqueOrThrow: vi.fn(),
+    // Fresh status check at the end of the render (LIVE-campaign guard).
+    findUnique: vi.fn().mockResolvedValue({ status: 'PROCESSING' }),
     update: vi.fn().mockResolvedValue({}),
   },
   videoCreative: {
@@ -113,6 +115,20 @@ describe('runVideoGen', () => {
       data: { status: 'LAUNCHING' },
     });
     expect(mockDispatch).toHaveBeenCalledWith('camp-1', 'META_SETUP');
+  });
+
+  it('leaves an already-LIVE campaign untouched (AI-background re-render)', async () => {
+    mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign({ autoLaunch: true }));
+    mockPrisma.campaign.findUnique.mockResolvedValueOnce({ status: 'LIVE' });
+
+    await runVideoGen('camp-1');
+
+    // Creatives are refreshed, but no status change and no META_SETUP re-dispatch.
+    expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(5);
+    expect(mockPrisma.campaign.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: expect.anything() }) }),
+    );
+    expect(mockDispatch).not.toHaveBeenCalled();
   });
 
   it('deletes existing creatives before generating new ones (idempotency)', async () => {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage } from '@/lib/queue';
+import { BILLING_ENABLED } from '@/lib/flags';
 import { getServerSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +32,9 @@ export async function POST(req: NextRequest) {
 
     // Check credit availability early (before expensive work), but do NOT decrement yet.
     // We will decrement only after the campaign is successfully created and queued.
+    // Skipped entirely while billing is disabled (early access — campaigns are free).
     let shouldDeductCredit = false;
-    if (userId) {
+    if (BILLING_ENABLED && userId) {
       const userCampaignCount = await prisma.campaign.count({
         where: { userId, status: { not: 'FAILED' } },
       });

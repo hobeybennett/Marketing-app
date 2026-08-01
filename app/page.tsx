@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from '@/lib/auth';
+import { BILLING_ENABLED } from '@/lib/flags';
 
 export const metadata: Metadata = {
   title: 'Promohit — Automated Music Promotion on Facebook & Instagram',
-  description: 'Paste your Spotify link, upload your audio, and we build and run your Meta ad campaign automatically. AI-written copy, 5 video creatives, smart targeting. First campaign free.',
+  description: 'Paste your Spotify link, upload your audio, and we build and run your Meta ad campaign automatically. AI-written copy, 5 video creatives, smart targeting. Free during early access.',
   alternates: { canonical: '/' },
 };
 
@@ -19,11 +20,13 @@ export default async function Home() {
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     description: 'Automated music promotion platform. Paste your Spotify link, upload your audio, and we build and run your Meta ad campaign automatically.',
-    offers: [
-      { '@type': 'Offer', price: '0', priceCurrency: 'AUD', name: 'First campaign free' },
-      { '@type': 'Offer', price: '2.99', priceCurrency: 'AUD', name: 'Single campaign credit' },
-      { '@type': 'Offer', price: '9.99', priceCurrency: 'AUD', priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' }, name: 'Promohit Pro' },
-    ],
+    offers: BILLING_ENABLED
+      ? [
+          { '@type': 'Offer', price: '0', priceCurrency: 'AUD', name: 'First campaign free' },
+          { '@type': 'Offer', price: '2.99', priceCurrency: 'AUD', name: 'Single campaign credit' },
+          { '@type': 'Offer', price: '9.99', priceCurrency: 'AUD', priceSpecification: { '@type': 'UnitPriceSpecification', billingDuration: 'P1M' }, name: 'Promohit Pro' },
+        ]
+      : [{ '@type': 'Offer', price: '0', priceCurrency: 'AUD', name: 'Free during early access' }],
     featureList: [
       '5 video ad creatives generated automatically',
       'AI-written ad copy',
@@ -122,7 +125,9 @@ export default async function Home() {
           </a>
         </div>
 
-        <p className="text-xs text-gray-600 mt-6 rise-3">No credit card required · First campaign free</p>
+        <p className="text-xs text-gray-600 mt-6 rise-3">
+          No credit card required · {BILLING_ENABLED ? 'First campaign free' : 'Free during early access'}
+        </p>
       </section>
 
       {/* ── How it works ────────────────────────────────────── */}
@@ -241,9 +246,33 @@ export default async function Home() {
       <section className="py-24 border-t border-gray-800/40">
         <div className="text-center mb-14">
           <p className="text-xs font-semibold tracking-widest text-violet-400 uppercase mb-3">Pricing</p>
-          <h2 className="font-display text-3xl md:text-4xl font-700">Start free. Scale when you&apos;re ready.</h2>
+          <h2 className="font-display text-3xl md:text-4xl font-700">
+            {BILLING_ENABLED ? <>Start free. Scale when you&apos;re ready.</> : <>Free while we&apos;re in early access.</>}
+          </h2>
         </div>
 
+        {!BILLING_ENABLED && (
+          <div className="max-w-md mx-auto">
+            <div className="card p-8 flex flex-col text-center">
+              <p className="font-display text-xl font-700 mb-1">Early access</p>
+              <div className="text-4xl font-bold mb-1">$0</div>
+              <p className="text-sm text-gray-500 mb-8">Every campaign free while we grow. No credit card, no catch.</p>
+              <ul className="space-y-2.5 text-sm text-gray-300 mb-8 flex-1 text-left mx-auto">
+                {['Unlimited campaigns', '5 video ad creatives each', 'AI-written ad copy', 'Smart stream links', 'Performance dashboard'].map((item) => (
+                  <li key={item} className="flex gap-2.5">
+                    <span className="text-violet-400 mt-px">–</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/campaigns/new" className="btn-primary w-full text-sm py-2.5">
+                Start free
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {BILLING_ENABLED && (
         <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {/* Free */}
           <div className="card p-8 flex flex-col">
@@ -305,6 +334,7 @@ export default async function Home() {
             </a>
           </div>
         </div>
+        )}
       </section>
 
       {/* ── Final CTA ───────────────────────────────────────── */}
@@ -316,7 +346,7 @@ export default async function Home() {
           Ready to be heard?
         </h2>
         <p className="text-gray-400 text-lg mb-10 max-w-xs mx-auto">
-          Your first campaign is free. No credit card needed.
+          {BILLING_ENABLED ? 'Your first campaign is free. No credit card needed.' : 'Free during early access. No credit card needed.'}
         </p>
         <Link href="/campaigns/new" className="btn-primary text-base px-10 py-3.5">
           Get started free →

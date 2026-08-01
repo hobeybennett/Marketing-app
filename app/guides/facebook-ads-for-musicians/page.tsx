@@ -63,7 +63,7 @@ const STEPS = [
 const FAQS = [
   {
     q: 'How much does it cost to promote a song on Instagram or Facebook?',
-    a: 'You can start with as little as a few dollars a day. Meta requires a minimum daily budget (roughly AU$1.50–$2 depending on your currency and optimization). Most independent artists test with $5–$10/day and scale what works. You only pay Meta for the ad delivery — Promohit’s first campaign is free.',
+    a: 'You can start with as little as a few dollars a day. Meta requires a minimum daily budget (roughly AU$1.50–$2 depending on your currency and optimization). Most independent artists test with $5–$10/day and scale what works. You only pay Meta for the ad delivery — Promohit itself is free during early access.',
   },
   {
     q: 'Do I need a website to run music ads?',
@@ -192,7 +192,7 @@ export default function FacebookAdsGuide() {
         <p className="font-display text-lg font-700 mb-1">Skip the manual setup</p>
         <p className="text-sm text-gray-400 mb-5">
           Promohit builds your video ads, writes the copy, sets up the conversion tracking, and
-          launches the whole campaign automatically. Your first campaign is free.
+          launches the whole campaign automatically. It’s free during early access.
         </p>
         <Link href="/" className="btn-primary inline-block px-8 py-3 text-sm font-semibold">
           Promote your music free

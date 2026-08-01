@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
+import { BILLING_ENABLED } from '@/lib/flags';
 
 export const dynamic = 'force-dynamic';
 
 const CREDIT_PAYMENT_LINK = 'https://buy.stripe.com/eVq9AU1DIdr021r7nh28801';
 
 export async function GET(req: NextRequest) {
+  // Billing disabled (early access) — nothing to buy; send stale links home.
+  if (!BILLING_ENABLED) return NextResponse.redirect(new URL('/', req.url));
+
   const session = await getServerSession();
   if (!session?.user?.id) {
     return NextResponse.redirect(new URL('/api/auth/signin', req.url));

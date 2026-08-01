@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: 'Promohit — Automated Music Promotion on Facebook & Instagram',
     template: '%s | Promohit',
   },
-  description: 'Promohit turns your track into 5 video ads and launches them on Facebook and Instagram automatically. AI-written copy, smart targeting, real results. First campaign free.',
+  description: 'Promohit turns your track into 5 video ads and launches them on Facebook and Instagram automatically. AI-written copy, smart targeting, real results. Free during early access.',
   keywords: [
     'music promotion', 'music marketing', 'Facebook ads for musicians',
     'Instagram ads for artists', 'promote music online', 'automated music advertising',
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     url: '/',
     siteName: 'Promohit',
     title: 'Promohit — Automated Music Promotion on Facebook & Instagram',
-    description: 'Turn your track into 5 video ads and launch them on Facebook & Instagram automatically. AI copy, smart targeting, first campaign free.',
+    description: 'Turn your track into 5 video ads and launch them on Facebook & Instagram automatically. AI copy, smart targeting, free during early access.',
     images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'Promohit — Automated Music Promotion' }],
   },
   twitter: {

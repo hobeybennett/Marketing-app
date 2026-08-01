@@ -1,5 +1,6 @@
 import { getServerSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { BILLING_ENABLED } from '@/lib/flags';
 import { redirect } from 'next/navigation';
 import MetaConnectSection from './MetaConnectSection';
 import SubscriptionSyncButton from './SubscriptionSyncButton';
@@ -72,6 +73,9 @@ export default async function SettingsPage({
         <p className="text-sm text-gray-400">{session.user.email}</p>
       </div>
 
+      {/* Billing hidden during free early access — still shown to anyone with a
+          real subscription so they can manage/cancel it. */}
+      {(BILLING_ENABLED || isPro || user?.subscriptionId) && (
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-4">
         <div className="flex items-start justify-between mb-3">
           <h2 className="font-semibold">Billing</h2>
@@ -112,6 +116,7 @@ export default async function SettingsPage({
           </div>
         )}
       </div>
+      )}
 
       <MetaConnectSection connection={metaConnection ? {
         ...metaConnection,

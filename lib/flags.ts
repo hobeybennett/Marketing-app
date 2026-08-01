@@ -4,3 +4,9 @@
 // Hidden while we focus on core customers/feedback; the full flow (UI card,
 // checkout, worker stages) is intact — set true to bring it back.
 export const AI_VIDEO_ENABLED = false;
+
+// Campaign billing: first-free + $2.99 credits + Pro subscription. Disabled
+// during early access — every campaign is free, no 402 gate, no pricing UI,
+// checkout links redirect home. Credits/subscriptions in the DB are untouched,
+// so flipping this back on restores paid behavior exactly as it was.
+export const BILLING_ENABLED = false;

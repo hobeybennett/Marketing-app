@@ -17,11 +17,14 @@ export const dynamic = 'force-dynamic';
 //     &mode=both                 track button first, playlist second
 //     &track=<idOrUrl>           set/replace the track link
 //     &highlight=0               don't highlight the campaign track in the playlist
+//     &style=highlight (default) /playlist/{id}?highlight=spotify:track:{trackId}
+//                                — opens the playlist scrolled to the track
+//     &style=context             /track/{trackId}?context=spotify:playlist/{id}
+//                                — opens the track itself with the playlist as its
+//                                  playback queue, so it plays and then rolls on
 //
-// By default the playlist link is built as
-//   /playlist/{id}?highlight=spotify:track:{campaign track id}
-// so the listener plays the song inside the playlist and Spotify continues into
-// the surrounding tracks (a bare /track/ link falls into algorithmic radio).
+// Either way the point is to avoid a bare /track/ link, which falls into
+// algorithmic radio when the song ends instead of continuing through the playlist.
 //
 // Accepts a bare Spotify ID or a full URL. Bare IDs are recommended on mobile:
 // a pasted share URL carries ?si=…&utm_source=… which would break query parsing.
@@ -110,14 +113,28 @@ export async function GET(req: NextRequest) {
     // Disable with &highlight=0.
     const trackUrl = (data.spotifyUrl as string | undefined) ?? campaign.spotifyUrl;
     const trackId = trackUrl?.match(/\/track\/([A-Za-z0-9]+)/)?.[1] ?? null;
-    if (sp.get('highlight') !== '0' && trackId) {
+    const playlistId = base.match(/\/playlist\/([A-Za-z0-9]+)/)?.[1] ?? null;
+    const style = sp.get('style') ?? 'highlight';
+
+    if (style === 'context' && trackId && playlistId) {
+      // Open the TRACK itself with the playlist loaded as its playback queue, so
+      // it plays immediately and then continues into the surrounding tracks.
+      // One button, and clicks still record as platform 'spotify'.
+      data.spotifyUrl = `https://open.spotify.com/track/${trackId}?context=spotify:playlist:${playlistId}`;
+      data.spotifyPlaylistUrl = null;
+      data.promoteType = 'track';
       highlightedTrack = trackId;
-      data.spotifyPlaylistUrl = `${base}?highlight=spotify:track:${trackId}`;
     } else {
-      data.spotifyPlaylistUrl = base;
+      // Open the playlist scrolled to / highlighting this track.
+      if (sp.get('highlight') !== '0' && trackId) {
+        highlightedTrack = trackId;
+        data.spotifyPlaylistUrl = `${base}?highlight=spotify:track:${trackId}`;
+      } else {
+        data.spotifyPlaylistUrl = base;
+      }
+      // 'playlist' shows only the playlist button; 'both' keeps the track button first.
+      data.promoteType = sp.get('mode') === 'both' ? 'track' : 'playlist';
     }
-    // 'playlist' shows only the playlist button; 'both' keeps the track button first.
-    data.promoteType = sp.get('mode') === 'both' ? 'track' : 'playlist';
   }
 
   if (Object.keys(data).length === 0) {

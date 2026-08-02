@@ -9,6 +9,7 @@ import {
   uploadImageToMeta,
   resolveInterests,
   buildTargeting,
+  buildCampaignBody,
 } from '@/lib/meta-campaign';
 
 export const dynamic = 'force-dynamic';
@@ -92,10 +93,14 @@ export async function GET(req: NextRequest) {
     const imageHash = await uploadImageToMeta(thumbPath, token, adAccountId);
 
     const campaign = await metaPost(`/act_${adAccountId}/campaigns`, token, {
-      name: 'Promohit — Early Access (self-promo)',
-      objective: 'OUTCOME_TRAFFIC',
-      status: 'PAUSED', // activated last, after everything under it exists
-      special_ad_categories: [],
+      // Shared builder — it sets special_ad_categories AND the
+      // is_adset_budget_sharing_enabled flag Meta requires when the budget lives
+      // on the ad set rather than the campaign (error subcode 4834011). Created
+      // PAUSED; activated last, after everything under it exists.
+      ...buildCampaignBody({
+        name: 'Promohit — Early Access (self-promo)',
+        objective: 'OUTCOME_TRAFFIC',
+      }),
     });
 
     const interests = await resolveInterests(INTEREST_SEEDS, token);

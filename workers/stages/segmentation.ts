@@ -10,14 +10,21 @@ const NUM_SEGMENTS = 5;
 export async function runSegmentation(campaignId: string) {
   const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
 
+  // Smart-link-only entries have no audio and never enter the pipeline; if one
+  // somehow gets dispatched, fail loudly rather than crashing on a null path.
+  if (!campaign.audioUrl) {
+    throw new Error(`Campaign ${campaignId} has no audio file (kind=${campaign.kind}) — nothing to segment`);
+  }
+  const audioUrl = campaign.audioUrl;
+
   await prisma.audioSegment.deleteMany({ where: { campaignId } });
 
   // Derive segment dir from the audio file path so it always co-locates with
   // the source file, regardless of UPLOAD_DIR differences between services.
-  const segmentDir = path.join(path.dirname(campaign.audioUrl), 'segments');
+  const segmentDir = path.join(path.dirname(audioUrl), 'segments');
   fs.mkdirSync(segmentDir, { recursive: true });
 
-  const duration = await getAudioDuration(campaign.audioUrl);
+  const duration = await getAudioDuration(audioUrl);
 
   if (duration < SEGMENT_DURATION) {
     throw new Error(`Track is too short (${duration.toFixed(1)}s). Minimum length is ${SEGMENT_DURATION}s.`);
@@ -34,7 +41,7 @@ export async function runSegmentation(campaignId: string) {
 
   for (const seg of segments) {
     const outputFile = path.join(segmentDir, `segment_${seg.index}.mp3`);
-    await cutSegment(campaign.audioUrl, outputFile, seg.start, seg.end - seg.start);
+    await cutSegment(audioUrl, outputFile, seg.start, seg.end - seg.start);
     await prisma.audioSegment.create({
       data: { campaignId, fileUrl: outputFile, startSec: seg.start, endSec: seg.end, index: seg.index },
     });

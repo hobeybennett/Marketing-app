@@ -15,7 +15,13 @@ export const dynamic = 'force-dynamic';
 //   GET /api/admin/campaign-link?id=<id>&playlist=<idOrUrl>&go=1
 //     &mode=playlist   (default) playlist is the only button
 //     &mode=both                 track button first, playlist second
-//     &track=<idOrUrl>           set/replace the track link instead
+//     &track=<idOrUrl>           set/replace the track link
+//     &highlight=0               don't highlight the campaign track in the playlist
+//
+// By default the playlist link is built as
+//   /playlist/{id}?highlight=spotify:track:{campaign track id}
+// so the listener plays the song inside the playlist and Spotify continues into
+// the surrounding tracks (a bare /track/ link falls into algorithmic radio).
 //
 // Accepts a bare Spotify ID or a full URL. Bare IDs are recommended on mobile:
 // a pasted share URL carries ?si=…&utm_source=… which would break query parsing.
@@ -83,22 +89,35 @@ export async function GET(req: NextRequest) {
 
   const data: Record<string, unknown> = {};
 
-  if (playlistIn) {
-    const url = toSpotifyUrl(playlistIn, 'playlist');
-    if (!url) {
-      return NextResponse.json({ error: `Could not parse a Spotify playlist from "${playlistIn}"` }, { status: 400 });
-    }
-    data.spotifyPlaylistUrl = url;
-    // 'playlist' shows only the playlist button; 'both' keeps the track button first.
-    data.promoteType = sp.get('mode') === 'both' ? 'track' : 'playlist';
-  }
-
+  // Track first — a track set in this same request can seed the playlist highlight.
   if (trackIn) {
     const url = toSpotifyUrl(trackIn, 'track');
     if (!url) {
       return NextResponse.json({ error: `Could not parse a Spotify track from "${trackIn}"` }, { status: 400 });
     }
     data.spotifyUrl = url;
+  }
+
+  let highlightedTrack: string | null = null;
+  if (playlistIn) {
+    const base = toSpotifyUrl(playlistIn, 'playlist');
+    if (!base) {
+      return NextResponse.json({ error: `Could not parse a Spotify playlist from "${playlistIn}"` }, { status: 400 });
+    }
+    // Open the playlist with THIS campaign's track highlighted, so listeners play
+    // it in playlist context and Spotify rolls on into the surrounding tracks.
+    // (A bare /track/ link sends them to algorithmic radio afterwards instead.)
+    // Disable with &highlight=0.
+    const trackUrl = (data.spotifyUrl as string | undefined) ?? campaign.spotifyUrl;
+    const trackId = trackUrl?.match(/\/track\/([A-Za-z0-9]+)/)?.[1] ?? null;
+    if (sp.get('highlight') !== '0' && trackId) {
+      highlightedTrack = trackId;
+      data.spotifyPlaylistUrl = `${base}?highlight=spotify:track:${trackId}`;
+    } else {
+      data.spotifyPlaylistUrl = base;
+    }
+    // 'playlist' shows only the playlist button; 'both' keeps the track button first.
+    data.promoteType = sp.get('mode') === 'both' ? 'track' : 'playlist';
   }
 
   if (Object.keys(data).length === 0) {
@@ -121,6 +140,9 @@ export async function GET(req: NextRequest) {
     ok: true,
     before: campaign,
     after: updated,
+    highlightedTrack: highlightedTrack
+      ? `Playlist opens with track ${highlightedTrack} highlighted — plays in playlist context.`
+      : 'No track highlight applied.',
     note: 'Live ads point at the smart link, so this is already in effect — no Meta change, no new ad review.',
     smartLink: `${process.env.NEXTAUTH_URL ?? 'https://promohit.marketing'}/go/${updated.id}`,
   });

@@ -13,8 +13,13 @@ model Campaign {
   songTitle       String
   genre           String?
   mood            String?
-  audioUrl        String
+  // Null for smart-link-only entries (kind = SMART_LINK) — they have artwork and
+  // streaming links but no audio, no segments, no ads.
+  audioUrl        String?
   coverArtUrl     String
+  // CAMPAIGN = the full ad pipeline. SMART_LINK = just the /go landing page,
+  // created standalone from /smartlinks without uploading audio.
+  kind            String         @default("CAMPAIGN")
   autoLaunch      Boolean        @default(false)
   status          CampaignStatus @default(PENDING)
   metaCampaignId  String?

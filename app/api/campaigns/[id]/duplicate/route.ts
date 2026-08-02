@@ -47,8 +47,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return true;
   };
 
-  // Audio is required to run the pipeline. If it was pruned by storage cleanup,
-  // we can't duplicate — the source track is gone.
+  // Audio is required to run the pipeline. If it was pruned by storage cleanup —
+  // or this is a smart-link-only entry that never had any — we can't duplicate.
+  if (!source.audioUrl) {
+    return NextResponse.json(
+      { error: 'This entry has no audio track, so it can\'t be duplicated as a campaign.' },
+      { status: 409 },
+    );
+  }
   const audioName = path.basename(source.audioUrl);
   if (!(await copyIfExists(audioName))) {
     return NextResponse.json(

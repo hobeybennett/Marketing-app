@@ -11,7 +11,8 @@ import PaymentBanner from '@/components/PaymentBanner';
 
 async function getCampaigns(userId: string | null) {
   const campaigns = await prisma.campaign.findMany({
-    where: userId ? { userId } : {},
+    // Smart-link-only entries live on /smartlinks, not in the campaign list.
+    where: { kind: 'CAMPAIGN', ...(userId ? { userId } : {}) },
     orderBy: { createdAt: 'desc' },
     include: { jobs: true },
   });

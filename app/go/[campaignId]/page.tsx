@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { prisma } from '@/lib/prisma';
 import { SmartLinkClickRecorder } from './SmartLinkClickRecorder';
 import { MetaPixelScript } from './MetaPixelScript';
-import { SpotifyButton, SpotifyPlaylistButton } from './StreamingButtons';
+import { SpotifyButton, SpotifyPlaylistButton, AppleMusicButton, YouTubeMusicButton, SoundCloudButton } from './StreamingButtons';
 
 interface Props {
   params: { campaignId: string };
@@ -57,6 +57,9 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
       coverArtUrl: true,
       spotifyUrl: true,
       spotifyPlaylistUrl: true,
+      appleMusicUrl: true,
+      youtubeUrl: true,
+      soundcloudUrl: true,
       promoteType: true,
       user: {
         select: {
@@ -171,6 +174,29 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
                 />
               )}
             </>
+          )}
+
+          {/* Other platforms — only rendered when a destination is set. */}
+          {campaign.appleMusicUrl && (
+            <AppleMusicButton
+              href={buildClickUrl('apple_music')}
+              songTitle={campaign.songTitle}
+              artistName={campaign.artistName}
+            />
+          )}
+          {campaign.youtubeUrl && (
+            <YouTubeMusicButton
+              href={buildClickUrl('youtube_music')}
+              songTitle={campaign.songTitle}
+              artistName={campaign.artistName}
+            />
+          )}
+          {campaign.soundcloudUrl && (
+            <SoundCloudButton
+              href={buildClickUrl('soundcloud')}
+              songTitle={campaign.songTitle}
+              artistName={campaign.artistName}
+            />
           )}
         </div>
 

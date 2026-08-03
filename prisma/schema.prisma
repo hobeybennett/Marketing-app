@@ -30,6 +30,11 @@ model Campaign {
   userId          String?
   spotifyUrl      String?
   spotifyPlaylistUrl String?
+  // Other streaming destinations for the smart link. Any that are set render as
+  // buttons on /go/{id}; the rest are hidden.
+  appleMusicUrl   String?
+  youtubeUrl      String?
+  soundcloudUrl   String?
   soundsLike      String[]
   promoteType     String         @default("track")
   lastSyncAt      DateTime?

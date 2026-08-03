@@ -18,6 +18,9 @@ const Body = z.object({
   coverArtUrl: z.string().url(),
   spotifyUrl: z.string().url().optional().or(z.literal('')),
   spotifyPlaylistUrl: z.string().url().optional().or(z.literal('')),
+  appleMusicUrl: z.string().url().optional().or(z.literal('')),
+  youtubeUrl: z.string().url().optional().or(z.literal('')),
+  soundcloudUrl: z.string().url().optional().or(z.literal('')),
   promoteType: z.enum(['track', 'playlist']).optional().default('track'),
 });
 
@@ -50,7 +53,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
   }
-  const { artistName, songTitle, coverArtUrl, spotifyUrl, spotifyPlaylistUrl, promoteType } = parsed.data;
+  const { artistName, songTitle, coverArtUrl, spotifyUrl, spotifyPlaylistUrl,
+          appleMusicUrl, youtubeUrl, soundcloudUrl, promoteType } = parsed.data;
   if (!spotifyUrl && !spotifyPlaylistUrl) {
     return NextResponse.json({ error: 'Add at least one Spotify link' }, { status: 400 });
   }
@@ -85,6 +89,9 @@ export async function POST(req: NextRequest) {
       promoteType,
       spotifyUrl: spotifyUrl || null,
       spotifyPlaylistUrl: spotifyPlaylistUrl || null,
+      appleMusicUrl: appleMusicUrl || null,
+      youtubeUrl: youtubeUrl || null,
+      soundcloudUrl: soundcloudUrl || null,
       soundsLike: [],
     },
   });

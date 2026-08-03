@@ -15,6 +15,9 @@ export default function SmartLinkCreator({ onCreated }: { onCreated?: () => void
   const [error, setError] = useState('');
   const [created, setCreated] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [apple, setApple] = useState('');
+  const [youtube, setYoutube] = useState('');
+  const [soundcloud, setSoundcloud] = useState('');
 
   async function lookup() {
     setBusy(true);
@@ -50,6 +53,9 @@ export default function SmartLinkCreator({ onCreated }: { onCreated?: () => void
           promoteType: isPlaylist ? 'playlist' : 'track',
           spotifyUrl: isPlaylist ? '' : url.trim(),
           spotifyPlaylistUrl: isPlaylist ? url.trim() : '',
+          appleMusicUrl: apple.trim(),
+          youtubeUrl: youtube.trim(),
+          soundcloudUrl: soundcloud.trim(),
         }),
       });
       const json = await res.json();
@@ -57,6 +63,9 @@ export default function SmartLinkCreator({ onCreated }: { onCreated?: () => void
         setCreated(json.url);
         setMeta(null);
         setUrl('');
+        setApple('');
+        setYoutube('');
+        setSoundcloud('');
         onCreated?.();
       } else {
         setError(json.error || 'Could not create the link.');
@@ -91,22 +100,46 @@ export default function SmartLinkCreator({ onCreated }: { onCreated?: () => void
       </div>
 
       {meta && (
-        <div className="flex items-center gap-3 bg-gray-800/60 border border-gray-700 rounded-lg p-3 mb-3">
-          {meta.coverArtUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={meta.coverArtUrl} alt="" className="w-14 h-14 rounded object-cover" />
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold truncate">{meta.songTitle}</p>
-            <p className="text-xs text-gray-400 truncate">{meta.artistName}</p>
+        <div className="bg-gray-800/60 border border-gray-700 rounded-lg p-3 mb-3">
+          <div className="flex items-center gap-3">
+            {meta.coverArtUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={meta.coverArtUrl} alt="" className="w-14 h-14 rounded object-cover" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate">{meta.songTitle}</p>
+              <p className="text-xs text-gray-400 truncate">{meta.artistName}</p>
+            </div>
+            <button
+              onClick={create}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition disabled:opacity-50 whitespace-nowrap"
+            >
+              {busy ? 'Creating…' : 'Create link'}
+            </button>
           </div>
-          <button
-            onClick={create}
-            disabled={busy}
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition disabled:opacity-50 whitespace-nowrap"
-          >
-            {busy ? 'Creating…' : 'Create link'}
-          </button>
+
+          {/* Optional extra platforms — each one that's filled in becomes a button. */}
+          <p className="text-xs text-gray-500 mt-4 mb-2">
+            Add other platforms <span className="text-gray-600">(optional — leave blank to hide)</span>
+          </p>
+          <div className="space-y-2">
+            {([
+              ['Apple Music', apple, setApple, 'https://music.apple.com/…'],
+              ['YouTube', youtube, setYoutube, 'https://youtube.com/watch?v=…'],
+              ['SoundCloud', soundcloud, setSoundcloud, 'https://soundcloud.com/…'],
+            ] as const).map(([label, value, setter, placeholder]) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-24 shrink-0">{label}</span>
+                <input
+                  value={value}
+                  onChange={(e) => setter(e.target.value)}
+                  placeholder={placeholder}
+                  className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-violet-500"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

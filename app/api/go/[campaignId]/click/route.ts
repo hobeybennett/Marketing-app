@@ -111,25 +111,35 @@ export async function GET(req: NextRequest, { params }: { params: { campaignId: 
     return NextResponse.json({ recorded: true });
   }
 
-  // Determine redirect URL for direct link navigations.
-  let redirectUrl = '/';
-  if (platform === 'spotify') {
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: params.campaignId },
-      select: { spotifyUrl: true },
-    });
-    redirectUrl = campaign?.spotifyUrl ?? 'https://open.spotify.com';
-  } else if (platform === 'spotify_playlist') {
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: params.campaignId },
-      select: { spotifyPlaylistUrl: true },
-    });
-    redirectUrl = campaign?.spotifyPlaylistUrl ?? 'https://open.spotify.com';
-  } else if (platform === 'apple_music') {
-    redirectUrl = 'https://music.apple.com';
-  } else if (platform === 'youtube_music') {
-    redirectUrl = 'https://music.youtube.com';
-  }
+  // Determine redirect URL for direct link navigations. One lookup covers every
+  // platform; each falls back to that service's home page if it isn't set.
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: params.campaignId },
+    select: {
+      spotifyUrl: true,
+      spotifyPlaylistUrl: true,
+      appleMusicUrl: true,
+      youtubeUrl: true,
+      soundcloudUrl: true,
+    },
+  });
+
+  const destinations: Record<string, string | null | undefined> = {
+    spotify: campaign?.spotifyUrl,
+    spotify_playlist: campaign?.spotifyPlaylistUrl,
+    apple_music: campaign?.appleMusicUrl,
+    youtube_music: campaign?.youtubeUrl,
+    soundcloud: campaign?.soundcloudUrl,
+  };
+  const fallbacks: Record<string, string> = {
+    spotify: 'https://open.spotify.com',
+    spotify_playlist: 'https://open.spotify.com',
+    apple_music: 'https://music.apple.com',
+    youtube_music: 'https://music.youtube.com',
+    soundcloud: 'https://soundcloud.com',
+  };
+
+  const redirectUrl = destinations[platform] || fallbacks[platform] || '/';
 
   return NextResponse.redirect(redirectUrl, 302);
 }

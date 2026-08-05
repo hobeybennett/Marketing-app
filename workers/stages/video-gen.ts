@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
+import { buildStockQuery, findStockVideos } from '../../lib/stock-video';
 
 const CTA_OPTIONS = ['Listen Now', 'Stream Today', 'Hear It First', 'Play Now', 'Out Now'];
 
@@ -256,6 +257,28 @@ export async function runVideoGen(campaignId: string) {
   }
   if (aiBgPaths.length) console.log(`[video-gen] A/B testing ${aiBgPaths.length} AI background(s) for ${campaignId}`);
 
+  // Free tier: a moving stock-footage background instead of the blurred cover
+  // art. Each creative gets a different clip so the five ads aren't identical.
+  // Skipped entirely when the paid AI background is applied, when there's no
+  // PEXELS_API_KEY, or on any download failure — always falls back cleanly.
+  const stockBgPaths: string[] = [];
+  if (!aiBgPaths.length) {
+    const query = buildStockQuery({ genre: (campaign as any).genre, mood: (campaign as any).mood });
+    const links = await findStockVideos(query, campaign.segments.length || 5);
+    for (let i = 0; i < links.length; i++) {
+      const dest = path.join(uploadDir, campaignId, `stock_bg_${i}.mp4`);
+      try {
+        await downloadToFile(links[i], dest);
+        stockBgPaths.push(dest);
+      } catch (err) {
+        console.warn('[video-gen] stock bg download failed:', err instanceof Error ? err.message : err);
+      }
+    }
+    if (stockBgPaths.length) {
+      console.log(`[video-gen] using ${stockBgPaths.length} stock background(s) for ${campaignId} (query: "${query}")`);
+    }
+  }
+
   // Render segments SEQUENTIALLY. Parallel rendering thrashed Railway's 1-2 vCPU
   // instance (3 concurrent campaigns × 5 ffmpeg per campaign = 15 processes). The
   // ultrafast preset keeps each render well under the per-clip timeout.
@@ -294,7 +317,11 @@ export async function runVideoGen(campaignId: string) {
         artistName: campaign.artistName ?? undefined,
         visualConfig,
         presetIndex: segment.index,
-        aiBgPath,
+        // AI background (paid, same clip on every creative) takes priority;
+        // otherwise a per-creative stock clip; otherwise the cover-art template.
+        aiBgPath: aiBgPath ?? (stockBgPaths.length
+          ? stockBgPaths[segment.index % stockBgPaths.length]
+          : undefined),
       }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
 
       const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');

@@ -4,6 +4,7 @@ import Script from 'next/script';
 import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UserNav from '@/components/UserNav';
+import AppShell from '@/components/AppShell';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://promohit.marketing'),
@@ -84,8 +85,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <UserNav />
           </nav>
-          <main className="container mx-auto px-4 py-8">{children}</main>
-          <footer className="border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6 text-xs text-gray-500">
+          <AppShell>{children}</AppShell>
+          <footer className="border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6 text-xs text-gray-500 pb-20 md:pb-4">
             <Link href="/privacy" className="hover:text-gray-300 transition">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-gray-300 transition">Terms &amp; Conditions</Link>
           </footer>

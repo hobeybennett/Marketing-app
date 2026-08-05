@@ -44,15 +44,6 @@ export default function UserNav() {
         <div className="absolute right-0 top-10 bg-gray-900 border border-gray-800 rounded-xl shadow-xl py-1 w-48 z-50">
           <p className="px-3 py-2 text-xs text-gray-500 truncate">{session.user.email}</p>
           <hr className="border-gray-800 my-1" />
-          <Link href="/campaigns" onClick={() => setOpen(false)}
-            className="block px-3 py-2 text-sm hover:bg-gray-800 transition">
-            Campaigns
-          </Link>
-          <Link href="/smartlinks" onClick={() => setOpen(false)}
-            className="block px-3 py-2 text-sm hover:bg-gray-800 transition">
-            Smart links
-          </Link>
-          <hr className="border-gray-800 my-1" />
           <Link href="/settings" onClick={() => setOpen(false)}
             className="block px-3 py-2 text-sm hover:bg-gray-800 transition">
             Settings

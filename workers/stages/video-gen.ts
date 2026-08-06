@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
-import { buildStockQuery, findStockVideos } from '../../lib/stock-video';
+import { findVibeVideos, VIBES } from '../../lib/stock-video';
 
 const CTA_OPTIONS = ['Listen Now', 'Stream Today', 'Hear It First', 'Play Now', 'Out Now'];
 
@@ -228,6 +228,16 @@ export async function runVideoGen(campaignId: string) {
   const videoDir = path.join(uploadDir, campaignId, 'videos');
   fs.mkdirSync(videoDir, { recursive: true });
 
+  // How many creatives to render. Defaults to one per audio section (5). Raising
+  // it gives Meta more distinct visuals to optimise across — each creative gets
+  // its own "vibe" background and audio sections are reused in rotation.
+  // NB: meta-setup creates an ad per creative PER audience, so ads scale as
+  // creatives × ad sets. Capped at the vibe library size.
+  const creativeCount = Math.min(
+    Math.max(1, parseInt(process.env.VIDEO_CREATIVE_COUNT ?? '', 10) || campaign.segments.length || 5),
+    VIBES.length,
+  );
+
   const visualConfig: VisualConfig | null =
     campaign.visualConfig ? (campaign.visualConfig as VisualConfig) : null;
 
@@ -263,19 +273,23 @@ export async function runVideoGen(campaignId: string) {
   // PEXELS_API_KEY, or on any download failure — always falls back cleanly.
   const stockBgPaths: string[] = [];
   if (!aiBgPaths.length) {
-    const query = buildStockQuery({ genre: (campaign as any).genre, mood: (campaign as any).mood });
-    const links = await findStockVideos(query, campaign.segments.length || 5);
-    for (let i = 0; i < links.length; i++) {
+    const vibes = await findVibeVideos(
+      { genre: (campaign as any).genre, mood: (campaign as any).mood },
+      creativeCount,
+    );
+    for (let i = 0; i < vibes.length; i++) {
       const dest = path.join(uploadDir, campaignId, `stock_bg_${i}.mp4`);
       try {
-        await downloadToFile(links[i], dest);
+        await downloadToFile(vibes[i].url, dest);
         stockBgPaths.push(dest);
       } catch (err) {
         console.warn('[video-gen] stock bg download failed:', err instanceof Error ? err.message : err);
       }
     }
     if (stockBgPaths.length) {
-      console.log(`[video-gen] using ${stockBgPaths.length} stock background(s) for ${campaignId} (query: "${query}")`);
+      console.log(
+        `[video-gen] ${stockBgPaths.length} vibe background(s) for ${campaignId}: ${vibes.map((v) => v.vibe).join(', ')}`,
+      );
     }
   }
 
@@ -289,11 +303,15 @@ export async function runVideoGen(campaignId: string) {
   // background; otherwise the default cover-art template.
   const aiBgPath = aiBgPaths.length ? aiBgPaths[0] : undefined;
 
-  for (const segment of campaign.segments) {
+  // One creative per index; audio sections rotate when there are more creatives
+  // than sections, so each vibe is paired with a different part of the track.
+  for (let i = 0; i < creativeCount; i++) {
+    const segment = campaign.segments[i % campaign.segments.length];
+    if (!segment) break;
     const vc = visualConfig ?? {};
-    const ctaText = visualConfig?.ctaText || CTA_OPTIONS[segment.index % CTA_OPTIONS.length];
+    const ctaText = visualConfig?.ctaText || CTA_OPTIONS[i % CTA_OPTIONS.length];
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
-    const outputFile = path.join(videoDir, `creative_${segment.index}.mp4`);
+    const outputFile = path.join(videoDir, `creative_${i}.mp4`);
 
     if (!fs.existsSync(segment.fileUrl)) {
       failures.push(`segment ${segment.index}: audio file missing at ${segment.fileUrl}`);
@@ -305,7 +323,7 @@ export async function runVideoGen(campaignId: string) {
     }
 
     const t0 = Date.now();
-    console.log(`[video-gen] campaign ${campaignId} segment ${segment.index} starting`);
+    console.log(`[video-gen] campaign ${campaignId} creative ${i} (section ${segment.index}) starting`);
     try {
       await withTimeout(generateVideo({
         bgSrc,
@@ -316,13 +334,13 @@ export async function runVideoGen(campaignId: string) {
         genre: (campaign as any).genre as string | undefined,
         artistName: campaign.artistName ?? undefined,
         visualConfig,
-        presetIndex: segment.index,
+        presetIndex: i,
         // AI background (paid, same clip on every creative) takes priority;
         // otherwise a per-creative stock clip; otherwise the cover-art template.
         aiBgPath: aiBgPath ?? (stockBgPaths.length
-          ? stockBgPaths[segment.index % stockBgPaths.length]
+          ? stockBgPaths[i % stockBgPaths.length]
           : undefined),
-      }), 3 * 60 * 1000, `video-gen segment ${segment.index}`);
+      }), 3 * 60 * 1000, `video-gen creative ${i}`);
 
       const thumbFile = outputFile.replace('.mp4', '_thumb.jpg');
       await withTimeout(new Promise<void>((resolve) => {
@@ -332,17 +350,17 @@ export async function runVideoGen(campaignId: string) {
           .on('end', () => resolve())
           .on('error', () => resolve())
           .run();
-      }), 30 * 1000, `thumbnail segment ${segment.index}`).catch(() => {});
+      }), 30 * 1000, `thumbnail creative ${i}`).catch(() => {});
 
       await prisma.videoCreative.create({
         data: { campaignId, segmentId: segment.id, fileUrl: outputFile, ctaText },
       });
       created++;
-      console.log(`[video-gen] segment ${segment.index} done in ${Math.round((Date.now() - t0) / 1000)}s`);
+      console.log(`[video-gen] creative ${i} done in ${Math.round((Date.now() - t0) / 1000)}s`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[video-gen] segment ${segment.index} failed:`, msg);
-      failures.push(`segment ${segment.index}: ${msg}`);
+      console.error(`[video-gen] creative ${i} failed:`, msg);
+      failures.push(`creative ${i}: ${msg}`);
     }
   }
   console.log(`[video-gen] created ${created} creatives in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);

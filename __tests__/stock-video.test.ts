@@ -1,5 +1,34 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildStockQuery, findStockVideos } from '../lib/stock-video';
+import { buildStockQuery, findStockVideos, pickVibes, VIBES } from '../lib/stock-video';
+
+describe('pickVibes', () => {
+  it('returns the requested number of distinct vibes', () => {
+    const picked = pickVibes({ genre: 'edm', mood: null }, 10);
+    expect(picked).toHaveLength(10);
+    expect(new Set(picked.map((v) => v.name)).size).toBe(10);
+  });
+
+  it('leads with vibes matching the genre', () => {
+    expect(pickVibes({ genre: 'metal', mood: null }, 1)[0].name).toBe('smoke-embers');
+    expect(pickVibes({ genre: 'folk', mood: null }, 1)[0].name).toBe('golden-hour');
+  });
+
+  it('leads with vibes matching the mood over the genre', () => {
+    expect(pickVibes({ genre: 'rock', mood: 'sad' }, 1)[0].name).toBe('rain-window');
+  });
+
+  it('is deterministic for the same input', () => {
+    const a = pickVibes({ genre: 'pop', mood: 'chill' }, 5).map((v) => v.name);
+    const b = pickVibes({ genre: 'pop', mood: 'chill' }, 5).map((v) => v.name);
+    expect(a).toEqual(b);
+  });
+
+  it('still returns vibes when nothing matches, and never more than the library', () => {
+    expect(pickVibes({ genre: 'zzz', mood: null }, 5)).toHaveLength(5);
+    expect(pickVibes({ genre: null, mood: null }, 99)).toHaveLength(VIBES.length);
+    expect(pickVibes({ genre: null, mood: null }, 0)).toHaveLength(1);
+  });
+});
 
 describe('buildStockQuery', () => {
   it('prefers mood over genre', () => {

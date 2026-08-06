@@ -54,6 +54,40 @@ export function buildStockQuery(opts: { genre?: string | null; mood?: string | n
   return 'abstract atmospheric light motion';
 }
 
+// A library of visually distinct "vibes". Rendering one creative per vibe gives
+// Meta genuinely different thumbnails/openings to optimise across, rather than
+// five near-identical clips. Ordered by broad appeal; pickVibes() re-orders so
+// the ones matching the track's genre/mood come first.
+export const VIBES = [
+  { name: 'neon-city',    query: 'neon city night lights',        tags: ['edm', 'electronic', 'house', 'techno', 'hip', 'rap', 'pop', 'energetic'] },
+  { name: 'rain-window',  query: 'rain window drops slow moody',  tags: ['sad', 'melancholy', 'indie', 'ambient', 'dark'] },
+  { name: 'golden-hour',  query: 'golden hour nature sunlight',   tags: ['folk', 'country', 'indie', 'happy', 'romantic'] },
+  { name: 'smoke-embers', query: 'dark smoke embers fire',        tags: ['metal', 'rock', 'aggressive', 'dark', 'techno'] },
+  { name: 'pastel-sky',   query: 'pastel clouds sky dreamy',      tags: ['dreamy', 'chill', 'ambient', 'pop'] },
+  { name: 'film-grain',   query: 'retro vintage film grain',      tags: ['indie', 'folk', 'jazz', 'romantic'] },
+  { name: 'underwater',   query: 'underwater light rays slow',    tags: ['ambient', 'chill', 'dreamy', 'classical'] },
+  { name: 'open-road',    query: 'open road desert driving',      tags: ['country', 'rock', 'folk', 'energetic'] },
+  { name: 'bokeh-lights', query: 'bokeh lights blur dark',        tags: ['jazz', 'pop', 'romantic', 'chill'] },
+  { name: 'liquid-ink',   query: 'liquid ink paint abstract',     tags: ['electronic', 'classical', 'ambient', 'dark'] },
+] as const;
+
+export type Vibe = (typeof VIBES)[number];
+
+// Order the vibe library by relevance to this track, then take `count`. Every
+// vibe stays eligible — a rock track still gets some visual variety — but the
+// on-genre ones lead, which matters when count is small.
+export function pickVibes(opts: { genre?: string | null; mood?: string | null }, count: number): Vibe[] {
+  const needle = `${opts.genre ?? ''} ${opts.mood ?? ''}`.toLowerCase();
+  const scored = VIBES.map((vibe, i) => ({
+    vibe,
+    // Stable tiebreak on original order so results are deterministic.
+    score: vibe.tags.some((t) => needle.includes(t)) ? 0 : 1,
+    i,
+  }));
+  scored.sort((a, b) => a.score - b.score || a.i - b.i);
+  return scored.slice(0, Math.max(1, count)).map((s) => s.vibe);
+}
+
 type PexelsVideoFile = { link: string; width: number | null; height: number | null; quality: string };
 type PexelsVideo = { id: number; width: number; height: number; video_files: PexelsVideoFile[] };
 
@@ -91,4 +125,23 @@ export async function findStockVideos(query: string, count = 5): Promise<string[
     console.warn('[stock-video] search error:', err instanceof Error ? err.message : err);
     return [];
   }
+}
+
+// One clip per vibe, for `count` creatives. Searches run in parallel (one API
+// call each — trivial against Pexels' 200/hour) and each returns its first
+// usable clip. Entries that fail are dropped; callers handle a short list.
+export async function findVibeVideos(
+  opts: { genre?: string | null; mood?: string | null },
+  count: number,
+): Promise<{ vibe: string; url: string }[]> {
+  if (!process.env.PEXELS_API_KEY) return [];
+
+  const vibes = pickVibes(opts, count);
+  const results = await Promise.all(
+    vibes.map(async (v): Promise<{ vibe: string; url: string } | null> => {
+      const links = await findStockVideos(v.query, 1);
+      return links[0] ? { vibe: v.name, url: links[0] } : null;
+    }),
+  );
+  return results.filter((r): r is { vibe: string; url: string } => !!r);
 }

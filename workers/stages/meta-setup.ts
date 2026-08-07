@@ -11,6 +11,7 @@ import {
   buildAdCreativeBody,
   makeCreateAdSet,
   resolveInterests,
+  selectAdSetAudiences,
   ensureClickAudience,
   ensureLookalike,
   LOOKALIKE_MIN_CLICKS,
@@ -203,13 +204,44 @@ export async function runMetaSetup(campaignId: string) {
   // Split the daily budget across the ad sets that will actually run (PENDING_DATA
   // audiences are skipped), plus the lookalike ad set when it's available.
   const alreadyHasLookalikeAdSet = campaign.audiences.some((a) => a.type === 'LOOKALIKE' && a.metaAdSetId);
-  const adSetCount = Math.max(
-    campaign.audiences.filter((a) => (a as any).dataStatus !== 'PENDING_DATA' && a.type !== 'LOOKALIKE').length
-      + (lookalikeAudienceId && !alreadyHasLookalikeAdSet ? 1 : 0),
-    1,
-  );
 
-  for (const audience of campaign.audiences) {
+  // Consolidate into ONE ad set by default. Meta needs roughly 50 conversions
+  // per week per ad set to exit the learning phase, so splitting a small daily
+  // budget across three audiences means none of them ever learns — and the
+  // problem compounds with more creatives, since ads are created per creative
+  // PER ad set. One ad set holding every creative lets Meta's own optimiser
+  // pick winners, which is what it's good at. Set META_SINGLE_ADSET=false for
+  // the old behaviour (separate ad set per audience).
+  const singleAdSet = process.env.META_SINGLE_ADSET !== 'false';
+
+  const targetAudiences = selectAdSetAudiences(campaign.audiences, singleAdSet);
+
+  const adSetCount = singleAdSet
+    ? 1
+    : Math.max(
+        campaign.audiences.filter((a) => (a as any).dataStatus !== 'PENDING_DATA' && a.type !== 'LOOKALIKE').length
+          + (lookalikeAudienceId && !alreadyHasLookalikeAdSet ? 1 : 0),
+        1,
+      );
+
+  // Every creative becomes an ad in the given ad set. Meta rotates them and
+  // shifts spend toward whichever performs — that's the point of many vibes.
+  const createAdsForAdSet = async (adSetId: string, adSetName: string) => {
+    for (const creative of campaign.creatives) {
+      const adCreativeId = adCreativeIds.get(creative.id);
+      if (!adCreativeId) continue; // skip if no creative
+      const clipNum = campaign.creatives.indexOf(creative) + 1;
+      await metaPost(`/act_${adAccountId}/ads`, token, {
+        name: `${campaign.songTitle} — Clip ${clipNum} — ${adSetName}`,
+        adset_id: adSetId,
+        status: 'ACTIVE',
+        creative: { creative_id: adCreativeId },
+      });
+    }
+    console.log(`[meta-setup] Created ${campaign.creatives.length} ad(s) in "${adSetName}"`);
+  };
+
+  for (const audience of targetAudiences) {
     // Skip adset creation on retry if this audience already has a Meta adset ID
     if (audience.metaAdSetId) {
       console.log(`[meta-setup] Skipping adset creation for ${audience.name} — already exists`);
@@ -249,23 +281,12 @@ export async function runMetaSetup(campaignId: string) {
       data: { metaAdSetId: adSet.id },
     });
 
-    for (const creative of campaign.creatives) {
-      const adCreativeId = adCreativeIds.get(creative.id);
-      if (!adCreativeId) continue; // skip if no creative
-
-      const clipNum = campaign.creatives.indexOf(creative) + 1;
-      await metaPost(`/act_${adAccountId}/ads`, token, {
-        name: `${campaign.songTitle} — Clip ${clipNum} — ${audience.name}`,
-        adset_id: adSet.id,
-        status: 'ACTIVE',
-        creative: { creative_id: adCreativeId },
-      });
-    }
+    await createAdsForAdSet(adSet.id, audience.name);
   }
 
   // Lookalike ad set — an extra ad set targeting people similar to the customer's
   // Spotify clickers. Only when a lookalike is ready and one isn't already built.
-  if (lookalikeAudienceId && !alreadyHasLookalikeAdSet) {
+  if (lookalikeAudienceId && !alreadyHasLookalikeAdSet && !singleAdSet) {
     try {
       const laName = 'Lookalike — Spotify fans';
       const laAdSet = await createAdSet(buildAdSetBody({
@@ -290,17 +311,7 @@ export async function runMetaSetup(campaignId: string) {
           dataStatus: 'AVAILABLE',
         },
       });
-      for (const creative of campaign.creatives) {
-        const adCreativeId = adCreativeIds.get(creative.id);
-        if (!adCreativeId) continue;
-        const clipNum = campaign.creatives.indexOf(creative) + 1;
-        await metaPost(`/act_${adAccountId}/ads`, token, {
-          name: `${campaign.songTitle} — Clip ${clipNum} — ${laName}`,
-          adset_id: laAdSet.id,
-          status: 'ACTIVE',
-          creative: { creative_id: adCreativeId },
-        });
-      }
+      await createAdsForAdSet(laAdSet.id, laName);
       console.log(`[meta-setup] Added lookalike ad set ${laAdSet.id}`);
     } catch (err) {
       // Never let the lookalike (an enhancement) break a campaign — skip on error.

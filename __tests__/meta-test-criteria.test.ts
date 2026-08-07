@@ -103,3 +103,40 @@ describe('meta-test-criteria', () => {
     expect(SPOTIFY_CLICK_CONVERSION_NAME).toBe('Promohit Spotify Click');
   });
 });
+
+// ── Ad set consolidation ─────────────────────────────────────────────────────
+import { selectAdSetAudiences } from '../lib/meta-campaign';
+
+describe('selectAdSetAudiences', () => {
+  const interest = { type: 'INTEREST', metaAdSetId: null, dataStatus: 'AVAILABLE' };
+  const retarget = { type: 'RETARGETING', metaAdSetId: null, dataStatus: 'AVAILABLE' };
+  const pending = { type: 'RETARGETING', metaAdSetId: null, dataStatus: 'PENDING_DATA' };
+  const built = { type: 'INTEREST', metaAdSetId: 'as_1', dataStatus: 'AVAILABLE' };
+
+  it('consolidates to a single ad set, preferring INTEREST', () => {
+    const picked = selectAdSetAudiences([retarget, interest], true);
+    expect(picked).toEqual([interest]);
+  });
+
+  it('falls back to any eligible audience when there is no INTEREST one', () => {
+    expect(selectAdSetAudiences([retarget], true)).toEqual([retarget]);
+  });
+
+  it('returns every eligible audience when consolidation is off', () => {
+    expect(selectAdSetAudiences([interest, retarget], false)).toEqual([interest, retarget]);
+  });
+
+  it('never rebuilds an ad set that already exists (retry safety)', () => {
+    expect(selectAdSetAudiences([built], true)).toEqual([]);
+    expect(selectAdSetAudiences([built, interest], true)).toEqual([interest]);
+  });
+
+  it('skips audiences still waiting on data', () => {
+    expect(selectAdSetAudiences([pending], true)).toEqual([]);
+    expect(selectAdSetAudiences([pending, retarget], false)).toEqual([retarget]);
+  });
+
+  it('returns an empty list when nothing is eligible', () => {
+    expect(selectAdSetAudiences([], true)).toEqual([]);
+  });
+});

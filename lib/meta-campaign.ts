@@ -358,6 +358,24 @@ export function buildCampaignObjectives(useConversions: boolean): string[] {
   return useConversions ? ['OUTCOME_ENGAGEMENT'] : ['OUTCOME_TRAFFIC'];
 }
 
+// Which audiences actually get an ad set built for them.
+//
+// Consolidated (default): a single ad set holding every creative. Meta needs
+// ~50 conversions/week per ad set to leave the learning phase, so splitting a
+// small daily budget across several audiences means none of them ever learns —
+// and it compounds with creative count, since ads are created per creative per
+// ad set. The INTEREST audience is preferred as the survivor: it's the
+// acquisition one, while retargeting/lookalike need data a new campaign lacks.
+export function selectAdSetAudiences<T extends { type: string; metaAdSetId?: string | null; dataStatus?: string | null }>(
+  audiences: T[],
+  singleAdSet: boolean,
+): T[] {
+  const eligible = audiences.filter((a) => !a.metaAdSetId && a.dataStatus !== 'PENDING_DATA');
+  if (!singleAdSet) return eligible;
+  const interest = eligible.filter((a) => a.type === 'INTEREST');
+  return (interest.length ? interest : eligible).slice(0, 1);
+}
+
 export function buildCampaignBody(params: { name: string; objective: string }): Record<string, unknown> {
   return {
     name: params.name,

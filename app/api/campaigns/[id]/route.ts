@@ -5,6 +5,7 @@ import { CampaignStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { dispatchStage, campaignQueue } from '@/lib/queue';
 import { getServerSession } from '@/lib/auth';
+import { buildRenderPlan } from '@/lib/video-plan';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +91,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     adAccountId: user?.metaConnection?.adAccountId ?? null,
     isOwner: session?.user?.email === 'hobeybennett@gmail.com',
     suggestLookalike,
+    // How many creatives this campaign will end up with, so progress can count
+    // to the right total (the matrix can produce far more than one per section).
+    expectedCreatives: buildRenderPlan(campaign.segments?.length ?? 5).length,
   });
 }
 

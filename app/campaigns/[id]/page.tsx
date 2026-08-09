@@ -288,7 +288,10 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
   const videoDone = jobStatus('VIDEO_GEN') === 'DONE';
 
   const creatives: any[] = campaign.creatives ?? [];
-  const videoCount = Math.min(creatives.length, TOTAL_CLIPS);
+  // The matrix can produce far more than one creative per section, so trust the
+  // server's expected total rather than assuming one-per-section.
+  const totalClips: number = campaign.expectedCreatives ?? TOTAL_CLIPS;
+  const videoCount = Math.min(creatives.length, totalClips);
   const copies: any[] = campaign.adCopies ?? [];
   const audiences: any[] = campaign.audiences ?? [];
   const hasMetaConnection = campaign.hasMetaConnection;
@@ -317,7 +320,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
 
   // Smooth progress: segmentation + copy + audiences (1 unit each) + each video clip.
   const doneUnits = (segDone ? 1 : 0) + (copyDone ? 1 : 0) + (audienceDone ? 1 : 0) + videoCount;
-  const pct = Math.round((doneUnits / (3 + TOTAL_CLIPS)) * 100);
+  const pct = Math.round((doneUnits / (3 + totalClips)) * 100);
 
   const ageMs = now - new Date(campaign.createdAt).getTime();
   const anyRunning = jobs.some(
@@ -331,7 +334,7 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
     { key: 'AUDIENCE_GEN', label: 'Building your audiences', done: audienceDone },
     {
       key: 'VIDEO_GEN',
-      label: videoDone ? 'Videos ready' : `Generating videos (${videoCount}/${TOTAL_CLIPS})`,
+      label: videoDone ? 'Videos ready' : `Generating videos (${videoCount}/${totalClips})`,
       done: videoDone,
     },
   ];
@@ -460,14 +463,14 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold">
-            Video clips {videoDone ? `(${TOTAL_CLIPS})` : `(${videoCount}/${TOTAL_CLIPS})`}
+            Video clips {videoDone ? `(${creatives.length})` : `(${videoCount}/${totalClips})`}
           </h3>
           <span className="text-xs text-gray-500">
             {videoDone ? 'A/B testing which section performs best' : 'Rendering…'}
           </span>
         </div>
         <div className="grid grid-cols-5 gap-2">
-          {Array.from({ length: TOTAL_CLIPS }).map((_, i) => {
+          {Array.from({ length: videoDone ? creatives.length : totalClips }).map((_, i) => {
             const creative = creatives[i];
             return (
               <div key={i} className="text-center">

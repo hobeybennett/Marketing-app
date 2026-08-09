@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { prisma } from '../prisma';
 import { dispatchStage } from '../../lib/queue';
-import { findVibeVideos, VIBES } from '../../lib/stock-video';
+import { findVibeVideos } from '../../lib/stock-video';
+import { buildRenderPlan, vibeCountFor, isMatrixMode } from '../../lib/video-plan';
 
 const CTA_OPTIONS = ['Listen Now', 'Stream Today', 'Hear It First', 'Play Now', 'Out Now'];
 
@@ -228,15 +229,9 @@ export async function runVideoGen(campaignId: string) {
   const videoDir = path.join(uploadDir, campaignId, 'videos');
   fs.mkdirSync(videoDir, { recursive: true });
 
-  // How many creatives to render. Defaults to one per audio section (5). Raising
-  // it gives Meta more distinct visuals to optimise across — each creative gets
-  // its own "vibe" background and audio sections are reused in rotation.
-  // NB: meta-setup creates an ad per creative PER audience, so ads scale as
-  // creatives × ad sets. Capped at the vibe library size.
-  const creativeCount = Math.min(
-    Math.max(1, parseInt(process.env.VIDEO_CREATIVE_COUNT ?? '', 10) || campaign.segments.length || 5),
-    VIBES.length,
-  );
+  // Which vibe pairs with which audio section — see lib/video-plan.
+  const renderPlan = buildRenderPlan(campaign.segments.length);
+  const vibeCount = vibeCountFor(campaign.segments.length);
 
   const visualConfig: VisualConfig | null =
     campaign.visualConfig ? (campaign.visualConfig as VisualConfig) : null;
@@ -275,7 +270,7 @@ export async function runVideoGen(campaignId: string) {
   if (!aiBgPaths.length) {
     const vibes = await findVibeVideos(
       { genre: (campaign as any).genre, mood: (campaign as any).mood },
-      creativeCount,
+      vibeCount,
     );
     for (let i = 0; i < vibes.length; i++) {
       const dest = path.join(uploadDir, campaignId, `stock_bg_${i}.mp4`);
@@ -303,11 +298,15 @@ export async function runVideoGen(campaignId: string) {
   // background; otherwise the default cover-art template.
   const aiBgPath = aiBgPaths.length ? aiBgPaths[0] : undefined;
 
-  // One creative per index; audio sections rotate when there are more creatives
-  // than sections, so each vibe is paired with a different part of the track.
-  for (let i = 0; i < creativeCount; i++) {
-    const segment = campaign.segments[i % campaign.segments.length];
-    if (!segment) break;
+  console.log(
+    `[video-gen] rendering ${renderPlan.length} creative(s) for ${campaignId}` +
+    ` (${vibeCount} vibe(s) × ${isMatrixMode() ? `${campaign.segments.length} section(s)` : 'rotating sections'})`,
+  );
+
+  for (let i = 0; i < renderPlan.length; i++) {
+    const { vibeIndex, segmentIndex } = renderPlan[i];
+    const segment = campaign.segments[segmentIndex];
+    if (!segment) continue;
     const vc = visualConfig ?? {};
     const ctaText = visualConfig?.ctaText || CTA_OPTIONS[i % CTA_OPTIONS.length];
     const bgSrc = (vc.bgMode === 'upload' && bgPath) ? bgPath : coverArtPath;
@@ -323,7 +322,7 @@ export async function runVideoGen(campaignId: string) {
     }
 
     const t0 = Date.now();
-    console.log(`[video-gen] campaign ${campaignId} creative ${i} (section ${segment.index}) starting`);
+    console.log(`[video-gen] campaign ${campaignId} creative ${i} (vibe ${vibeIndex}, section ${segment.index}) starting`);
     try {
       await withTimeout(generateVideo({
         bgSrc,
@@ -334,11 +333,11 @@ export async function runVideoGen(campaignId: string) {
         genre: (campaign as any).genre as string | undefined,
         artistName: campaign.artistName ?? undefined,
         visualConfig,
-        presetIndex: i,
+        presetIndex: vibeIndex,
         // AI background (paid, same clip on every creative) takes priority;
         // otherwise a per-creative stock clip; otherwise the cover-art template.
         aiBgPath: aiBgPath ?? (stockBgPaths.length
-          ? stockBgPaths[i % stockBgPaths.length]
+          ? stockBgPaths[vibeIndex % stockBgPaths.length]
           : undefined),
       }), 3 * 60 * 1000, `video-gen creative ${i}`);
 

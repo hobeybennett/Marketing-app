@@ -6,11 +6,24 @@ import { useSession } from 'next-auth/react';
 // App chrome for signed-in pages: a sidebar on desktop, a bottom tab bar on
 // mobile (most usage is on a phone). Public pages — landing, /go smart links,
 // guides, legal — render without it.
+declare global {
+  interface Window { $crisp?: unknown[] }
+}
+
+// Third slot is Support rather than Settings: on mobile the Crisp launcher
+// bubble sits exactly where this tab is, so the tab opens the chat and the
+// bubble stays hidden. Settings lives in the header cog instead.
+function openSupport() {
+  if (typeof window === 'undefined' || !window.$crisp) return;
+  window.$crisp.push(['do', 'chat:show']);
+  window.$crisp.push(['do', 'chat:open']);
+}
+
 const NAV = [
   { href: '/campaigns', label: 'Campaigns', icon: MegaphoneIcon },
   { href: '/smartlinks', label: 'Smart links', icon: LinkIcon },
-  { href: '/settings', label: 'Settings', icon: CogIcon },
-];
+  { action: openSupport, label: 'Support', icon: ChatIcon },
+] as const;
 
 const APP_ROUTES = ['/campaigns', '/smartlinks', '/settings', '/onboarding', '/connect-meta', '/admin'];
 
@@ -30,20 +43,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           2×12px padding + 1px border) — keep in sync if that nav changes. */}
       <aside className="hidden md:block w-56 shrink-0 border-r border-gray-800 min-h-[calc(100vh-57px)] sticky top-[57px] self-start">
         <nav className="p-3 space-y-1">
-          {NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                isActive(href)
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            const classes = (active: boolean) =>
+              `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                active
                   ? 'bg-violet-600/15 text-violet-300 border border-violet-700/40'
                   : 'text-gray-400 hover:text-gray-100 hover:bg-gray-900 border border-transparent'
-              }`}
-            >
-              <Icon />
-              {label}
-            </Link>
-          ))}
+              }`;
+            return 'href' in item ? (
+              <Link key={item.label} href={item.href} className={classes(isActive(item.href))}>
+                <Icon />
+                {item.label}
+              </Link>
+            ) : (
+              <button key={item.label} onClick={item.action} className={classes(false)}>
+                <Icon />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
@@ -51,19 +70,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 min-w-0 px-4 py-8 pb-24 md:pb-8">{children}</main>
 
       {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-gray-950/95 backdrop-blur-md flex">
-        {NAV.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition ${
-              isActive(href) ? 'text-violet-300' : 'text-gray-500'
-            }`}
-          >
-            <Icon />
-            {label}
-          </Link>
-        ))}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-800 bg-gray-950/95 backdrop-blur-md flex pb-[env(safe-area-inset-bottom)]">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const classes = (active: boolean) =>
+            `flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition ${
+              active ? 'text-violet-300' : 'text-gray-500'
+            }`;
+          return 'href' in item ? (
+            <Link key={item.label} href={item.href} className={classes(isActive(item.href))}>
+              <Icon />
+              {item.label}
+            </Link>
+          ) : (
+            <button key={item.label} onClick={item.action} className={classes(false)}>
+              <Icon />
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
     </div>
   );
@@ -85,11 +110,10 @@ function LinkIcon() {
   );
 }
 
-function CogIcon() {
+function ChatIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 21l1.4-3.5A7.6 7.6 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
     </svg>
   );
 }

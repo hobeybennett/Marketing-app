@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import DeleteCampaignButton from '@/components/DeleteCampaignButton';
 import AiVideoUpgrade from './AiVideoUpgrade';
+import { SkeletonBar } from '@/components/Skeleton';
 import { AI_VIDEO_ENABLED } from '@/lib/flags';
 
 function videoApiUrl(fileUrl: string): string {
@@ -78,7 +79,25 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     setActionLoading(false);
   }
 
-  if (loading) return <div className="text-gray-400 text-center py-20">Loading…</div>;
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <SkeletonBar className="w-14 h-14 shrink-0" />
+          <div className="flex-1 space-y-2">
+            <SkeletonBar className="h-5 w-40" />
+            <SkeletonBar className="h-3.5 w-24" />
+          </div>
+        </div>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
+          <SkeletonBar className="h-5 w-56" />
+          <SkeletonBar className="h-2 w-full" />
+          <SkeletonBar className="h-3.5 w-1/2" />
+          <SkeletonBar className="h-3.5 w-2/5" />
+        </div>
+      </div>
+    );
+  }
   if (!campaign) return <div className="text-red-400 text-center py-20">Campaign not found.</div>;
 
   const { status } = campaign;

@@ -5,6 +5,7 @@ import './globals.css';
 import SessionProvider from '@/components/SessionProvider';
 import UserNav from '@/components/UserNav';
 import AppShell from '@/components/AppShell';
+import SettingsCog from '@/components/SettingsCog';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'https://promohit.marketing'),
@@ -83,7 +84,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/campaigns" className="font-display text-lg font-700 gradient-text tracking-tight">
               Promohit
             </Link>
-            <UserNav />
+            <div className="flex items-center gap-1">
+              <SettingsCog />
+              <UserNav />
+            </div>
           </nav>
           <AppShell>{children}</AppShell>
           <footer className="border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6 text-xs text-gray-500 pb-20 md:pb-4">
@@ -94,6 +98,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="crisp-chat" strategy="afterInteractive">{`
           window.$crisp=[];
           window.CRISP_WEBSITE_ID="be0fb9a0-faf7-4b05-984b-6c0d2b34d19a";
+          // On mobile the launcher bubble sits exactly where the bottom tab bar
+          // is, so hide it there — the Support tab opens the chat instead. Queued
+          // commands run once the client loads. Re-hide after the chat is closed.
+          (function(){
+            var isMobile = function(){ return window.matchMedia("(max-width: 767px)").matches; };
+            if (isMobile()) { window.$crisp.push(["do","chat:hide"]); }
+            window.$crisp.push(["on","chat:closed",function(){
+              if (isMobile()) { window.$crisp.push(["do","chat:hide"]); }
+            }]);
+          })();
           (function(){var d=document;var s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();
         `}</Script>
       </body>

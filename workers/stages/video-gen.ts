@@ -362,7 +362,28 @@ export async function runVideoGen(campaignId: string) {
       failures.push(`creative ${i}: ${msg}`);
     }
   }
-  console.log(`[video-gen] created ${created} creatives in ${Math.round((Date.now() - tAll) / 1000)}s (${failures.length} failed)`);
+  console.log(
+    `[video-gen] created ${created}/${renderPlan.length} creatives in ${Math.round((Date.now() - tAll) / 1000)}s` +
+    ` (${campaign.segments.length} section(s), ${failures.length} failed)`,
+  );
+
+  // Record the outcome on the job so a short count is diagnosable from the API
+  // instead of only from worker logs — partial failures don't fail the stage,
+  // so they were previously invisible once the logs rolled.
+  try {
+    await prisma.campaignJob.updateMany({
+      where: { campaignId, stage: 'VIDEO_GEN' },
+      data: {
+        progress: {
+          step: 'Rendered',
+          current: created,
+          total: renderPlan.length,
+          sections: campaign.segments.length,
+          failures: failures.slice(0, 10),
+        },
+      },
+    });
+  } catch { /* diagnostics only */ }
 
   if (created === 0) {
     throw new Error(`All video creatives failed:\n${failures.join('\n')}`);

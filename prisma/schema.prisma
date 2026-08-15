@@ -80,6 +80,9 @@ model CampaignJob {
   stage      JobStage
   status     JobStatus @default(PENDING)
   error      String?
+  // Sub-step progress for long stages, e.g. { step: "Uploading videos",
+  // current: 3, total: 10 }. Best-effort — purely for the UI.
+  progress   Json?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

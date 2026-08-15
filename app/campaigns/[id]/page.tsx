@@ -156,6 +156,39 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           )}
         </div>
 
+        {/* Live progress while Meta setup runs — it uploads a video per creative,
+            so this stage can take minutes and otherwise looks frozen. */}
+        {status === 'LAUNCHING' && !isStuckLaunching && (() => {
+          const metaJob = (campaign.jobs ?? []).find((j: any) => j.stage === 'META_SETUP');
+          const p = metaJob?.progress as { step?: string; current?: number; total?: number } | null;
+          const step = p?.step ?? 'Getting things ready';
+          const hasCount = !!p?.total && p.total > 0;
+          const pct = hasCount ? Math.round(((p!.current ?? 0) / p!.total!) * 100) : null;
+          return (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-gray-200">{step}</p>
+                {hasCount && (
+                  <span className="text-sm font-semibold text-violet-300">
+                    {p!.current}/{p!.total}
+                  </span>
+                )}
+              </div>
+              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 ${
+                    pct === null ? 'w-1/3 animate-pulse' : 'transition-all duration-500'
+                  }`}
+                  style={pct === null ? undefined : { width: `${Math.max(pct, 4)}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Setting your ads up on Meta. This can take a few minutes with lots of creatives — you can leave this page.
+              </p>
+            </div>
+          );
+        })()}
+
         {isStuckLaunching && (
           <div className="mb-4 rounded-xl border border-yellow-700 bg-yellow-900/20 px-4 py-4 text-sm text-yellow-300">
             <p className="font-semibold mb-1">Taking longer than expected</p>

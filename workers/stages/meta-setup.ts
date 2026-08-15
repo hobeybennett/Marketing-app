@@ -18,6 +18,20 @@ import {
 } from '../../lib/meta-campaign';
 
 export async function runMetaSetup(campaignId: string) {
+  // Sub-step progress for the UI. Meta setup uploads a video per creative, so
+  // with a full creative matrix this stage runs for minutes — without this the
+  // page just says "Launching…" the whole time. Never let a progress write
+  // break the launch.
+  const reportProgress = async (step: string, current = 0, total = 0) => {
+    try {
+      await prisma.campaignJob.updateMany({
+        where: { campaignId, stage: 'META_SETUP' },
+        data: { progress: { step, current, total } },
+      });
+    } catch { /* cosmetic only */ }
+  };
+  await reportProgress('Connecting to Meta');
+
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where: { id: campaignId },
     include: {
@@ -77,6 +91,7 @@ export async function runMetaSetup(campaignId: string) {
   // Skip campaign creation on retry if we already have a Meta campaign ID
   let metaCampaignId = campaign.metaCampaignId;
   if (!metaCampaignId) {
+    await reportProgress('Creating the Meta campaign');
     // Strict Engagement when we have a custom conversion (no Sales fallback);
     // Traffic only when there's no custom conversion to optimize on.
     const objectives = buildCampaignObjectives(useConversions);
@@ -106,6 +121,7 @@ export async function runMetaSetup(campaignId: string) {
   // Upload videos and collect video IDs
   const videoIds = new Map<string, string>(); // creativeId -> metaVideoId
   for (const creative of campaign.creatives) {
+    await reportProgress('Uploading videos to Meta', campaign.creatives.indexOf(creative) + 1, campaign.creatives.length);
     if (fs.existsSync(creative.fileUrl)) {
       const videoId = await uploadVideoToMeta(
         creative.fileUrl, token, adAccountId,
@@ -131,6 +147,7 @@ export async function runMetaSetup(campaignId: string) {
   const hasPageToken = !!(metaConn?.pageAccessToken);
   console.log(`[meta-setup] Creating adcreatives for ${campaign.creatives.length} creatives. pageId=${pageId} igUserId=${instagramUserId} hasPageToken=${hasPageToken}`);
   for (const creative of campaign.creatives) {
+    await reportProgress('Building ad creatives', campaign.creatives.indexOf(creative) + 1, campaign.creatives.length);
     // Use campaign-level selected copy; fall back to per-creative copy for legacy campaigns
     const copy = selectedCopy ?? creative.adCopies[0];
     if (!copy) continue;
@@ -228,6 +245,7 @@ export async function runMetaSetup(campaignId: string) {
   // shifts spend toward whichever performs — that's the point of many vibes.
   const createAdsForAdSet = async (adSetId: string, adSetName: string) => {
     for (const creative of campaign.creatives) {
+      await reportProgress('Creating ads', campaign.creatives.indexOf(creative) + 1, campaign.creatives.length);
       const adCreativeId = adCreativeIds.get(creative.id);
       if (!adCreativeId) continue; // skip if no creative
       const clipNum = campaign.creatives.indexOf(creative) + 1;
@@ -241,6 +259,7 @@ export async function runMetaSetup(campaignId: string) {
     console.log(`[meta-setup] Created ${campaign.creatives.length} ad(s) in "${adSetName}"`);
   };
 
+  await reportProgress('Setting up audiences');
   for (const audience of targetAudiences) {
     // Skip adset creation on retry if this audience already has a Meta adset ID
     if (audience.metaAdSetId) {
@@ -322,6 +341,7 @@ export async function runMetaSetup(campaignId: string) {
   // Everything is built (ad sets + ads ACTIVE under a still-PAUSED campaign).
   // Flip the campaign to ACTIVE last so delivery starts atomically — this is
   // what actually makes the ads run and spend the daily budget.
+  await reportProgress('Starting delivery');
   await metaPost(`/${metaCampaignId}`, token, { status: 'ACTIVE' });
 
   await prisma.campaign.update({

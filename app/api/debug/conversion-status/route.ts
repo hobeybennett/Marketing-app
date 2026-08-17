@@ -148,5 +148,39 @@ export async function GET(req: NextRequest) {
     out.customConversion = { error: e instanceof Error ? e.message : String(e) };
   }
 
+  // What the campaign is actually OPTIMISING for. Even with the pixel firing
+  // perfectly, Meta only reports (and optimises toward) conversions when the ad
+  // set asked for them — a campaign built as Traffic / Landing Page Views will
+  // always show zero conversions no matter what the pixel receives.
+  if (campaign.metaCampaignId && !campaign.metaCampaignId.startsWith('mock_')) {
+    try {
+      const camp = await (await fetch(
+        `${META}/${campaign.metaCampaignId}?fields=name,objective,status&access_token=${token}`
+      )).json();
+      const sets = await (await fetch(
+        `${META}/${campaign.metaCampaignId}/adsets?fields=name,status,optimization_goal,promoted_object,daily_budget&limit=25&access_token=${token}`
+      )).json();
+      out.optimisation = {
+        objective: camp.error ? `error: ${camp.error.message}` : camp.objective,
+        campaignStatus: camp.error ? null : camp.status,
+        adSets: sets.error
+          ? `error: ${sets.error.message}`
+          : (sets.data ?? []).map((s: any) => ({
+              name: s.name,
+              status: s.status,
+              optimizationGoal: s.optimization_goal,
+              promotedObject: s.promoted_object ?? null,
+              dailyBudget: s.daily_budget ? `${(Number(s.daily_budget) / 100).toFixed(2)}` : null,
+            })),
+        note:
+          'optimizationGoal OFFSITE_CONVERSIONS + a promotedObject custom_conversion_id means it is ' +
+          'optimising for Spotify clicks. LANDING_PAGE_VIEWS means it fell back to Traffic and Meta ' +
+          'will never report conversions for it.',
+      };
+    } catch (e) {
+      out.optimisation = { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   return NextResponse.json(out);
 }

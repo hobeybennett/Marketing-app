@@ -75,6 +75,10 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
   const utmMedium = String(searchParams.utm_medium ?? '');
   const utmCampaign = String(searchParams.utm_campaign ?? '');
   const utmContent = String(searchParams.utm_content ?? '');
+  // Meta's ad click id. Forwarded to the click route so the server-side
+  // conversion can be attributed to the ad even when the browser pixel hasn't
+  // set the _fbc cookie yet (common in the Instagram in-app browser).
+  const fbclid = String(searchParams.fbclid ?? '');
 
   const isPlaylist = campaign.promoteType === 'playlist';
 
@@ -92,6 +96,7 @@ export default async function SmartLinkPage({ params, searchParams }: Props) {
       ...(utmMedium && { utm_medium: utmMedium }),
       ...(utmCampaign && { utm_campaign: utmCampaign }),
       ...(utmContent && { utm_content: utmContent }),
+      ...(fbclid && { fbclid }),
     });
     return `/api/go/${campaign.id}/click?${p.toString()}`;
   };

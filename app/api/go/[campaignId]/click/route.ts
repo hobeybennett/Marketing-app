@@ -22,7 +22,23 @@ async function sendCapiConversion(req: NextRequest, campaignId: string): Promise
   const ua = req.headers.get('user-agent') ?? '';
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
   const fbp = req.cookies.get('_fbp')?.value;
-  const fbc = req.cookies.get('_fbc')?.value;
+
+  // fbc is what ties this conversion back to the ad click — without it Meta
+  // counts the event on the dataset but credits it to no ad, so campaigns show
+  // zero conversions while our own click count climbs.
+  //
+  // Normally the browser pixel sets _fbc from the fbclid in the landing URL, but
+  // in Instagram/Facebook in-app browsers it frequently hasn't run yet when the
+  // visitor taps straight through. So fall back to building it from the fbclid
+  // ourselves, taken from our own query string or the /go page referer.
+  // Format is Meta's: fb.<subdomainIndex>.<creationTimeMs>.<fbclid>
+  const referer = req.headers.get('referer') ?? '';
+  let fbclid = req.nextUrl.searchParams.get('fbclid');
+  if (!fbclid && referer) {
+    try { fbclid = new URL(referer).searchParams.get('fbclid'); } catch { /* malformed referer */ }
+  }
+  const fbc = req.cookies.get('_fbc')?.value
+    ?? (fbclid ? `fb.1.${Date.now()}.${fbclid}` : undefined);
   const eventId = req.nextUrl.searchParams.get('event_id') || undefined; // dedupes vs the client pixel
   const sourceUrl = req.headers.get('referer') || `${process.env.NEXTAUTH_URL}/go/${campaignId}`;
 

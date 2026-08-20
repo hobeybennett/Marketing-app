@@ -50,8 +50,37 @@ export async function GET(req: NextRequest) {
     prisma.smartLinkClick.count({ where: { campaignId: campaign.id } }),
   ]);
 
+  // Where the traffic actually came from. A conversion can only be credited to
+  // an ad if the visitor arrived via an ad click — which Meta marks with an
+  // fbclid on the landing URL, captured here in the click's referer. Clicks
+  // without one are organic/shared traffic and will NEVER appear in Ads Manager,
+  // no matter how correct the pixel setup is.
+  const recentClicks = await prisma.smartLinkClick.findMany({
+    where: { campaignId: campaign.id, platform: { in: ['spotify', 'spotify_playlist'] } },
+    select: { referrer: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  const fromAd = recentClicks.filter((c) => (c.referrer ?? '').includes('fbclid')).length;
+  const referrerHosts: Record<string, number> = {};
+  for (const c of recentClicks) {
+    let host = 'direct/none';
+    try { if (c.referrer) host = new URL(c.referrer).host; } catch { host = 'unparseable'; }
+    referrerHosts[host] = (referrerHosts[host] ?? 0) + 1;
+  }
+
   const out: Record<string, unknown> = {
     campaign: campaign.songTitle,
+    attribution: {
+      conversionsSampled: recentClicks.length,
+      arrivedViaAdClick: fromAd,
+      noAdClickId: recentClicks.length - fromAd,
+      referrerHosts,
+      note:
+        'arrivedViaAdClick counts conversions whose visitor carried an fbclid (a real ad click). ' +
+        'If this is 0, Meta has nothing to attribute the conversions to and Ads Manager will ' +
+        'correctly show zero — the traffic is not coming from the ads.',
+    },
     firstParty: {
       spotifyClicks: spotify,
       playlistClicks: playlist,

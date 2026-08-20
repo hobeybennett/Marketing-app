@@ -65,8 +65,14 @@ async function sendCapiConversion(req: NextRequest, campaignId: string): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  // Log the outcome either way. Meta can return 200 while rejecting the event,
+  // and a silently-dropped event looks identical to a working one from here —
+  // which is exactly how missing attribution goes unnoticed.
+  const detail = await res.text().catch(() => '');
   if (!res.ok) {
-    console.warn('[capi] conversion send failed:', await res.text().catch(() => ''));
+    console.warn(`[capi] conversion REJECTED (${res.status}) fbc=${fbc ? 'yes' : 'MISSING'}:`, detail);
+  } else {
+    console.log(`[capi] conversion sent fbc=${fbc ? 'yes' : 'MISSING'} fbp=${fbp ? 'yes' : 'no'}:`, detail);
   }
 }
 

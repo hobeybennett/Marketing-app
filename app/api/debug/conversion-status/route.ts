@@ -182,5 +182,48 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ?test=1 — send a real Conversions API event and return Meta's verbatim
+  // reply. This is the decisive check on the SERVER-side path: the custom
+  // conversion can fire purely from the browser pixel, so "it fired" doesn't
+  // prove our CAPI calls are being accepted. Look for events_received: 1 and an
+  // empty messages array; anything else is why attribution is missing.
+  if (req.nextUrl.searchParams.get('test') === '1') {
+    try {
+      const testEvent = {
+        data: [
+          {
+            event_name: SPOTIFY_CLICK_EVENT,
+            event_time: Math.floor(Date.now() / 1000),
+            action_source: 'website',
+            event_source_url: `${process.env.NEXTAUTH_URL}/go/${campaign.id}`,
+            event_id: `debug-${Date.now()}`,
+            user_data: {
+              client_ip_address: (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || '1.1.1.1',
+              client_user_agent: req.headers.get('user-agent') ?? 'promohit-debug',
+              // A synthetic ad click id, so this mirrors a real attributed event.
+              fbc: `fb.1.${Date.now()}.debug_fbclid_test`,
+            },
+          },
+        ],
+      };
+      const capiRes = await fetch(`${META}/${pixelId}/events?access_token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testEvent),
+      });
+      out.capiTest = {
+        httpStatus: capiRes.status,
+        response: await capiRes.json().catch(() => null),
+        sentEventName: SPOTIFY_CLICK_EVENT,
+        sentSourceUrl: `${process.env.NEXTAUTH_URL}/go/${campaign.id}`,
+        note:
+          'events_received: 1 with no messages means our server-side path works and the ' +
+          'problem is attribution/reporting. An error here is the actual bug.',
+      };
+    } catch (e) {
+      out.capiTest = { exception: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   return NextResponse.json(out);
 }

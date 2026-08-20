@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from '@/lib/auth';
-import { SPOTIFY_CLICK_CONVERSION_NAME } from '@/lib/meta-campaign';
+import { SPOTIFY_CLICK_CONVERSION_NAME, SPOTIFY_CLICK_EVENT } from '@/lib/meta-campaign';
 import { extractTrackId, getSpotifyToken } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';

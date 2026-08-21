@@ -211,6 +211,44 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // What Meta has actually ATTRIBUTED to these ads. This is the number the
+  // "Promohit Spotify Click" column in Ads Manager would show — fetching it
+  // here avoids needing to add that column (custom conversions are hidden by
+  // default, which is itself a common reason this looks broken).
+  if (campaign.metaCampaignId && !campaign.metaCampaignId.startsWith('mock_')) {
+    try {
+      const ins = await (await fetch(
+        `${META}/${campaign.metaCampaignId}/insights` +
+        `?fields=spend,impressions,clicks,actions,cost_per_action_type` +
+        `&date_preset=maximum&access_token=${token}`
+      )).json();
+
+      if (ins.error) {
+        out.attributedByMeta = { error: ins.error.message };
+      } else {
+        const row = (ins.data ?? [])[0];
+        const actions: { action_type: string; value: string }[] = row?.actions ?? [];
+        const conversionKey = `offsite_conversion.custom.${(out.customConversion as any)?.id ?? ''}`;
+        const attributed = actions.find((a) => a.action_type === conversionKey);
+        out.attributedByMeta = {
+          spend: row?.spend ?? '0',
+          impressions: row?.impressions ?? '0',
+          linkClicks: row?.clicks ?? '0',
+          spotifyClickConversions: attributed ? Number(attributed.value) : 0,
+          // Everything Meta did attribute — useful when the custom conversion is
+          // zero but other action types show the funnel is otherwise working.
+          allActions: actions.map((a) => `${a.action_type}=${a.value}`),
+          note:
+            'spotifyClickConversions is what Ads Manager would show in the "Promohit Spotify Click" ' +
+            'column. If it is 0 while allActions shows landing_page_view/link_click, Meta is seeing ' +
+            'the traffic but not crediting our conversion event.',
+        };
+      }
+    } catch (e) {
+      out.attributedByMeta = { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   // ?test=1 — send a real Conversions API event and return Meta's verbatim
   // reply. This is the decisive check on the SERVER-side path: the custom
   // conversion can fire purely from the browser pixel, so "it fired" doesn't

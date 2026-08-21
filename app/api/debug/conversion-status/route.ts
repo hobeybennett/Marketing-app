@@ -249,6 +249,70 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ?compare=1 — dump every custom conversion and campaign on the ad account
+  // with the config that governs attribution, so a WORKING campaign can be
+  // diffed against a broken one. Far more reliable than reasoning about which
+  // Meta setting might matter.
+  if (req.nextUrl.searchParams.get('compare') === '1') {
+    try {
+      const ccs = await (await fetch(
+        `${META}/act_${adAccountId}/customconversions` +
+        `?fields=id,name,custom_event_type,rule,last_fired_time,is_archived,event_source_id` +
+        `&limit=50&access_token=${token}`
+      )).json();
+
+      const camps = await (await fetch(
+        `${META}/act_${adAccountId}/campaigns` +
+        `?fields=id,name,objective,status,effective_status` +
+        `&limit=25&access_token=${token}`
+      )).json();
+
+      // For each campaign: how it optimises, and what Meta actually attributed.
+      const detail = await Promise.all(
+        ((camps.data ?? []) as any[]).slice(0, 12).map(async (c) => {
+          const [sets, ins] = await Promise.all([
+            fetch(`${META}/${c.id}/adsets?fields=name,optimization_goal,promoted_object,status&limit=10&access_token=${token}`).then((r) => r.json()).catch(() => null),
+            fetch(`${META}/${c.id}/insights?fields=spend,actions&date_preset=maximum&access_token=${token}`).then((r) => r.json()).catch(() => null),
+          ]);
+          const actions: any[] = ins?.data?.[0]?.actions ?? [];
+          return {
+            name: c.name,
+            objective: c.objective,
+            status: c.effective_status ?? c.status,
+            spend: ins?.data?.[0]?.spend ?? '0',
+            adSets: (sets?.data ?? []).map((s: any) => ({
+              optimizationGoal: s.optimization_goal,
+              promotedObject: s.promoted_object ?? null,
+            })),
+            // Only the conversion-ish actions — the rest is engagement noise.
+            conversionActions: actions
+              .filter((a) => /offsite_conversion|purchase|lead|complete_registration/i.test(a.action_type))
+              .map((a) => `${a.action_type}=${a.value}`),
+          };
+        }),
+      );
+
+      out.compare = {
+        customConversions: ((ccs.data ?? []) as any[]).map((c) => ({
+          id: c.id,
+          name: c.name,
+          customEventType: c.custom_event_type,
+          eventSourceId: c.event_source_id ?? null,
+          archived: c.is_archived ?? false,
+          lastFired: ago(c.last_fired_time),
+          rule: typeof c.rule === 'string' ? c.rule : JSON.stringify(c.rule),
+        })),
+        campaigns: detail,
+        note:
+          'Find the campaign with a non-empty conversionActions — that one attributes. Then diff its ' +
+          'objective / optimizationGoal / promotedObject, and its custom conversion customEventType + ' +
+          'rule, against the one that does not.',
+      };
+    } catch (e) {
+      out.compare = { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
   // ?test=1 — send a real Conversions API event and return Meta's verbatim
   // reply. This is the decisive check on the SERVER-side path: the custom
   // conversion can fire purely from the browser pixel, so "it fired" doesn't

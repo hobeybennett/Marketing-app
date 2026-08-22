@@ -84,12 +84,31 @@ export const SPOTIFY_CLICK_CONVERSION_NAME = 'Promohit Spotify Click';
 // keeps it out of the "Leads" bucket entirely.
 export const SPOTIFY_CLICK_EVENT = 'PromohitSpotifyClick';
 
+// Does an existing custom conversion's rule still match the smart-link URLs we
+// actually send? A rule pinned to an old host (e.g. one created before a domain
+// move) keeps firing for legacy campaigns while silently attributing NOTHING for
+// new ones — the event arrives, matches no rule, and every campaign reports zero
+// conversions. Returns false when none of the rule's URL conditions match.
+export function ruleMatchesSmartLink(rule: unknown, smartLinkUrl: string): boolean {
+  const ruleStr = typeof rule === 'string' ? rule : JSON.stringify(rule ?? {});
+  // Rule JSON escapes slashes ("https:\/\/host\/go\/"); normalise before testing.
+  const values = [...ruleStr.matchAll(/"i_contains"\s*:\s*"([^"]+)"/g)]
+    .map((m) => m[1].replace(/\\\//g, '/'))
+    // Only URL conditions matter here; event-name conditions are checked separately.
+    .filter((v) => v.includes('/'));
+  if (values.length === 0) return true; // no URL constraint at all — matches everything
+  return values.some((v) => smartLinkUrl.includes(v));
+}
+
 export async function ensureSpotifyClickConversion(
   adAccountId: string,
   token: string,
   pixelId: string,
   diag?: string[],
 ): Promise<string | null> {
+  const smartLinkHost = (() => {
+    try { return new URL(process.env.NEXTAUTH_URL ?? '').host; } catch { return ''; }
+  })();
   try {
     const listRes = await fetch(
       `${META_API}/act_${adAccountId}/customconversions?fields=id,name,rule,custom_event_type&limit=100&access_token=${token}`
@@ -98,10 +117,28 @@ export async function ensureSpotifyClickConversion(
     if (list.error) {
       diag?.push(`list failed: ${list.error.message} (code ${list.error.code} subcode ${list.error.error_subcode})`);
     } else if (Array.isArray(list.data)) {
-      const found = list.data.find((c: { id: string; name: string }) => c.name === SPOTIFY_CLICK_CONVERSION_NAME);
-      if (found) {
-        diag?.push(`found existing custom conversion ${found.id}`);
-        return found.id;
+      // Match on the name prefix so domain-suffixed conversions (below) are found.
+      const candidates = list.data.filter((c: { name: string }) =>
+        c.name === SPOTIFY_CLICK_CONVERSION_NAME || c.name.startsWith(`${SPOTIFY_CLICK_CONVERSION_NAME} — `));
+      const smartLinkSample = `${process.env.NEXTAUTH_URL ?? ''}/go/sample`;
+      const usable = candidates.find((c: { rule: unknown }) => ruleMatchesSmartLink(c.rule, smartLinkSample));
+
+      if (usable) {
+        diag?.push(`found existing custom conversion ${usable.id}`);
+        return usable.id;
+      }
+      if (candidates.length) {
+        // Every existing conversion is pinned to a URL we no longer serve — the
+        // classic silent breakage after a domain move. Rules are immutable once
+        // created, so make a new one scoped to the current host rather than
+        // returning an id that can never attribute.
+        diag?.push(
+          `existing custom conversion(s) do not match ${smartLinkSample} — ` +
+          `rules: ${candidates.map((c: { rule: unknown }) => JSON.stringify(c.rule)).join(' | ')}. Creating a new one.`,
+        );
+        console.warn(
+          `[meta] custom conversion rule does not match ${smartLinkSample} — creating a domain-scoped replacement`,
+        );
       }
       diag?.push(`no existing "${SPOTIFY_CLICK_CONVERSION_NAME}" among ${list.data.length} custom conversions — creating`);
       // Surface a known-good example so we can mirror its exact rule shape.
@@ -126,7 +163,11 @@ export async function ensureSpotifyClickConversion(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: SPOTIFY_CLICK_CONVERSION_NAME,
+        // Scope the name to the host so a future domain move creates a fresh,
+        // matching conversion instead of silently reusing a stale one.
+        name: smartLinkHost
+          ? `${SPOTIFY_CLICK_CONVERSION_NAME} — ${smartLinkHost}`
+          : SPOTIFY_CLICK_CONVERSION_NAME,
         // Meta's Datasets model wants event_source_id (the pixel/dataset id).
         event_source_id: pixelId,
         custom_event_type: 'OTHER',

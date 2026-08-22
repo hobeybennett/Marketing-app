@@ -140,3 +140,42 @@ describe('selectAdSetAudiences', () => {
     expect(selectAdSetAudiences([], true)).toEqual([]);
   });
 });
+
+// ── Custom conversion rule / domain matching ─────────────────────────────────
+import { ruleMatchesSmartLink } from '../lib/meta-campaign';
+
+describe('ruleMatchesSmartLink', () => {
+  // The exact rule that silently broke attribution after the domain move: it
+  // still matched legacy Railway links, so old campaigns kept converting while
+  // every new one reported zero.
+  const staleRule = '{"and":[{"event":{"eq":"PromohitSpotifyClick"}},{"or":[{"URL":{"i_contains":"promohit.up.railway.app/go/"}}]}]}';
+
+  it('rejects a rule pinned to the old host', () => {
+    expect(ruleMatchesSmartLink(staleRule, 'https://promohit.marketing/go/sample')).toBe(false);
+  });
+
+  it('still accepts that rule for the host it was built for', () => {
+    expect(ruleMatchesSmartLink(staleRule, 'https://promohit.up.railway.app/go/sample')).toBe(true);
+  });
+
+  it('accepts a path-only rule on any host', () => {
+    const pathRule = '{"and":[{"event":{"eq":"PromohitSpotifyClick"}},{"or":[{"URL":{"i_contains":"/go/"}}]}]}';
+    expect(ruleMatchesSmartLink(pathRule, 'https://promohit.marketing/go/sample')).toBe(true);
+    expect(ruleMatchesSmartLink(pathRule, 'https://anything.example/go/x')).toBe(true);
+  });
+
+  it('handles escaped slashes as Meta returns them', () => {
+    const escaped = '{"and":[{"URL":{"i_contains":"https:\\/\\/promohit.marketing\\/go\\/"}}]}';
+    expect(ruleMatchesSmartLink(escaped, 'https://promohit.marketing/go/sample')).toBe(true);
+    expect(ruleMatchesSmartLink(escaped, 'https://promohit.up.railway.app/go/sample')).toBe(false);
+  });
+
+  it('treats a rule with no URL condition as matching', () => {
+    expect(ruleMatchesSmartLink('{"and":[{"event":{"eq":"X"}}]}', 'https://promohit.marketing/go/s')).toBe(true);
+  });
+
+  it('accepts an object rule, not just a JSON string', () => {
+    const obj = { and: [{ URL: { i_contains: '/go/' } }] };
+    expect(ruleMatchesSmartLink(obj, 'https://promohit.marketing/go/s')).toBe(true);
+  });
+});

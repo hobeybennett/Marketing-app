@@ -367,6 +367,13 @@ export async function runVideoGen(campaignId: string) {
     ` (${campaign.segments.length} section(s), ${failures.length} failed)`,
   );
 
+  // Delete the downloaded background clips — they're only needed while
+  // rendering, and at up to 10 HD files per campaign they fill the volume fast.
+  // A retry re-downloads them, so nothing depends on them persisting.
+  for (const tmp of [...stockBgPaths, ...aiBgPaths]) {
+    try { fs.unlinkSync(tmp); } catch { /* already gone */ }
+  }
+
   // Record the outcome on the job so a short count is diagnosable from the API
   // instead of only from worker logs — partial failures don't fail the stage,
   // so they were previously invisible once the logs rolled.

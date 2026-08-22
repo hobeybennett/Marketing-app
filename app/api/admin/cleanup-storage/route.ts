@@ -14,6 +14,12 @@ const IN_FLIGHT = new Set(['PROCESSING', 'BUILDING', 'LAUNCHING']);
 // cover.jpg is intentionally KEPT — the smart-link landing page serves it.
 const PRUNE = ['audio.mp3', 'audio.wav', 'audio.m4a', 'segments', 'videos', 'background.jpg', 'background.png', 'background.mp4'];
 
+// Downloaded render backgrounds (stock_bg_0.mp4, ai_bg_1.mp4, ai_bg.mp4). These
+// are pure scratch — re-downloaded on any re-render — but there can be ten HD
+// files per campaign, so they dominate disk use. Safe to delete at ANY status,
+// unlike PRUNE, which waits until a campaign is past content generation.
+const SCRATCH_RE = /^(stock_bg_\d+|ai_bg(_\d+)?|ai_bg_preview)\.mp4$/;
+
 async function pathSize(p: string): Promise<number> {
   try {
     const st = await stat(p);
@@ -51,7 +57,21 @@ export async function GET(req: NextRequest) {
     const status = statusById.get(d.name);
     if (!status) {
       targets.push({ path: dirPath, bytes: await pathSize(dirPath), reason: 'orphan (no DB campaign)' });
-    } else if (!IN_FLIGHT.has(status)) {
+      continue;
+    }
+
+    // Scratch render backgrounds, regardless of campaign status — except while a
+    // render might be in flight and actively reading them.
+    if (!IN_FLIGHT.has(status)) {
+      for (const entry of await readdir(dirPath).catch(() => [] as string[])) {
+        if (SCRATCH_RE.test(entry)) {
+          const target = path.join(dirPath, entry);
+          targets.push({ path: target, bytes: await pathSize(target), reason: `${status}: scratch ${entry}` });
+        }
+      }
+    }
+
+    if (!IN_FLIGHT.has(status)) {
       for (const name of PRUNE) {
         const target = path.join(dirPath, name);
         if (existsSync(target)) targets.push({ path: target, bytes: await pathSize(target), reason: `${status}: ${name}` });

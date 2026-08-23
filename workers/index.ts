@@ -13,6 +13,7 @@ import { runAiVideoPreview } from './stages/ai-video-preview';
 import { runInsightsSync } from './stages/insights-sync';
 import { takePopularitySnapshot } from './stages/popularity-snapshot';
 import { runOptimisation } from './stages/optimise';
+import { runRetention } from './stages/retention';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
@@ -27,6 +28,7 @@ function makeConn() {
 // ── Repeatable jobs queue ────────────────────────────────────────────────────
 const insightsSyncQueue = new Queue('insights-sync', { connection: makeConn() });
 const optimiseQueue     = new Queue('optimise',       { connection: makeConn() });
+const retentionQueue    = new Queue('retention',      { connection: makeConn() });
 
 // Register repeatable jobs. Clear any previously-registered schedules first so
 // interval changes actually take effect (BullMQ keys repeatables by interval, so
@@ -46,6 +48,22 @@ const optimiseQueue     = new Queue('optimise',       { connection: makeConn() }
     await insightsSyncQueue.add('SYNC_ALL_LIVE', {}, { removeOnComplete: true, removeOnFail: true });
   } catch (err) {
     console.error('[worker] Failed to register insights-sync repeatable job:', err);
+  }
+
+  try {
+    for (const j of await retentionQueue.getRepeatableJobs()) {
+      await retentionQueue.removeRepeatableByKey(j.key);
+    }
+    await retentionQueue.add(
+      'PRUNE_OLD_MEDIA',
+      {},
+      { repeat: { every: 24 * 60 * 60 * 1000 }, jobId: 'retention-repeatable' }, // daily
+    );
+    // Run once on boot too, so a full volume is reclaimed on the next deploy
+    // rather than waiting up to a day.
+    await retentionQueue.add('PRUNE_OLD_MEDIA', {}, { removeOnComplete: true, removeOnFail: true });
+  } catch (err) {
+    console.error('[worker] Failed to register retention repeatable job:', err);
   }
 
   try {
@@ -118,6 +136,17 @@ optimiseWorker.on('failed', (_job: unknown, err: Error) =>
 optimiseWorker.on('error', (err) =>
   console.error('[optimise worker] error:', err.message),
 );
+
+// ── Retention worker ─────────────────────────────────────────────────────────
+const retentionWorker = new Worker(
+  'retention',
+  async () => { await runRetention(); },
+  { connection: makeConn() },
+);
+retentionWorker.on('failed', (_job: unknown, err: Error) =>
+  console.error('[retention worker] failed:', err.message),
+);
+retentionWorker.on('error', (err) => console.error('[retention worker] error:', err.message));
 
 const worker = new Worker<StageJob>(
   'campaign',

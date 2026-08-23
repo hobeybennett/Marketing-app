@@ -12,7 +12,12 @@ const IN_FLIGHT = new Set(['PROCESSING', 'BUILDING', 'LAUNCHING']);
 
 // Intermediate files safe to delete once a campaign is past content generation.
 // cover.jpg is intentionally KEPT — the smart-link landing page serves it.
-const PRUNE = ['audio.mp3', 'audio.wav', 'audio.m4a', 'segments', 'videos', 'background.jpg', 'background.png', 'background.mp4'];
+const PRUNE = ['segments', 'videos', 'background.jpg', 'background.png', 'background.mp4'];
+
+// The source track. Deleting it permanently blocks duplicating that campaign
+// (the duplicate copies this file), so it is NOT pruned by default — 35MB is a
+// cheap price for keeping a campaign relaunchable. Opt in with ?deep=1.
+const AUDIO = ['audio.mp3', 'audio.wav', 'audio.m4a'];
 
 // Downloaded render backgrounds (stock_bg_0.mp4, ai_bg_1.mp4, ai_bg.mp4). These
 // are pure scratch — re-downloaded on any re-render — but there can be ten HD
@@ -41,6 +46,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const confirm = new URL(req.url).searchParams.get('confirm') === 'yes';
+  // ?deep=1 also removes source audio — frees more, but those campaigns can no
+  // longer be duplicated.
+  const deep = new URL(req.url).searchParams.get('deep') === '1';
 
   const uploadDir = process.env.UPLOAD_DIR || '/uploads';
   if (!existsSync(uploadDir)) {
@@ -72,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!IN_FLIGHT.has(status)) {
-      for (const name of PRUNE) {
+      for (const name of deep ? [...PRUNE, ...AUDIO] : PRUNE) {
         const target = path.join(dirPath, name);
         if (existsSync(target)) targets.push({ path: target, bytes: await pathSize(target), reason: `${status}: ${name}` });
       }

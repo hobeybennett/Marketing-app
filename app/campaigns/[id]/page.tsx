@@ -502,6 +502,15 @@ function CampaignWorkspace({ campaign, params, handleAction, actionLoading, rout
             {videoDone ? 'A/B testing which section performs best' : 'Rendering…'}
           </span>
         </div>
+
+        {/* A partial render still launches, just with fewer ads — say so rather
+            than silently shipping a smaller campaign than was asked for. */}
+        {videoDone && creatives.length < totalClips && (
+          <p className="text-xs text-amber-300/90 bg-amber-900/15 border border-amber-800/40 rounded-lg px-3 py-2 mb-3">
+            {creatives.length} of {totalClips} videos rendered — {totalClips - creatives.length} couldn&apos;t be
+            made. Your campaign will still run with the ones that worked.
+          </p>
+        )}
         <div className="grid grid-cols-5 gap-2">
           {Array.from({ length: videoDone ? creatives.length : totalClips }).map((_, i) => {
             const creative = creatives[i];

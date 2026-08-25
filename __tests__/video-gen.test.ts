@@ -85,12 +85,13 @@ describe('runVideoGen', () => {
     });
   });
 
-  it('creates exactly 5 VideoCreative records', async () => {
+  // 3 vibes x 5 audio sections — the platform default (lib/video-plan).
+  it('creates one VideoCreative per vibe/section pair', async () => {
     mockPrisma.campaign.findUniqueOrThrow.mockResolvedValue(mockCampaign());
 
     await runVideoGen('camp-1');
 
-    expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(5);
+    expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(15);
   });
 
   it('sets campaign status to READY when autoLaunch is false (everything prepared)', async () => {
@@ -124,7 +125,7 @@ describe('runVideoGen', () => {
     await runVideoGen('camp-1');
 
     // Creatives are refreshed, but no status change and no META_SETUP re-dispatch.
-    expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(5);
+    expect(mockPrisma.videoCreative.create).toHaveBeenCalledTimes(15);
     expect(mockPrisma.campaign.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: expect.anything() }) }),
     );

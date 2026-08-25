@@ -9,14 +9,24 @@ import { VIBES } from './stock-video';
 //   default           one creative per vibe, sections rotating
 export type RenderPlanEntry = { vibeIndex: number; segmentIndex: number };
 
-export function vibeCountFor(segmentCount: number): number {
+// Platform defaults, in code rather than deployment config, so every
+// environment and every new signup behaves the same without anyone having to
+// remember a dashboard setting. 3 vibes x 5 sections = 15 creatives: enough
+// variety for Meta to optimise across, comfortably inside its 50-ads-per-ad-set
+// limit, and ~3 minutes to render. Env vars still override for experiments.
+export const DEFAULT_VIBE_COUNT = 3;
+export const DEFAULT_MATRIX_MODE = true;
+
+export function vibeCountFor(_segmentCount: number): number {
   const configured = parseInt(process.env.VIDEO_VIBE_COUNT ?? '', 10);
-  const fallback = segmentCount || 5;
-  return Math.min(Math.max(1, configured || fallback), VIBES.length);
+  return Math.min(Math.max(1, configured || DEFAULT_VIBE_COUNT), VIBES.length);
 }
 
 export function isMatrixMode(): boolean {
-  return process.env.VIDEO_MATRIX === 'true';
+  const raw = process.env.VIDEO_MATRIX;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return DEFAULT_MATRIX_MODE;
 }
 
 export function buildRenderPlan(segmentCount: number): RenderPlanEntry[] {

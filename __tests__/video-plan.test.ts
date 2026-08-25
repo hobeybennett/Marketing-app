@@ -13,14 +13,15 @@ afterEach(() => {
 });
 
 describe('buildRenderPlan', () => {
-  it('defaults to one creative per audio section (unchanged behaviour)', () => {
+  it('defaults to the platform setup: 3 vibes x 5 sections = 15', () => {
     delete process.env.VIDEO_VIBE_COUNT;
     delete process.env.VIDEO_MATRIX;
     const plan = buildRenderPlan(5);
-    expect(plan).toHaveLength(5);
-    // Each creative gets its own vibe and its own section.
-    expect(plan.map((p) => p.vibeIndex)).toEqual([0, 1, 2, 3, 4]);
-    expect(plan.map((p) => p.segmentIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(plan).toHaveLength(15);
+    // Every vibe/section pair exactly once, with no env configuration at all —
+    // a fresh environment must behave like production.
+    expect(new Set(plan.map((p) => `${p.vibeIndex}:${p.segmentIndex}`)).size).toBe(15);
+    expect(Math.max(...plan.map((p) => p.vibeIndex))).toBe(2);
   });
 
   it('builds the full matrix: 10 vibes × 5 sections = 50 variants', () => {
@@ -44,7 +45,7 @@ describe('buildRenderPlan', () => {
 
   it('rotates sections when there are more vibes than sections (non-matrix)', () => {
     process.env.VIDEO_VIBE_COUNT = '7';
-    delete process.env.VIDEO_MATRIX;
+    process.env.VIDEO_MATRIX = 'false';
     const plan = buildRenderPlan(3);
     expect(plan).toHaveLength(7);
     expect(plan.map((p) => p.segmentIndex)).toEqual([0, 1, 2, 0, 1, 2, 0]);
@@ -58,10 +59,14 @@ describe('buildRenderPlan', () => {
     expect(plan.every((p) => p.segmentIndex === 0)).toBe(true);
   });
 
-  it('treats any value other than "true" as matrix off', () => {
+  it('only an explicit "false" turns the matrix off', () => {
     process.env.VIDEO_MATRIX = 'false';
     expect(isMatrixMode()).toBe(false);
+    // Anything unrecognised falls back to the platform default rather than
+    // silently halving what every campaign produces.
     process.env.VIDEO_MATRIX = '1';
-    expect(isMatrixMode()).toBe(false);
+    expect(isMatrixMode()).toBe(true);
+    delete process.env.VIDEO_MATRIX;
+    expect(isMatrixMode()).toBe(true);
   });
 });
